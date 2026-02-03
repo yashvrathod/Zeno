@@ -39,12 +39,14 @@ async function fetchProblem(id: string): Promise<LoadedProblem> {
     const data = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(data.error || 'Failed to load problem');
   }
-  const data = (await res.json()) as { problem: any };
+  const data = (await res.json()) as { problem: unknown };
+  const problem = data.problem as Record<string, unknown>;
+
   // Normalize tags/starterCode from Json
   return {
-    ...data.problem,
-    tags: Array.isArray(data.problem.tags) ? data.problem.tags : null,
-    starterCode: data.problem.starterCode ?? null,
+    ...(problem as unknown as LoadedProblem),
+    tags: Array.isArray(problem.tags) ? (problem.tags as string[]) : null,
+    starterCode: (problem.starterCode as Record<string, string> | null | undefined) ?? null,
   } as LoadedProblem;
 }
 

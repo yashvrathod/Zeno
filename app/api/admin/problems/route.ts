@@ -1,20 +1,10 @@
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAdmin } from '@/lib/admin';
-
-type CreateProblemBody = {
-  slug: string;
-  title: string;
-  statementMd: string;
-  constraintsMd?: string | null;
-  difficulty?: 'EASY' | 'MEDIUM' | 'HARD';
-  isPublished?: boolean;
-  tags?: string[];
-  patternIds?: string[];
-  hints?: string[]; // markdown strings in order
-  starterCode?: Record<string, string>; // language -> code
-  testCases?: Array<{ input: string; expected: string; isHidden?: boolean }>; // order derived
-};
+import { isPrismaKnownError, prismaErrorToHttp } from '@/lib/httpErrors';
+import { CreateProblemSchema, normalizeTestCases } from '@/lib/validation/adminProblem';
 
 export async function GET() {
   const admin = await requireAdmin();
@@ -39,55 +29,68 @@ export async function POST(req: Request) {
   const admin = await requireAdmin();
   if (!admin.ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  // If you see `prisma.problem is undefined`, your Prisma Client is stale.
-  // Run: `npx prisma generate` (and restart dev server) after updating schema.
-  if (!(prisma as any).problem) {
-    return NextResponse.json(
-      { error: 'Prisma Client is stale (missing model Problem). Run `npx prisma generate` and restart the server.' },
-      { status: 500 },
-    );
+  try {
+    const json = await req.json();
+    const body = CreateProblemSchema.parse(json);
+
+    // Normalize per LeetCode semantics: public and hidden orders both start at 1.
+    const normalizedTestCases = normalizeTestCases(body.testCases);
+
+    const problem = await prisma.$transaction(async (tx) => {
+      const created = await tx.problem.create({
+        data: {
+          slug: body.slug,
+          title: body.title,
+          statementMd: body.statementMd,
+          constraintsMd: body.constraintsMd ?? null,
+          difficulty: body.difficulty,
+          isPublished: body.isPublished,
+          tags: body.tags,
+          starterCode: body.starterCode,
+        },
+        select: { id: true, slug: true },
+      });
+
+      if (body.patternIds.length) {
+        await tx.problemPattern.createMany({
+          data: body.patternIds.map((patternId) => ({ problemId: created.id, patternId })),
+          skipDuplicates: true,
+        });
+      }
+
+      if (body.hints.length) {
+        await tx.hint.createMany({
+          data: body.hints
+            .map((textMd) => textMd.trim())
+            .filter(Boolean)
+            .map((textMd, idx) => ({ problemId: created.id, order: idx + 1, textMd })),
+        });
+      }
+
+      if (normalizedTestCases.length) {
+        await tx.testCase.createMany({
+          data: normalizedTestCases.map((tc) => ({
+            problemId: created.id,
+            order: tc.order,
+            input: tc.input,
+            expected: tc.expected,
+            isHidden: tc.isHidden,
+          })),
+        });
+      }
+
+      return created;
+    });
+
+    return NextResponse.json({ problem });
+  } catch (e: unknown) {
+    if (isPrismaKnownError(e)) {
+      const { status, message } = prismaErrorToHttp(e);
+      return NextResponse.json({ error: message }, { status });
+    }
+
+    // zod error or generic error
+    const message = e instanceof Error ? e.message : 'Failed to create problem';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
-
-  const body = (await req.json()) as Partial<CreateProblemBody>;
-  const slug = body.slug?.trim();
-  const title = body.title?.trim();
-  const statementMd = body.statementMd ?? '';
-
-  if (!slug || !title || !statementMd.trim()) {
-    return NextResponse.json({ error: 'slug, title, statementMd are required' }, { status: 400 });
-  }
-
-  const patternIds = Array.isArray(body.patternIds) ? body.patternIds : [];
-  const hints = Array.isArray(body.hints) ? body.hints : [];
-  const testCases = Array.isArray(body.testCases) ? body.testCases : [];
-
-  const problem = await prisma.problem.create({
-    data: {
-      slug,
-      title,
-      statementMd,
-      constraintsMd: body.constraintsMd ?? null,
-      difficulty: (body.difficulty as any) ?? 'EASY',
-      isPublished: body.isPublished ?? false,
-      tags: Array.isArray(body.tags) ? body.tags : undefined,
-      starterCode: body.starterCode ?? undefined,
-      patterns: {
-        create: patternIds.map((patternId) => ({ patternId })),
-      },
-      hints: {
-        create: hints.map((textMd, idx) => ({ order: idx + 1, textMd })),
-      },
-      testCases: {
-        create: testCases.map((tc, idx) => ({
-          order: idx + 1,
-          input: tc.input,
-          expected: tc.expected,
-          isHidden: tc.isHidden ?? false,
-        })),
-      },
-    },
-    select: { id: true, slug: true },
-  });
-
-  return NextResponse.json({ problem });
 }

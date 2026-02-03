@@ -7,6 +7,16 @@ export const LANGUAGE_CONFIG: Record<string, { language: string; version: string
   cpp: { language: 'c++', version: '10.2.0' },
 };
 
+type PistonExecuteResponse = {
+  run: {
+    stdout: string;
+    stderr: string;
+    code: number;
+    signal: string | null;
+    output?: string;
+  };
+};
+
 export async function runOnPiston({
   code,
   language,
@@ -36,9 +46,9 @@ export async function runOnPiston({
     throw new Error(`Piston error: ${res.status}`);
   }
 
-  const data = (await res.json()) as any;
-  const stdout = (data?.run?.stdout ?? '').toString();
-  const stderr = (data?.run?.stderr ?? '').toString();
+  const data = (await res.json()) as PistonExecuteResponse;
+  const stdout = (data.run.stdout ?? '').toString();
+  const stderr = (data.run.stderr ?? '').toString();
   const output = (stdout + (stderr ? `\n${stderr}` : '')).trim();
 
   return { output, raw: data };

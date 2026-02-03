@@ -1,224 +1,95 @@
 ﻿'use client';
 
-import React, { useState } from 'react';
-import { 
-  Home,
+import React, { useEffect, useMemo, useState } from 'react';
+import Navbar from '@/components/Navbar';
+import Sidebar from '@/components/Sidebar';
+import {
   Users,
-  MessageCircle,
-  Bookmark,
-  MoreHorizontal,
-  Bell,
-  Settings,
-  Search,
-  Code,
-  Filter,
   ChevronDown,
   CheckCircle2,
   Circle,
   Clock,
   TrendingUp,
-  BarChart3,
-  Target
 } from 'lucide-react';
 
-export default function ProblemsPage() {
-  const [selectedPattern, setSelectedPattern] = useState<string | null>(null);
-  const [expandedPattern, setExpandedPattern] = useState<string | null>(null);
+type ApiPattern = {
+  id: string;
+  name: string;
+  description: string | null;
+  problemCount: number;
+  problems: Array<{ id: string; slug: string; title: string; difficulty: 'EASY' | 'MEDIUM' | 'HARD' }>;
+};
 
-  const patterns = [
-    {
-      id: 1,
-      name: "Two Pointers",
-      description: "Use two pointers to solve problems efficiently in linear time",
-      icon: "👆",
-      problemCount: 25,
-      completed: 8,
-      difficulty: "Easy to Medium",
-      problems: [
-        { id: 1, title: "Two Sum II - Input Array Is Sorted", difficulty: "Easy", leetcodeId: 167, status: "solved" },
-        { id: 11, title: "Container With Most Water", difficulty: "Medium", leetcodeId: 11, status: "solved" },
-        { id: 15, title: "3Sum", difficulty: "Medium", leetcodeId: 15, status: "attempted" },
-        { id: 42, title: "Trapping Rain Water", difficulty: "Hard", leetcodeId: 42, status: "unsolved" },
-        { id: 125, title: "Valid Palindrome", difficulty: "Easy", leetcodeId: 125, status: "solved" },
-      ]
-    },
-    {
-      id: 2,
-      name: "Sliding Window",
-      description: "Master the sliding window technique for substring and subarray problems",
-      icon: "🪟",
-      problemCount: 20,
-      completed: 5,
-      difficulty: "Medium",
-      problems: [
-        { id: 3, title: "Longest Substring Without Repeating Characters", difficulty: "Medium", leetcodeId: 3, status: "solved" },
-        { id: 76, title: "Minimum Window Substring", difficulty: "Hard", leetcodeId: 76, status: "unsolved" },
-        { id: 438, title: "Find All Anagrams in a String", difficulty: "Medium", leetcodeId: 438, status: "attempted" },
-        { id: 567, title: "Permutation in String", difficulty: "Medium", leetcodeId: 567, status: "unsolved" },
-        { id: 424, title: "Longest Repeating Character Replacement", difficulty: "Medium", leetcodeId: 424, status: "solved" },
-      ]
-    },
-    {
-      id: 3,
-      name: "Fast & Slow Pointers",
-      description: "Detect cycles and find middle elements using two-speed pointers",
-      icon: "🐇🐢",
-      problemCount: 15,
-      completed: 3,
-      difficulty: "Easy to Medium",
-      problems: [
-        { id: 141, title: "Linked List Cycle", difficulty: "Easy", leetcodeId: 141, status: "solved" },
-        { id: 142, title: "Linked List Cycle II", difficulty: "Medium", leetcodeId: 142, status: "solved" },
-        { id: 876, title: "Middle of the Linked List", difficulty: "Easy", leetcodeId: 876, status: "solved" },
-        { id: 202, title: "Happy Number", difficulty: "Easy", leetcodeId: 202, status: "unsolved" },
-        { id: 287, title: "Find the Duplicate Number", difficulty: "Medium", leetcodeId: 287, status: "unsolved" },
-      ]
-    },
-    {
-      id: 4,
-      name: "Merge Intervals",
-      description: "Learn to merge and handle overlapping intervals efficiently",
-      icon: "📊",
-      problemCount: 12,
-      completed: 2,
-      difficulty: "Medium",
-      problems: [
-        { id: 56, title: "Merge Intervals", difficulty: "Medium", leetcodeId: 56, status: "solved" },
-        { id: 57, title: "Insert Interval", difficulty: "Medium", leetcodeId: 57, status: "attempted" },
-        { id: 252, title: "Meeting Rooms", difficulty: "Easy", leetcodeId: 252, status: "unsolved" },
-        { id: 253, title: "Meeting Rooms II", difficulty: "Medium", leetcodeId: 253, status: "unsolved" },
-        { id: 435, title: "Non-overlapping Intervals", difficulty: "Medium", leetcodeId: 435, status: "unsolved" },
-      ]
-    },
-    {
-      id: 5,
-      name: "Binary Search",
-      description: "Master binary search variations and applications",
-      icon: "🔍",
-      problemCount: 30,
-      completed: 10,
-      difficulty: "Easy to Hard",
-      problems: [
-        { id: 704, title: "Binary Search", difficulty: "Easy", leetcodeId: 704, status: "solved" },
-        { id: 33, title: "Search in Rotated Sorted Array", difficulty: "Medium", leetcodeId: 33, status: "solved" },
-        { id: 4, title: "Median of Two Sorted Arrays", difficulty: "Hard", leetcodeId: 4, status: "unsolved" },
-        { id: 153, title: "Find Minimum in Rotated Sorted Array", difficulty: "Medium", leetcodeId: 153, status: "attempted" },
-        { id: 74, title: "Search a 2D Matrix", difficulty: "Medium", leetcodeId: 74, status: "solved" },
-      ]
-    },
-    {
-      id: 6,
-      name: "Top K Elements",
-      description: "Use heaps to efficiently find top K elements",
-      icon: "🏆",
-      problemCount: 18,
-      completed: 4,
-      difficulty: "Medium to Hard",
-      problems: [
-        { id: 215, title: "Kth Largest Element in an Array", difficulty: "Medium", leetcodeId: 215, status: "solved" },
-        { id: 347, title: "Top K Frequent Elements", difficulty: "Medium", leetcodeId: 347, status: "solved" },
-        { id: 692, title: "Top K Frequent Words", difficulty: "Medium", leetcodeId: 692, status: "attempted" },
-        { id: 973, title: "K Closest Points to Origin", difficulty: "Medium", leetcodeId: 973, status: "unsolved" },
-        { id: 767, title: "Reorganize String", difficulty: "Medium", leetcodeId: 767, status: "unsolved" },
-      ]
-    },
-    {
-      id: 7,
-      name: "Tree BFS",
-      description: "Level-order traversal and breadth-first search in trees",
-      icon: "🌳",
-      problemCount: 16,
-      completed: 6,
-      difficulty: "Easy to Medium",
-      problems: [
-        { id: 102, title: "Binary Tree Level Order Traversal", difficulty: "Medium", leetcodeId: 102, status: "solved" },
-        { id: 107, title: "Binary Tree Level Order Traversal II", difficulty: "Medium", leetcodeId: 107, status: "solved" },
-        { id: 103, title: "Binary Tree Zigzag Level Order Traversal", difficulty: "Medium", leetcodeId: 103, status: "attempted" },
-        { id: 637, title: "Average of Levels in Binary Tree", difficulty: "Easy", leetcodeId: 637, status: "solved" },
-        { id: 199, title: "Binary Tree Right Side View", difficulty: "Medium", leetcodeId: 199, status: "unsolved" },
-      ]
-    },
-    {
-      id: 8,
-      name: "Tree DFS",
-      description: "Depth-first search patterns for tree problems",
-      icon: "🌲",
-      problemCount: 20,
-      completed: 7,
-      difficulty: "Easy to Hard",
-      problems: [
-        { id: 112, title: "Path Sum", difficulty: "Easy", leetcodeId: 112, status: "solved" },
-        { id: 113, title: "Path Sum II", difficulty: "Medium", leetcodeId: 113, status: "solved" },
-        { id: 257, title: "Binary Tree Paths", difficulty: "Easy", leetcodeId: 257, status: "solved" },
-        { id: 124, title: "Binary Tree Maximum Path Sum", difficulty: "Hard", leetcodeId: 124, status: "unsolved" },
-        { id: 543, title: "Diameter of Binary Tree", difficulty: "Easy", leetcodeId: 543, status: "attempted" },
-      ]
-    },
-    {
-      id: 9,
-      name: "Graph BFS/DFS",
-      description: "Graph traversal algorithms and applications",
-      icon: "🗺️",
-      problemCount: 25,
-      completed: 3,
-      difficulty: "Medium to Hard",
-      problems: [
-        { id: 200, title: "Number of Islands", difficulty: "Medium", leetcodeId: 200, status: "solved" },
-        { id: 133, title: "Clone Graph", difficulty: "Medium", leetcodeId: 133, status: "attempted" },
-        { id: 207, title: "Course Schedule", difficulty: "Medium", leetcodeId: 207, status: "unsolved" },
-        { id: 417, title: "Pacific Atlantic Water Flow", difficulty: "Medium", leetcodeId: 417, status: "unsolved" },
-        { id: 127, title: "Word Ladder", difficulty: "Hard", leetcodeId: 127, status: "unsolved" },
-      ]
-    },
-    {
-      id: 10,
-      name: "Dynamic Programming",
-      description: "Master DP patterns: 1D, 2D, knapsack, LIS, and more",
-      icon: "💡",
-      problemCount: 40,
-      completed: 5,
-      difficulty: "Medium to Hard",
-      problems: [
-        { id: 70, title: "Climbing Stairs", difficulty: "Easy", leetcodeId: 70, status: "solved" },
-        { id: 198, title: "House Robber", difficulty: "Medium", leetcodeId: 198, status: "solved" },
-        { id: 322, title: "Coin Change", difficulty: "Medium", leetcodeId: 322, status: "attempted" },
-        { id: 300, title: "Longest Increasing Subsequence", difficulty: "Medium", leetcodeId: 300, status: "unsolved" },
-        { id: 72, title: "Edit Distance", difficulty: "Hard", leetcodeId: 72, status: "unsolved" },
-      ]
-    },
-    {
-      id: 11,
-      name: "Backtracking",
-      description: "Explore all possibilities: permutations, combinations, subsets",
-      icon: "🔄",
-      problemCount: 22,
-      completed: 4,
-      difficulty: "Medium to Hard",
-      problems: [
-        { id: 78, title: "Subsets", difficulty: "Medium", leetcodeId: 78, status: "solved" },
-        { id: 46, title: "Permutations", difficulty: "Medium", leetcodeId: 46, status: "solved" },
-        { id: 39, title: "Combination Sum", difficulty: "Medium", leetcodeId: 39, status: "attempted" },
-        { id: 51, title: "N-Queens", difficulty: "Hard", leetcodeId: 51, status: "unsolved" },
-        { id: 79, title: "Word Search", difficulty: "Medium", leetcodeId: 79, status: "unsolved" },
-      ]
-    },
-    {
-      id: 12,
-      name: "Greedy Algorithms",
-      description: "Make locally optimal choices for global optimization",
-      icon: "💰",
-      problemCount: 18,
-      completed: 6,
-      difficulty: "Medium",
-      problems: [
-        { id: 55, title: "Jump Game", difficulty: "Medium", leetcodeId: 55, status: "solved" },
-        { id: 45, title: "Jump Game II", difficulty: "Medium", leetcodeId: 45, status: "attempted" },
-        { id: 134, title: "Gas Station", difficulty: "Medium", leetcodeId: 134, status: "unsolved" },
-        { id: 763, title: "Partition Labels", difficulty: "Medium", leetcodeId: 763, status: "solved" },
-        { id: 621, title: "Task Scheduler", difficulty: "Medium", leetcodeId: 621, status: "unsolved" },
-      ]
-    },
-  ];
+type UiPattern = {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  problemCount: number;
+  completed: number;
+  difficulty: string;
+  problems: Array<{ id: string; title: string; difficulty: string; leetcodeId: string; status: 'unsolved' | 'attempted' | 'solved' }>;
+};
+
+async function fetchPatterns(): Promise<ApiPattern[]> {
+  const res = await fetch('/api/patterns', { cache: 'no-store' });
+  if (!res.ok) throw new Error('Failed to load patterns');
+  const data = (await res.json()) as { patterns: ApiPattern[] };
+  return data.patterns;
+}
+
+export default function ProblemsPage() {
+  const [expandedPattern, setExpandedPattern] = useState<string | null>(null);
+  const [apiPatterns, setApiPatterns] = useState<ApiPattern[] | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    fetchPatterns()
+      .then((p) => {
+        if (mounted) setApiPatterns(p);
+      })
+      .catch(() => {
+        // fallback to empty; keep UI intact
+        if (mounted) setApiPatterns([]);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const patterns: UiPattern[] = useMemo(() => {
+    // Map backend patterns into the exact UI structure expected by current markup.
+    // We keep existing fields like icon/completed/status as placeholders for now.
+    if (apiPatterns) {
+      return apiPatterns.map((p, idx) => {
+        const iconPool = ['👆', '🪟', '🐇🐢', '📊', '🔍', '🏆', '🌳', '🌲', '🧠', '🔗'];
+        const icon = iconPool[idx % iconPool.length];
+        return {
+          id: p.id,
+          name: p.name,
+          description: p.description ?? '',
+          icon,
+          problemCount: p.problemCount,
+          completed: 0,
+          difficulty: 'Mixed',
+          problems: p.problems.map((pr) => ({
+            id: pr.id,
+            title: pr.title,
+            difficulty: pr.difficulty === 'EASY' ? 'Easy' : pr.difficulty === 'MEDIUM' ? 'Medium' : 'Hard',
+            // keep navigation working without changing UI: previously used leetcodeId
+            leetcodeId: pr.slug,
+            status: 'unsolved',
+          })),
+        };
+      });
+    }
+
+    // Initial render fallback (while loading)
+    return [];
+  }, [apiPatterns]);
+
+  // Patterns are now fetched from the backend (/api/patterns) and mapped into the same UI shape.
+  // The old hardcoded seed data was removed.
 
   const getDifficultyColor = (difficulty: string) => {
     switch(difficulty) {
@@ -238,104 +109,14 @@ export default function ProblemsPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[#0a0a0a] text-gray-100 overflow-hidden" style={{ fontFamily: 'var(--font-jetbrains-mono)' }}>
-      {/* Top Header */}
-      <header className="bg-[#0f0f0f] border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <Code className="w-6 h-6 text-white" />
-            <span className="text-white font-semibold text-lg">code.zone</span>
-          </div>
-          
-          <div className="hidden md:flex items-center bg-[#1a1a1a] rounded-lg px-4 py-2 w-64 lg:w-96">
-            <Search className="w-4 h-4 text-gray-500 mr-2" />
-            <input 
-              type="text" 
-              placeholder="Search problems..."
-              className="bg-transparent border-none outline-none text-sm text-gray-300 w-full"
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <a href="/" className="text-gray-400 hover:text-white text-sm hidden lg:block">Feed</a>
-          <a href="/problems" className="text-orange-500 hover:text-orange-400 text-sm hidden lg:block">Problems</a>
-          <button className="text-gray-400 hover:text-white text-sm hidden lg:block">Discuss</button>
-          <a href="/profile">
-            <img 
-              src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop"
-              alt="Profile"
-              className="w-8 h-8 rounded-full hover:opacity-80 transition-opacity cursor-pointer"
-            />
-          </a>
-        </div>
-      </header>
+    <div
+      className="flex flex-col h-screen bg-[#0a0a0a] text-gray-100 overflow-hidden"
+      style={{ fontFamily: 'var(--font-jetbrains-mono)' }}
+    >
+      <Navbar />
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar */}
-        <aside className="w-64 bg-[#0f0f0f] border-r border-zinc-800 p-4 hidden lg:block overflow-y-auto">
-          <nav className="space-y-1">
-            <a href="/" className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-zinc-900 hover:text-white transition-colors">
-              <Home className="w-5 h-5" />
-              My Feed
-            </a>
-            <a href="/problems" className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gradient-to-r from-orange-500/20 to-orange-600/10 text-orange-400 font-medium">
-              <Target className="w-5 h-5" />
-              Problems
-            </a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-zinc-900 hover:text-white transition-colors">
-              <BarChart3 className="w-5 h-5" />
-              Progress
-            </a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-zinc-900 hover:text-white transition-colors">
-              <Users className="w-5 h-5" />
-              Leaderboard
-            </a>
-          </nav>
-
-          <div className="mt-6 pt-6 border-t border-zinc-800">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase mb-3">Your Stats</h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-400">Easy</span>
-                <span className="text-sm text-green-500 font-semibold">12/150</span>
-              </div>
-              <div className="w-full bg-zinc-800 rounded-full h-1.5">
-                <div className="bg-green-500 h-1.5 rounded-full" style={{width: '8%'}}></div>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-400">Medium</span>
-                <span className="text-sm text-orange-500 font-semibold">8/200</span>
-              </div>
-              <div className="w-full bg-zinc-800 rounded-full h-1.5">
-                <div className="bg-orange-500 h-1.5 rounded-full" style={{width: '4%'}}></div>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-400">Hard</span>
-                <span className="text-sm text-red-500 font-semibold">0/100</span>
-              </div>
-              <div className="w-full bg-zinc-800 rounded-full h-1.5">
-                <div className="bg-red-500 h-1.5 rounded-full" style={{width: '0%'}}></div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 pt-6 border-t border-zinc-800">
-            <a href="/profile" className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-zinc-900 rounded-lg transition-colors">
-              <img 
-                src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop"
-                alt="Robert J."
-                className="w-10 h-10 rounded-full"
-              />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-white">Robert J.</p>
-                <p className="text-xs text-gray-400">@robert_dev</p>
-              </div>
-            </a>
-          </div>
-        </aside>
+        <Sidebar />
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto bg-[#0a0a0a]">
@@ -495,7 +276,7 @@ export default function ProblemsPage() {
               <h3 className="text-white font-bold">Daily Challenge</h3>
             </div>
             <p className="text-sm text-orange-100 mb-3">
-              Complete today's challenge and earn bonus points!
+              Complete today&apos;s challenge and earn bonus points!
             </p>
             <button className="w-full bg-white text-orange-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-orange-50 transition-colors">
               Start Challenge

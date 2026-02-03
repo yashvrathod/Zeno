@@ -1,20 +1,10 @@
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { requireAdmin } from '@/lib/admin';
-
-type UpdateProblemBody = Partial<{
-  slug: string;
-  title: string;
-  statementMd: string;
-  constraintsMd: string | null;
-  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-  isPublished: boolean;
-  tags: string[];
-  patternIds: string[];
-  hints: string[];
-  starterCode: Record<string, string>;
-  testCases: Array<{ input: string; expected: string; isHidden?: boolean }>;
-}>;
+import { isPrismaKnownError, prismaErrorToHttp } from '@/lib/httpErrors';
+import { UpdateProblemSchema, normalizeTestCases } from '@/lib/validation/adminProblem';
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const admin = await requireAdmin();
@@ -47,51 +37,75 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!admin.ok) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const { id } = await params;
-  const body = (await req.json()) as UpdateProblemBody;
 
-  // Update scalar fields
-  const updated = await prisma.problem.update({
-    where: { id },
-    data: {
-      slug: typeof body.slug === 'string' ? body.slug.trim() : undefined,
-      title: typeof body.title === 'string' ? body.title.trim() : undefined,
-      statementMd: typeof body.statementMd === 'string' ? body.statementMd : undefined,
-      constraintsMd: body.constraintsMd !== undefined ? body.constraintsMd : undefined,
-      difficulty: (body.difficulty as any) ?? undefined,
-      isPublished: typeof body.isPublished === 'boolean' ? body.isPublished : undefined,
-      tags: Array.isArray(body.tags) ? body.tags : undefined,
-      starterCode: body.starterCode ?? undefined,
-    },
-    select: { id: true },
-  });
+  try {
+    const json = await req.json();
+    const body = UpdateProblemSchema.parse(json);
 
-  // Replace patterns/hints/testCases if provided
-  if (Array.isArray(body.patternIds)) {
-    await prisma.problemPattern.deleteMany({ where: { problemId: id } });
-    await prisma.problemPattern.createMany({
-      data: body.patternIds.map((patternId) => ({ problemId: id, patternId })),
+    const normalizedTestCases = body.testCases ? normalizeTestCases(body.testCases) : null;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const scalar = await tx.problem.update({
+        where: { id },
+        data: {
+          slug: typeof body.slug === 'string' ? body.slug.trim() : undefined,
+          title: typeof body.title === 'string' ? body.title.trim() : undefined,
+          statementMd: typeof body.statementMd === 'string' ? body.statementMd : undefined,
+          constraintsMd: body.constraintsMd !== undefined ? body.constraintsMd : undefined,
+          difficulty: body.difficulty,
+          isPublished: body.isPublished,
+          tags: body.tags,
+          starterCode: body.starterCode,
+        },
+        select: { id: true },
+      });
+
+      if (Array.isArray(body.patternIds)) {
+        await tx.problemPattern.deleteMany({ where: { problemId: id } });
+        if (body.patternIds.length) {
+          await tx.problemPattern.createMany({
+            data: body.patternIds.map((patternId) => ({ problemId: id, patternId })),
+            skipDuplicates: true,
+          });
+        }
+      }
+
+      if (Array.isArray(body.hints)) {
+        await tx.hint.deleteMany({ where: { problemId: id } });
+        const cleaned = body.hints.map((h) => h.trim()).filter(Boolean);
+        if (cleaned.length) {
+          await tx.hint.createMany({
+            data: cleaned.map((textMd, idx) => ({ problemId: id, order: idx + 1, textMd })),
+          });
+        }
+      }
+
+      if (normalizedTestCases) {
+        await tx.testCase.deleteMany({ where: { problemId: id } });
+        if (normalizedTestCases.length) {
+          await tx.testCase.createMany({
+            data: normalizedTestCases.map((tc) => ({
+              problemId: id,
+              order: tc.order,
+              input: tc.input,
+              expected: tc.expected,
+              isHidden: tc.isHidden,
+            })),
+          });
+        }
+      }
+
+      return scalar;
     });
-  }
 
-  if (Array.isArray(body.hints)) {
-    await prisma.hint.deleteMany({ where: { problemId: id } });
-    await prisma.hint.createMany({
-      data: body.hints.map((textMd, idx) => ({ problemId: id, order: idx + 1, textMd })),
-    });
-  }
+    return NextResponse.json({ problem: updated });
+  } catch (e: unknown) {
+    if (isPrismaKnownError(e)) {
+      const { status, message } = prismaErrorToHttp(e);
+      return NextResponse.json({ error: message }, { status });
+    }
 
-  if (Array.isArray(body.testCases)) {
-    await prisma.testCase.deleteMany({ where: { problemId: id } });
-    await prisma.testCase.createMany({
-      data: body.testCases.map((tc, idx) => ({
-        problemId: id,
-        order: idx + 1,
-        input: tc.input,
-        expected: tc.expected,
-        isHidden: tc.isHidden ?? false,
-      })),
-    });
+    const message = e instanceof Error ? e.message : 'Save failed';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
-
-  return NextResponse.json({ problem: updated });
 }

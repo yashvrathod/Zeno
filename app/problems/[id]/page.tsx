@@ -18,11 +18,12 @@ import {
 } from 'lucide-react';
 import { use } from 'react';
 import Editor from '@monaco-editor/react';
+import Link from 'next/link';
 
 export default function ProblemDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   console.log('Problem ID:', id, 'Type:', typeof id);
-  const [language, setLanguage] = useState('javascript');
+  const [language, setLanguage] = useState<'javascript' | 'python' | 'java' | 'cpp'>('javascript');
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [level, setLevel] = useState(12);
@@ -33,82 +34,132 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
   const [typingSounds, setTypingSounds] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isRunningTests, setIsRunningTests] = useState(false);
-  const [testResults, setTestResults] = useState<Array<{passed: boolean, input: string, expected: string, actual: string}>>([]);
+  type TestResult = {
+    passed: boolean;
+    input: string;
+    expected: string;
+    actual: string;
+    error?: string;
+    time?: string;
+    memory?: string;
+  };
+
+  const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionResult, setSubmissionResult] = useState<{success: boolean, message: string} | null>(null);
   const [showLeftSidebar, setShowLeftSidebar] = useState(true);
   const [showRightSidebar, setShowRightSidebar] = useState(true);
-  const editorRef = useRef<any>(null);
+
+  // Resizable layout (LeetCode-style) - desktop only.
+  const [leftPanelWidth, setLeftPanelWidth] = useState<number>(350);
+  const [rightPanelWidth, setRightPanelWidth] = useState<number>(300);
+  const [consoleHeight, setConsoleHeight] = useState<number>(160);
+  const dragStateRef = useRef<
+    | null
+    | {
+        kind: 'left' | 'right' | 'console';
+        startX: number;
+        startY: number;
+        startLeft: number;
+        startRight: number;
+        startConsole: number;
+      }
+  >(null);
+
+  const editorRef = useRef<unknown>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  // Starter code templates for each language
-  const defaultStarterCode = {
-    javascript: `/**
- * @param {number[]} nums
- * @param {number} target
- * @return {number[]}
- */
-function twoSum(nums, target) {
-    // Write your solution here
-    
-}`,
-    python: `class Solution:
-    def twoSum(self, nums: List[int], target: int) -> List[int]:
-        # Write your solution here
-        pass`,
-    java: `class Solution {
-    public int[] twoSum(int[] nums, int target) {
-        // Write your solution here
-        
-    }
-}`,
-    cpp: `class Solution {
-public:
-    vector<int> twoSum(vector<int>& nums, int target) {
-        // Write your solution here
-        
-    }
-};`,
-  };
 
-  const starterCodeTemplates: Record<string, Record<string, string>> = {
-    '1': defaultStarterCode,
-    '2': defaultStarterCode, // Add more problems here
-    '3': defaultStarterCode,
-  };
-  
-  console.log('Starter templates:', Object.keys(starterCodeTemplates));
+  // Load real problem data from backend
+  const [dbProblem, setDbProblem] = useState<null | {  
+    id: string;
+    slug: string;
+    title: string;
+    statementMd: string;
+    constraintsMd: string | null;
+    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+    hints: string[];
+    publicTestCases: Array<{ order: number; input: string; expected: string }>;
+    starterCode: Record<string, string>;
+  }>(null);
 
-  // Get the initial starter code for current language
-  const getStarterCode = (lang: string) => {
-    console.log('Getting starter code for:', { id, lang, available: starterCodeTemplates[id] });
-    // Fallback to defaultStarterCode if specific id not found
-    const template = starterCodeTemplates[id] || defaultStarterCode;
-    return template[lang] || '';
-  };
+  // Store code for each language separately
+  const [codeByLanguage, setCodeByLanguage] = useState<Record<string, string>>({
+    javascript: '',
+    python: '',
+    java: '',
+    cpp: '',
+  });
 
-  // Store code for each language separately - initialized with starter templates
-  const [codeByLanguage, setCodeByLanguage] = useState<Record<string, string>>(() => {
-    const initial = {
-      javascript: getStarterCode('javascript'),
-      python: getStarterCode('python'),
-      java: getStarterCode('java'),
-      cpp: getStarterCode('cpp'),
+  const [code, setCode] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/problems/${id}`, { cache: 'no-store' });
+        const data = (await res.json()) as
+          | { problem: unknown }
+          | { error?: string };
+        if (!res.ok) throw new Error('error' in data ? data.error || 'Failed to load problem' : 'Failed to load problem');
+
+        const p = ('problem' in data ? data.problem : null) as {
+          id: string;
+          slug: string;
+          title: string;
+          statementMd: string;
+          constraintsMd?: string | null;
+          difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+          hints?: unknown;
+          publicTestCases?: unknown;
+          starterCode?: unknown;
+        };
+        const starter = (p.starterCode ?? {}) as Record<string, string>;
+
+        const normalized = {
+          id: p.id as string,
+          slug: p.slug as string,
+          title: p.title as string,
+          statementMd: p.statementMd as string,
+          constraintsMd: (p.constraintsMd ?? null) as string | null,
+          difficulty: p.difficulty as 'EASY' | 'MEDIUM' | 'HARD',
+          hints: Array.isArray(p.hints) ? (p.hints as string[]) : [],
+          publicTestCases: Array.isArray(p.publicTestCases) ? (p.publicTestCases as Array<{ order: number; input: string; expected: string }>) : [],
+          starterCode: starter,
+        };
+
+        if (!mounted) return;
+        setDbProblem(normalized);
+
+        const initialByLang = {
+          javascript: starter.javascript ?? '',
+          python: starter.python ?? '',
+          java: starter.java ?? '',
+          cpp: starter.cpp ?? '',
+        };
+        setCodeByLanguage(initialByLang);
+        setCode(initialByLang[language] ?? '');
+      } catch (e) {
+        if (!mounted) return;
+        setConsoleOutput(e instanceof Error ? e.message : 'Failed to load problem');
+      }
+    })();
+
+    return () => {
+      mounted = false;
     };
-    console.log('Initial codeByLanguage:', initial);
-    return initial;
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
-  const [code, setCode] = useState(() => {
-    const initialCode = getStarterCode(language);
-    console.log('Initial code:', initialCode);
-    return initialCode;
-  });
-
-  // Initialize Audio Context for typing sounds
+  // Initialize Audio Context for typing sounds + respect reduced motion
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const w = window as Window &
+        typeof globalThis & { webkitAudioContext?: typeof AudioContext };
+      const AC = w.AudioContext ?? w.webkitAudioContext;
+      audioContextRef.current = AC ? new AC() : null;
+
     }
+
     return () => {
       audioContextRef.current?.close();
     };
@@ -117,29 +168,81 @@ public:
   // Typing sound effect function
   const playTypingSound = () => {
     if (!typingSounds || !audioContextRef.current) return;
-    
+
     const ctx = audioContextRef.current;
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
-    
+
     oscillator.connect(gainNode);
     gainNode.connect(ctx.destination);
-    
+
     // Mechanical keyboard sound simulation
     oscillator.type = 'sine';
     oscillator.frequency.setValueAtTime(800 + Math.random() * 200, ctx.currentTime);
-    
+
     gainNode.gain.setValueAtTime(0.05, ctx.currentTime);
     gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05);
-    
+
     oscillator.start(ctx.currentTime);
     oscillator.stop(ctx.currentTime + 0.05);
+  };
+
+  
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const drag = dragStateRef.current;
+      if (!drag) return;
+
+      if (drag.kind === 'left') {
+        const dx = e.clientX - drag.startX;
+        const next = Math.min(560, Math.max(260, drag.startLeft + dx));
+        setLeftPanelWidth(next);
+      } else if (drag.kind === 'right') {
+        const dx = e.clientX - drag.startX;
+        const next = Math.min(520, Math.max(240, drag.startRight - dx));
+        setRightPanelWidth(next);
+      } else {
+        const dy = e.clientY - drag.startY;
+        const next = Math.min(320, Math.max(100, drag.startConsole - dy));
+        setConsoleHeight(next);
+      }
+    };
+
+    const onUp = () => {
+      dragStateRef.current = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []);
+
+  const startDrag = (kind: 'left' | 'right' | 'console') => (e: React.MouseEvent) => {
+    // Don’t allow resizing on mobile (use the existing toggles instead)
+    if (window.innerWidth < 768) return;
+
+    dragStateRef.current = {
+      kind,
+      startX: e.clientX,
+      startY: e.clientY,
+      startLeft: leftPanelWidth,
+      startRight: rightPanelWidth,
+      startConsole: consoleHeight,
+    };
+
+    document.body.style.cursor = kind === 'console' ? 'row-resize' : 'col-resize';
+    document.body.style.userSelect = 'none';
   };
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isRunning) {
-      interval = setInterval(() => setTimeElapsed(prev => prev + 1), 1000);
+      interval = setInterval(() => setTimeElapsed((prev) => prev + 1), 1000);
     }
     return () => clearInterval(interval);
   }, [isRunning]);
@@ -151,7 +254,7 @@ public:
   };
 
   // Handle language switching with code persistence
-  const handleLanguageChange = (newLanguage: string) => {
+  const handleLanguageChange = (newLanguage: 'javascript' | 'python' | 'java' | 'cpp') => {
     // Save current code before switching
     setCodeByLanguage(prev => ({
       ...prev,
@@ -162,7 +265,7 @@ public:
     setLanguage(newLanguage);
     
     // Load code for new language
-    setCode(codeByLanguage[newLanguage] || starterCodeTemplates[id]?.[newLanguage] || '');
+    setCode(codeByLanguage[newLanguage] || dbProblem?.starterCode?.[newLanguage] || '');
   };
 
   // Update code when it changes
@@ -176,22 +279,20 @@ public:
     playTypingSound();
   };
 
-  // Test cases for the problem
-  const testCases = [
-    { nums: [2, 7, 11, 15], target: 9, expected: [0, 1] },
-    { nums: [3, 2, 4], target: 6, expected: [1, 2] },
-    { nums: [3, 3], target: 6, expected: [0, 1] },
-  ];
+  // Public test cases are loaded from the backend (problem.publicTestCases).
+  const publicTestCases = dbProblem?.publicTestCases ?? [];
 
   // Run tests function with Judge0 API
   const runTests = async () => {
     setIsRunningTests(true);
-    setConsoleOutput('ΓÅ│ Compiling and running tests...\n');
+    setConsoleOutput('| Compiling and running tests...\n');
     setSubmissionResult(null);
     
     try {
-      // Call the API route
-      const response = await fetch('/api/execute', {
+      if (!dbProblem?.slug) throw new Error('Problem not loaded');
+
+      // Run only public test cases (like LeetCode "Run")
+      const response = await fetch(`/api/problems/${dbProblem.slug}/run`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -199,14 +300,13 @@ public:
         body: JSON.stringify({
           code,
           language,
-          testCases,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        setConsoleOutput(`Γ¥î Error: ${data.error || 'Failed to execute code'}`);
+        setConsoleOutput(`❌ Error: ${data.error || 'Failed to execute code'}`);
         setIsRunningTests(false);
         return;
       }
@@ -214,136 +314,63 @@ public:
       // Piston API always works (no API key needed!)
       // No need for fallback checks
 
-      // Process Judge0 results
-      const results = data.results.map((result: any) => ({
-        passed: result.passed,
-        input: result.input,
-        expected: result.expected,
-        actual: result.actual,
-        error: result.error,
-        time: result.time,
-        memory: result.memory,
-        status: result.status,
+      // Map /run API results (public tests only) into existing UI shape
+      const results = (
+        data.results as Array<{ order: number; passed: boolean; output: string; expected: string }>
+      ).map((r) => ({
+        passed: r.passed,
+        input: publicTestCases.find((t) => t.order === r.order)?.input ?? `Test #${r.order}`,
+        expected: r.expected,
+        actual: r.output,
       }));
 
       setTestResults(results);
       
       // Generate console output
       let output = '=== Test Results ===\n\n';
-      results.forEach((result: any, index: number) => {
-        output += `Test ${index + 1}: ${result.passed ? 'Γ£à PASSED' : 'Γ¥î FAILED'}\n`;
+      results.forEach((result, index: number) => {
+        output += `Test ${index + 1}: ${result.passed ? '✅ PASSED' : '❌ FAILED'}\n`;
         output += `  Input: ${result.input}\n`;
         output += `  Expected: ${result.expected}\n`;
         output += `  Got: ${result.actual}\n`;
-        
-        if (result.error) {
-          output += `  Γ¥î Error: ${result.error}\n`;
-        }
-        
-        if (result.time) {
-          output += `  ΓÅ▒∩╕Å  Time: ${result.time}s\n`;
-        }
-        
-        if (result.memory) {
-          output += `  ≡ƒÆ╛ Memory: ${result.memory} KB\n`;
-        }
-        
-        output += `  Status: ${result.status}\n\n`;
+
+        output += '\n';
       });
       
-      const passedCount = results.filter((r: any) => r.passed).length;
-      output += `\n≡ƒôè Result: ${passedCount}/${results.length} tests passed`;
+      const passedCount = results.filter((r) => r.passed).length;
+      output += `\nResult: ${passedCount}/${results.length} tests passed`;
       
       if (passedCount === results.length) {
-        output += ' ≡ƒÄë';
+        output += ' 🎉';
       }
       
       setConsoleOutput(output);
-    } catch (error: any) {
-      setConsoleOutput(`Γ¥î Network Error: ${error.message}\n\nPlease check your connection or API configuration.`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      setConsoleOutput(`❌ Network Error: ${message}\n\nPlease check your connection or API configuration.`);
     } finally {
       setIsRunningTests(false);
     }
   };
 
-  // Fallback client-side execution for JavaScript
+  // NOTE: Previously this page had a client-side Two Sum runner.
+  // All execution is now handled by server-side /run and /submit endpoints.
+  // Keeping this stub to avoid refactoring the UI further.
   const runTestsClientSide = async () => {
-    const results: Array<{passed: boolean, input: string, expected: string, actual: string, error?: string}> = [];
-    
-    try {
-      const functionMatch = code.match(/function\s+\w+\s*\([^)]*\)\s*{[\s\S]*}/);
-      if (!functionMatch) {
-        setConsoleOutput('Γ¥î Error: Could not find function definition');
-        setIsRunningTests(false);
-        return;
-      }
-
-      for (let i = 0; i < testCases.length; i++) {
-        const testCase = testCases[i];
-        try {
-          const userFunction = new Function('nums', 'target', `
-            ${code}
-            return twoSum(nums, target);
-          `);
-          
-          const result = userFunction(testCase.nums, testCase.target);
-          const passed = JSON.stringify(result?.sort()) === JSON.stringify(testCase.expected.sort());
-          
-          results.push({
-            passed,
-            input: `nums = [${testCase.nums.join(', ')}], target = ${testCase.target}`,
-            expected: JSON.stringify(testCase.expected),
-            actual: JSON.stringify(result),
-          });
-        } catch (error: any) {
-          results.push({
-            passed: false,
-            input: `nums = [${testCase.nums.join(', ')}], target = ${testCase.target}`,
-            expected: JSON.stringify(testCase.expected),
-            actual: 'Error',
-            error: error.message,
-          });
-        }
-      }
-
-      setTestResults(results);
-      
-      let output = '=== Test Results ===\n\n';
-      results.forEach((result, index) => {
-        output += `Test ${index + 1}: ${result.passed ? 'Γ£à PASSED' : 'Γ¥î FAILED'}\n`;
-        output += `  Input: ${result.input}\n`;
-        output += `  Expected: ${result.expected}\n`;
-        output += `  Got: ${result.actual}\n`;
-        if (result.error) {
-          output += `  Γ¥î Error: ${result.error}\n`;
-        }
-        output += '\n';
-      });
-      
-      const passedCount = results.filter(r => r.passed).length;
-      output += `\n≡ƒôè Result: ${passedCount}/${results.length} tests passed`;
-      
-      if (passedCount === results.length) {
-        output += ' ≡ƒÄë';
-      }
-      
-      setConsoleOutput(output);
-    } catch (error: any) {
-      setConsoleOutput(`Γ¥î Error: ${error.message}`);
-    } finally {
-      setIsRunningTests(false);
-    }
+    setConsoleOutput('Client-side runner removed. Use Run / Submit.');
   };
 
   // Submit solution function with Judge0
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    setConsoleOutput('ΓÅ│ Submitting solution and running all tests...\n');
+    setConsoleOutput('| Submitting solution and running all tests...\n');
     setSubmissionResult(null);
     
     try {
-      // Call the API route to execute all tests
-      const response = await fetch('/api/execute', {
+      if (!dbProblem?.slug) throw new Error('Problem not loaded');
+
+      // Submit runs ALL tests (public + hidden) on the server.
+      const response = await fetch(`/api/problems/${dbProblem.slug}/submit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -351,7 +378,6 @@ public:
         body: JSON.stringify({
           code,
           language,
-          testCases,
         }),
       });
 
@@ -362,7 +388,7 @@ public:
           success: false,
           message: `Error: ${data.error || 'Failed to execute code'}`
         });
-        setConsoleOutput(`Γ¥î Submission Error: ${data.error || 'Failed to execute code'}`);
+        setConsoleOutput(`❌ Submission Error: ${data.error || 'Failed to execute code'}`);
         setIsSubmitting(false);
         return;
       }
@@ -370,137 +396,48 @@ public:
       // Piston API always works (no API key needed!)
       // No need for fallback checks
 
-      // Process Judge0 results
-      const results = data.results.map((result: any) => ({
-        passed: result.passed,
-        input: result.input,
-        expected: result.expected,
-        actual: result.actual,
-        error: result.error,
-        time: result.time,
-        memory: result.memory,
-        status: result.status,
+      // Map /submit API results (public + hidden) into existing UI shape.
+      // Backend does not return hidden inputs/expected.
+      const results = (
+        data.details as Array<{ order: number; isHidden: boolean; passed: boolean; output?: string }>
+      ).map((r) => ({
+        passed: r.passed,
+        input: r.isHidden
+          ? `Hidden Test #${r.order}`
+          : (publicTestCases.find((t) => t.order === r.order)?.input ?? `Test #${r.order}`),
+        expected: r.isHidden
+          ? '(hidden)'
+          : (publicTestCases.find((t) => t.order === r.order)?.expected ?? ''),
+        // Show actual program output for public tests; keep hidden tests opaque.
+        actual: r.isHidden ? (r.passed ? 'Passed' : 'Failed') : (r.output ?? ''),
       }));
 
       setTestResults(results);
       
       // Generate console output
       let output = '=== Submission Results ===\n\n';
-      results.forEach((result: any, index: number) => {
-        output += `Test ${index + 1}: ${result.passed ? 'Γ£à PASSED' : 'Γ¥î FAILED'}\n`;
-        output += `  Input: ${result.input}\n`;
-        output += `  Expected: ${result.expected}\n`;
-        output += `  Got: ${result.actual}\n`;
-        
-        if (result.error) {
-          output += `  Γ¥î Error: ${result.error}\n`;
-        }
-        
-        if (result.time) {
-          output += `  ΓÅ▒∩╕Å  Time: ${result.time}s\n`;
-        }
-        
-        if (result.memory) {
-          output += `  ≡ƒÆ╛ Memory: ${result.memory} KB\n`;
-        }
-        
-        output += '\n';
-      });
-      
-      const passedCount = results.filter((r: any) => r.passed).length;
-      const allPassed = passedCount === results.length;
-      
-      if (allPassed) {
-        setSubmissionResult({
-          success: true,
-          message: 'Γ£à Accepted! Your solution passed all test cases. ≡ƒÄë'
-        });
-        output += '\nΓ£à ACCEPTED\nYour solution has been submitted successfully!\n\n≡ƒÄè Congratulations! Problem solved!';
-        
-        // Update XP and streak
-        setXp(prev => prev + 50);
-        setStreak(prev => prev + 1);
-      } else {
-        setSubmissionResult({
-          success: false,
-          message: `Γ¥î Wrong Answer. ${passedCount}/${results.length} tests passed.`
-        });
-        output += `\nΓ¥î WRONG ANSWER\n${passedCount}/${results.length} tests passed.\nPlease review the failed tests and try again.`;
-      }
-      
-      setConsoleOutput(output);
-    } catch (error: any) {
-      setSubmissionResult({
-        success: false,
-        message: `Error: ${error.message}`
-      });
-      setConsoleOutput(`❌ Network Error: ${error.message}\n\nPlease check your connection or API configuration.`);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Fallback client-side submission for JavaScript
-  const submitClientSide = async () => {
-    const results: Array<{passed: boolean, input: string, expected: string, actual: string, error?: string}> = [];
-    
-    try {
-      const functionMatch = code.match(/function\s+\w+\s*\([^)]*\)\s*{[\s\S]*}/);
-      if (!functionMatch) {
-        setSubmissionResult({
-          success: false,
-          message: 'Error: Could not find function definition'
-        });
-        setConsoleOutput('❌ Error: Could not find function definition');
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Execute tests
-      for (let i = 0; i < testCases.length; i++) {
-        const testCase = testCases[i];
-        try {
-          const userFunction = new Function('nums', 'target', `
-            ${code}
-            return twoSum(nums, target);
-          `);
-          
-          const result = userFunction(testCase.nums, testCase.target);
-          const passed = JSON.stringify(result?.sort()) === JSON.stringify(testCase.expected.sort());
-          
-          results.push({
-            passed,
-            input: `nums = [${testCase.nums.join(', ')}], target = ${testCase.target}`,
-            expected: JSON.stringify(testCase.expected),
-            actual: JSON.stringify(result),
-          });
-        } catch (error: any) {
-          results.push({
-            passed: false,
-            input: `nums = [${testCase.nums.join(', ')}], target = ${testCase.target}`,
-            expected: JSON.stringify(testCase.expected),
-            actual: 'Error',
-            error: error.message,
-          });
-        }
-      }
-
-      setTestResults(results);
-      
-      // Generate console output
-      let output = '=== Submission Results ===\n\n';
-      results.forEach((result, index) => {
+      results.forEach((result, index: number) => {
         output += `Test ${index + 1}: ${result.passed ? '✅ PASSED' : '❌ FAILED'}\n`;
         output += `  Input: ${result.input}\n`;
         output += `  Expected: ${result.expected}\n`;
         output += `  Got: ${result.actual}\n`;
+        
         if (result.error) {
           output += `  ❌ Error: ${result.error}\n`;
         }
+        
+        if (result.time) {
+          output += `  ⏱ Time: ${result.time}s\n`;
+        }
+        
+        if (result.memory) {
+          output += `  💾 Memory: ${result.memory} KB\n`;
+        }
+        
         output += '\n';
       });
       
-      const passedCount = results.filter(r => r.passed).length;
+      const passedCount = results.filter((r) => r.passed).length;
       const allPassed = passedCount === results.length;
       
       if (allPassed) {
@@ -508,7 +445,8 @@ public:
           success: true,
           message: '✅ Accepted! Your solution passed all test cases. 🎉'
         });
-        output += '\n✅ ACCEPTED\nYour solution has been submitted successfully!\n\n🎊 Congratulations! Problem solved!';
+        output += '\n✅ ACCEPTED\nYour solution has been submitted successfully!\n\n🎉 Congratulations! Problem solved!';
+
         
         // Update XP and streak
         setXp(prev => prev + 50);
@@ -522,36 +460,51 @@ public:
       }
       
       setConsoleOutput(output);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
       setSubmissionResult({
         success: false,
-        message: `Error: ${error.message}`
+        message: `Error: ${message}`
       });
-      setConsoleOutput(`❌ ERROR\n${error.message}`);
+      setConsoleOutput(`❌ Network Error: ${message}\n\nPlease check your connection or API configuration.`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const problem = {
-    id: 1,
-    title: "Two Sum",
-    difficulty: "Easy",
-    pattern: "Array & Hash Table",
-    description: "Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.",
-    examples: [
-      { input: "nums = [2,7,11,15], target = 9", output: "[0,1]", explanation: "nums[0] + nums[1] = 9" },
-      { input: "nums = [3,2,4], target = 6", output: "[1,2]" },
-    ],
-    constraints: [
-      "2 ≤ nums.length ≤ 10⁴",
-      "-10⁹ ≤ nums[i] ≤ 10⁹",
-      "Only one valid answer exists"
-    ],
-    hints: [
-      "Use a hash map to store complements",
-      "Single pass solution exists"
-    ]
+  // NOTE: Client-side submission was Two-Sum-specific and has been disabled.
+  const submitClientSide = async () => {
+    setSubmissionResult({ success: false, message: 'Client-side submit removed. Use Submit.' });
+    setConsoleOutput('Client-side submit removed. Use Submit.');
+  };
+
+
+  type ExampleVm = { input: string; output: string; explanation?: string };
+
+  // View model used by the existing UI. (Keeps markup unchanged.)
+  const problem: {
+    id: string;
+    title: string;
+    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+    pattern: string;
+    description: string;
+    examples: ExampleVm[];
+    constraints: string[];
+    hints: string[];
+  } = {
+    // UI previously expected a numeric id; we use slug for now.
+    id: dbProblem?.slug ?? '',
+    title: dbProblem?.title ?? 'Loading…',
+    difficulty: dbProblem?.difficulty ?? 'EASY',
+    pattern: '',
+    description: dbProblem?.statementMd ?? '',
+    // DB doesn’t have a dedicated examples field yet; derive from first public tests.
+    examples: (dbProblem?.publicTestCases ?? []).slice(0, 2).map((tc) => ({
+      input: tc.input,
+      output: tc.expected,
+    })),
+    constraints: dbProblem?.constraintsMd ? dbProblem.constraintsMd.split('\n').filter(Boolean) : [],
+    hints: dbProblem?.hints ?? [],
   };
 
   return (
@@ -567,13 +520,13 @@ public:
       {/* Top Header - VS Code Style */}
       <header className="relative z-10 bg-[#0a0a0f] border-b border-white/10 px-2 md:px-4 py-2 flex items-center justify-between">
         <div className="flex items-center gap-2 md:gap-4">
-          <a href="/problems" className="text-gray-400 hover:text-white transition-colors">
+          <Link href="/problems" className="text-gray-400 hover:text-white transition-colors">
             <ChevronLeft className="w-4 h-4 md:w-5 md:h-5" />
-          </a>
+          </Link>
           <div className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
             <span className="text-gray-500 hidden sm:inline">Problems</span>
             <ChevronRight className="w-3 h-3 md:w-4 md:h-4 text-gray-600 hidden sm:inline" />
-            <span className="text-white truncate max-w-[120px] md:max-w-none">{problem.id}. {problem.title}</span>
+            <span className="text-white truncate max-w-[180px] md:max-w-none">{problem.id ? `${problem.id} • ` : ''}{problem.title}</span>
           </div>
         </div>
 
@@ -587,7 +540,7 @@ public:
               <span className="text-yellow-400 font-semibold">{xp}</span>
             </div>
             <div className="hidden lg:flex items-center gap-1 px-1.5 md:px-2 py-0.5 md:py-1 bg-[#3e3e3e] rounded">
-              <span>≡ƒöÑ</span>
+              <span>🔥</span>
               <span className="text-orange-400 font-semibold">{streak}</span>
             </div>
           </div>
@@ -609,23 +562,26 @@ public:
       <div className="relative z-10 flex-1 flex overflow-hidden">
         
         {/* Left Sidebar - VS Code Explorer Style */}
-        <div className={`
-          ${showLeftSidebar ? 'w-full md:w-[350px]' : 'w-0'}
+        <div
+          className={`
+          ${showLeftSidebar ? 'w-full' : 'w-0'}
           bg-[#0a0a0f] border-r border-white/10 flex flex-col transition-all duration-300
           ${showLeftSidebar ? 'block' : 'hidden md:block'}
-        `}>
+        `}
+          style={{ width: showLeftSidebar ? leftPanelWidth : 0 }}
+        >
           {/* Problem Title */}
           <div className="p-4 border-b border-white/10">
             <h1 className="text-2xl font-bold mb-2">{problem.title}</h1>
             <div className="flex items-center gap-2 text-sm">
               <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                problem.difficulty === 'Easy' ? 'bg-green-500/20 text-green-400' :
-                problem.difficulty === 'Medium' ? 'bg-orange-500/20 text-orange-400' :
+                problem.difficulty === 'EASY' ? 'bg-green-500/20 text-green-400' :
+                problem.difficulty === 'MEDIUM' ? 'bg-orange-500/20 text-orange-400' :
                 'bg-red-500/20 text-red-400'
               }`}>
                 {problem.difficulty}
               </span>
-              <span className="text-gray-500">ΓÇó</span>
+              <span className="text-gray-500">•</span>
               <span className="text-gray-400">{problem.pattern}</span>
             </div>
           </div>
@@ -657,7 +613,7 @@ public:
               <h3 className="text-gray-400 uppercase text-xs font-semibold mb-2">Constraints</h3>
               <ul className="space-y-1">
                 {problem.constraints.map((c, idx) => (
-                  <li key={idx} className="text-gray-400 text-xs">ΓÇó {c}</li>
+                  <li key={idx} className="text-gray-400 text-xs">• {c}</li>
                 ))}
               </ul>
             </div>
@@ -684,6 +640,13 @@ public:
           </div>
         </div>
 
+        {/* Splitter: Left | Editor */}
+        <div
+          className="hidden md:block w-[6px] cursor-col-resize bg-transparent hover:bg-white/10 transition-colors"
+          onMouseDown={startDrag('left')}
+          title="Drag to resize"
+        />
+
         {/* Middle - Code Editor */}
         <div className="flex-1 flex flex-col bg-[#0a0a0f] border border-white/10 min-w-0">
           {/* Editor Toolbar - VS Code Tabs Style */}
@@ -709,7 +672,7 @@ public:
               <FileCode className="w-4 h-4 text-gray-400 hidden md:block" />
               <select 
                 value={language}
-                onChange={(e) => handleLanguageChange(e.target.value)}
+                onChange={(e) => handleLanguageChange(e.target.value as 'javascript' | 'python' | 'java' | 'cpp')}
                 className="bg-white/10 backdrop-blur-sm border border-white/10 text-gray-300 rounded px-2 py-1 text-xs md:text-sm focus:outline-none focus:border-blue-500/50 hover:bg-white/15 transition-all"
               >
                 <option value="javascript">JavaScript</option>
@@ -980,28 +943,48 @@ public:
             />
           </div>
 
+          {/* Splitter: Editor | Console */}
+          <div
+            className="hidden md:block h-[6px] cursor-row-resize bg-transparent hover:bg-white/10 transition-colors"
+            onMouseDown={startDrag('console')}
+            title="Drag to resize"
+          />
+
           {/* Console Output - VS Code Terminal Style */}
-          <div className="h-32 md:h-48 bg-[#0a0a0f] border-t border-white/10">
+          <div
+            className="bg-[#0a0a0f] border-t border-white/10 flex flex-col"
+            style={{ height: consoleHeight }}
+          >
             <div className="flex items-center gap-4 px-2 md:px-4 py-1.5 md:py-2 border-b border-white/10 bg-[#0a0a0f]">
               <span className="text-xs md:text-sm font-semibold">Console</span>
             </div>
-            <div className="p-2 md:p-4 font-mono text-[10px] md:text-sm text-gray-300 overflow-auto h-[calc(100%-32px)] md:h-[calc(100%-40px)]">
+            <div className="flex-1 p-2 md:p-4 font-mono text-[10px] md:text-sm text-gray-300 overflow-auto">
               {consoleOutput || 'Click "Run Tests" to see output...'}
             </div>
           </div>
         </div>
 
+        {/* Splitter: Editor | Right */}
+        <div
+          className="hidden md:block w-[6px] cursor-col-resize bg-transparent hover:bg-white/10 transition-colors"
+          onMouseDown={startDrag('right')}
+          title="Drag to resize"
+        />
+
         {/* Right Sidebar - Test Cases & Submit */}
-        <div className={`
-          ${showRightSidebar ? 'w-full md:w-[300px]' : 'w-0'}
+        <div
+          className={`
+          ${showRightSidebar ? 'w-full' : 'w-0'}
           bg-[#0a0a0f] border-l border-white/10 flex flex-col transition-all duration-300
           ${showRightSidebar ? 'block' : 'hidden md:block'}
-        `}>
+        `}
+          style={{ width: showRightSidebar ? rightPanelWidth : 0 }}
+        >
           <div className="p-4 border-b border-white/10">
             <h3 className="font-semibold mb-4">Test Cases</h3>
             <div className="space-y-2 max-h-[400px] overflow-y-auto">
               {testResults.length > 0 ? (
-                testResults.map((result: any, index: number) => (
+                testResults.map((result, index: number) => (
                   <div 
                     key={index}
                     className={`bg-[#16161f] border rounded-lg p-3 ${
@@ -1015,7 +998,7 @@ public:
                         <CheckCircle2 className="w-4 h-4 text-green-500" />
                       ) : (
                         <div className="w-4 h-4 rounded-full bg-red-500/20 flex items-center justify-center">
-                          <span className="text-red-500 text-xs">Γ£ù</span>
+                          <span className="text-red-500 text-xs">✕</span>
                         </div>
                       )}
                       <span className="text-sm font-medium">Test {index + 1}</span>
@@ -1040,15 +1023,14 @@ public:
                   </div>
                 ))
               ) : (
-                testCases.map((testCase, index) => (
+                publicTestCases.map((testCase, index) => (
                   <div key={index} className="bg-[#16161f] border border-white/10 rounded-lg p-3">
                     <div className="flex items-center gap-2 mb-2">
                       <div className="w-4 h-4 border-2 border-gray-600 rounded-full" />
                       <span className="text-sm font-medium">Test {index + 1}</span>
                     </div>
-                    <div className="text-xs text-gray-400 font-mono">
-                      nums = [{testCase.nums.join(', ')}]<br/>
-                      target = {testCase.target}
+                    <div className="text-xs text-gray-400 font-mono whitespace-pre-wrap">
+                      {testCase.input}
                     </div>
                   </div>
                 ))

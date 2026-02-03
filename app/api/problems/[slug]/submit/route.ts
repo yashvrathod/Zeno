@@ -28,7 +28,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   }
 
   let passedCount = 0;
-  const details: Array<{ order: number; isHidden: boolean; passed: boolean }> = [];
+  const details: Array<{ order: number; isHidden: boolean; passed: boolean; output?: string }> = [];
 
   for (const tc of problem.testCases) {
     const { output } = await runOnPiston({
@@ -39,7 +39,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
 
     const passed = output.trim() === tc.expected.trim();
     if (passed) passedCount++;
-    details.push({ order: tc.order, isHidden: tc.isHidden, passed });
+
+    // Only return user output for *public* tests (never leak hidden test IO).
+    details.push({
+      order: tc.order,
+      isHidden: tc.isHidden,
+      passed,
+      output: tc.isHidden ? undefined : output,
+    });
   }
 
   const total = problem.testCases.length;
