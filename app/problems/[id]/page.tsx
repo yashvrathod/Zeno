@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
@@ -186,7 +186,7 @@ public:
   // Run tests function with Judge0 API
   const runTests = async () => {
     setIsRunningTests(true);
-    setConsoleOutput('⏳ Compiling and running tests...\n');
+    setConsoleOutput('ΓÅ│ Compiling and running tests...\n');
     setSubmissionResult(null);
     
     try {
@@ -206,7 +206,7 @@ public:
       const data = await response.json();
 
       if (!response.ok) {
-        setConsoleOutput(`❌ Error: ${data.error || 'Failed to execute code'}`);
+        setConsoleOutput(`Γ¥î Error: ${data.error || 'Failed to execute code'}`);
         setIsRunningTests(false);
         return;
       }
@@ -231,36 +231,36 @@ public:
       // Generate console output
       let output = '=== Test Results ===\n\n';
       results.forEach((result: any, index: number) => {
-        output += `Test ${index + 1}: ${result.passed ? '✅ PASSED' : '❌ FAILED'}\n`;
+        output += `Test ${index + 1}: ${result.passed ? 'Γ£à PASSED' : 'Γ¥î FAILED'}\n`;
         output += `  Input: ${result.input}\n`;
         output += `  Expected: ${result.expected}\n`;
         output += `  Got: ${result.actual}\n`;
         
         if (result.error) {
-          output += `  ❌ Error: ${result.error}\n`;
+          output += `  Γ¥î Error: ${result.error}\n`;
         }
         
         if (result.time) {
-          output += `  ⏱️  Time: ${result.time}s\n`;
+          output += `  ΓÅ▒∩╕Å  Time: ${result.time}s\n`;
         }
         
         if (result.memory) {
-          output += `  💾 Memory: ${result.memory} KB\n`;
+          output += `  ≡ƒÆ╛ Memory: ${result.memory} KB\n`;
         }
         
         output += `  Status: ${result.status}\n\n`;
       });
       
       const passedCount = results.filter((r: any) => r.passed).length;
-      output += `\n📊 Result: ${passedCount}/${results.length} tests passed`;
+      output += `\n≡ƒôè Result: ${passedCount}/${results.length} tests passed`;
       
       if (passedCount === results.length) {
-        output += ' 🎉';
+        output += ' ≡ƒÄë';
       }
       
       setConsoleOutput(output);
     } catch (error: any) {
-      setConsoleOutput(`❌ Network Error: ${error.message}\n\nPlease check your connection or API configuration.`);
+      setConsoleOutput(`Γ¥î Network Error: ${error.message}\n\nPlease check your connection or API configuration.`);
     } finally {
       setIsRunningTests(false);
     }
@@ -273,7 +273,7 @@ public:
     try {
       const functionMatch = code.match(/function\s+\w+\s*\([^)]*\)\s*{[\s\S]*}/);
       if (!functionMatch) {
-        setConsoleOutput('❌ Error: Could not find function definition');
+        setConsoleOutput('Γ¥î Error: Could not find function definition');
         setIsRunningTests(false);
         return;
       }
@@ -310,26 +310,26 @@ public:
       
       let output = '=== Test Results ===\n\n';
       results.forEach((result, index) => {
-        output += `Test ${index + 1}: ${result.passed ? '✅ PASSED' : '❌ FAILED'}\n`;
+        output += `Test ${index + 1}: ${result.passed ? 'Γ£à PASSED' : 'Γ¥î FAILED'}\n`;
         output += `  Input: ${result.input}\n`;
         output += `  Expected: ${result.expected}\n`;
         output += `  Got: ${result.actual}\n`;
         if (result.error) {
-          output += `  ❌ Error: ${result.error}\n`;
+          output += `  Γ¥î Error: ${result.error}\n`;
         }
         output += '\n';
       });
       
       const passedCount = results.filter(r => r.passed).length;
-      output += `\n📊 Result: ${passedCount}/${results.length} tests passed`;
+      output += `\n≡ƒôè Result: ${passedCount}/${results.length} tests passed`;
       
       if (passedCount === results.length) {
-        output += ' 🎉';
+        output += ' ≡ƒÄë';
       }
       
       setConsoleOutput(output);
     } catch (error: any) {
-      setConsoleOutput(`❌ Error: ${error.message}`);
+      setConsoleOutput(`Γ¥î Error: ${error.message}`);
     } finally {
       setIsRunningTests(false);
     }
@@ -338,7 +338,7 @@ public:
   // Submit solution function with Judge0
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    setConsoleOutput('⏳ Submitting solution and running all tests...\n');
+    setConsoleOutput('ΓÅ│ Submitting solution and running all tests...\n');
     setSubmissionResult(null);
     
     try {
@@ -362,7 +362,7 @@ public:
           success: false,
           message: `Error: ${data.error || 'Failed to execute code'}`
         });
-        setConsoleOutput(`❌ Submission Error: ${data.error || 'Failed to execute code'}`);
+        setConsoleOutput(`Γ¥î Submission Error: ${data.error || 'Failed to execute code'}`);
         setIsSubmitting(false);
         return;
       }
@@ -387,21 +387,21 @@ public:
       // Generate console output
       let output = '=== Submission Results ===\n\n';
       results.forEach((result: any, index: number) => {
-        output += `Test ${index + 1}: ${result.passed ? '✅ PASSED' : '❌ FAILED'}\n`;
+        output += `Test ${index + 1}: ${result.passed ? 'Γ£à PASSED' : 'Γ¥î FAILED'}\n`;
         output += `  Input: ${result.input}\n`;
         output += `  Expected: ${result.expected}\n`;
         output += `  Got: ${result.actual}\n`;
         
         if (result.error) {
-          output += `  ❌ Error: ${result.error}\n`;
+          output += `  Γ¥î Error: ${result.error}\n`;
         }
         
         if (result.time) {
-          output += `  ⏱️  Time: ${result.time}s\n`;
+          output += `  ΓÅ▒∩╕Å  Time: ${result.time}s\n`;
         }
         
         if (result.memory) {
-          output += `  💾 Memory: ${result.memory} KB\n`;
+          output += `  ≡ƒÆ╛ Memory: ${result.memory} KB\n`;
         }
         
         output += '\n';
@@ -413,9 +413,9 @@ public:
       if (allPassed) {
         setSubmissionResult({
           success: true,
-          message: '✅ Accepted! Your solution passed all test cases. 🎉'
+          message: 'Γ£à Accepted! Your solution passed all test cases. ≡ƒÄë'
         });
-        output += '\n✅ ACCEPTED\nYour solution has been submitted successfully!\n\n🎊 Congratulations! Problem solved!';
+        output += '\nΓ£à ACCEPTED\nYour solution has been submitted successfully!\n\n≡ƒÄè Congratulations! Problem solved!';
         
         // Update XP and streak
         setXp(prev => prev + 50);
@@ -423,9 +423,9 @@ public:
       } else {
         setSubmissionResult({
           success: false,
-          message: `❌ Wrong Answer. ${passedCount}/${results.length} tests passed.`
+          message: `Γ¥î Wrong Answer. ${passedCount}/${results.length} tests passed.`
         });
-        output += `\n❌ WRONG ANSWER\n${passedCount}/${results.length} tests passed.\nPlease review the failed tests and try again.`;
+        output += `\nΓ¥î WRONG ANSWER\n${passedCount}/${results.length} tests passed.\nPlease review the failed tests and try again.`;
       }
       
       setConsoleOutput(output);
@@ -587,7 +587,7 @@ public:
               <span className="text-yellow-400 font-semibold">{xp}</span>
             </div>
             <div className="hidden lg:flex items-center gap-1 px-1.5 md:px-2 py-0.5 md:py-1 bg-[#3e3e3e] rounded">
-              <span>🔥</span>
+              <span>≡ƒöÑ</span>
               <span className="text-orange-400 font-semibold">{streak}</span>
             </div>
           </div>
@@ -625,7 +625,7 @@ public:
               }`}>
                 {problem.difficulty}
               </span>
-              <span className="text-gray-500">•</span>
+              <span className="text-gray-500">ΓÇó</span>
               <span className="text-gray-400">{problem.pattern}</span>
             </div>
           </div>
@@ -657,7 +657,7 @@ public:
               <h3 className="text-gray-400 uppercase text-xs font-semibold mb-2">Constraints</h3>
               <ul className="space-y-1">
                 {problem.constraints.map((c, idx) => (
-                  <li key={idx} className="text-gray-400 text-xs">• {c}</li>
+                  <li key={idx} className="text-gray-400 text-xs">ΓÇó {c}</li>
                 ))}
               </ul>
             </div>
@@ -949,13 +949,10 @@ public:
                 autoClosingQuotes: 'always',
                 autoSurround: 'languageDefined',
                 
-                // Indent Guides
-                renderIndentGuides: true,
-                highlightActiveIndentGuide: true,
+                // Indent Guides (renderIndentGuides deprecated - now 'guides' object)
                 renderWhitespace: 'selection',
                 
                 // Selection & Occurrence Highlighting
-                occurrencesHighlight: 'multiFile',
                 selectionHighlight: true,
                 
                 // Layout & Spacing
@@ -1018,7 +1015,7 @@ public:
                         <CheckCircle2 className="w-4 h-4 text-green-500" />
                       ) : (
                         <div className="w-4 h-4 rounded-full bg-red-500/20 flex items-center justify-center">
-                          <span className="text-red-500 text-xs">✗</span>
+                          <span className="text-red-500 text-xs">Γ£ù</span>
                         </div>
                       )}
                       <span className="text-sm font-medium">Test {index + 1}</span>

@@ -2,6 +2,11 @@
 
 import React from 'react';
 import { ArrowLeft, MapPin, Linkedin, Github, Eye, Award, Edit } from 'lucide-react';
+import { signIn, useSession } from 'next-auth/react';
+import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,55 +14,208 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
 
+type ProblemRow = {
+  title: string;
+  topic: string;
+  difficulty: string;
+};
+
+type ProfileUser = {
+  id: string;
+  name: string | null;
+  username: string | null;
+  email: string;
+  image: string | null;
+  bio: string | null;
+  location: string | null;
+  websiteUrl: string | null;
+  linkedinUrl: string | null;
+  githubUrl: string | null;
+  languages: string[];
+  skills: string[];
+  quote: string[];
+};
+
+async function fetchMe(): Promise<ProfileUser> {
+  const res = await fetch('/api/profile/me', { cache: 'no-store' });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error || 'Failed to load profile');
+  }
+  const data = (await res.json()) as { user: ProfileUser };
+  return data.user;
+}
+
 export default function ProfilePage() {
-  // Mock data based on the image
+  const { data: session, status: sessionStatus, update: updateSession } = useSession();
+  const [user, setUser] = React.useState<ProfileUser | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState('');
+
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [form, setForm] = React.useState({
+    name: '',
+    image: '',
+    bio: '',
+    location: '',
+    websiteUrl: '',
+    linkedinUrl: '',
+    githubUrl: '',
+    languages: '',
+    skills: '',
+    quote: '',
+  });
+
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const u = await fetchMe();
+        if (!mounted) return;
+        setUser(u);
+      } catch (e) {
+        if (!mounted) return;
+        setLoadError(e instanceof Error ? e.message : 'Failed to load profile');
+      } finally {
+        if (!mounted) return;
+        setLoading(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const isAuthed = sessionStatus === 'authenticated' && !!session?.user;
+  const canEdit = !!user;
+
+  const openEdit = () => {
+    if (!user) return;
+    setForm({
+      name: user.name ?? '',
+      image: user.image ?? '',
+      bio: user.bio ?? '',
+      location: user.location ?? '',
+      websiteUrl: user.websiteUrl ?? '',
+      linkedinUrl: user.linkedinUrl ?? '',
+      githubUrl: user.githubUrl ?? '',
+      languages: user.languages.join(', '),
+      skills: user.skills.join(', '),
+      quote: user.quote.join('\n'),
+    });
+    setEditOpen(true);
+  };
+
+  const save = async () => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      const payload = {
+        name: form.name.trim() || null,
+        image: form.image.trim() || null,
+        bio: form.bio.trim() || null,
+        location: form.location.trim() || null,
+        websiteUrl: form.websiteUrl.trim() || null,
+        linkedinUrl: form.linkedinUrl.trim() || null,
+        githubUrl: form.githubUrl.trim() || null,
+        languages: form.languages
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+        skills: form.skills
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+        quote: form.quote
+          .split('\n')
+          .map((s) => s.trim())
+          .filter(Boolean),
+      };
+
+      const res = await fetch('/api/profile/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || 'Failed to save profile');
+      }
+      const data = (await res.json()) as { user: ProfileUser };
+      setUser(data.user);
+      // Refresh NextAuth session so Navbar/Sidebar get the latest image/name immediately.
+      await updateSession();
+      setEditOpen(false);
+      toast.success('Profile updated');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const displayName = user?.name ?? user?.username ?? 'User';
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase())
+    .join('');
+
+  // Until we have real models for ranking/submissions, keep these UI fields as placeholders.
   const userData = {
-    name: "Ishaan Gupta",
-    email: "ishaangupta2817@gmail.com",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop",
-    quote: [
-      "My code doesn't work",
-      "I have no idea why",
-      "My code works",
-      "I have no idea why."
-    ],
-    location: "New Delhi, India",
-    linkedin: "linkedin.com/manthan_kumar",
-    github: "github.com/manthan_kumar",
-    views: 146,
-    certificates: 4,
-    globalRank: "1,84,372",
-    countryRank: "12,327",
-    percentile: "91.8%",
-    languages: ["Java", "Python", "C++"],
-    skills: ["Dynamic Programming", "Hash Table", "Array", "String", "Matrix"],
+    name: displayName,
+    email: user?.email ?? '',
+    avatar: user?.image ?? 'https://placehold.co/150x150?text=U',
+    quote:
+      user?.quote && user.quote.length
+        ? user.quote
+        : [
+            "My code doesn't work",
+            'I have no idea why',
+            'My code works',
+            'I have no idea why.',
+          ],
+    location: user?.location ?? '—',
+    linkedin: user?.linkedinUrl ?? '—',
+    github: user?.githubUrl ?? '—',
+    views: 0,
+    certificates: 0,
+    globalRank: '—',
+    countryRank: '—',
+    percentile: '—',
+    languages: user?.languages?.length ? user.languages : ['—'],
+    skills: user?.skills?.length ? user.skills : ['—'],
     badges: [
-      { icon: "🎓", achieved: true },
-      { icon: "🎯", achieved: true },
-      { icon: "👁️", achieved: false }
+      { icon: '🎓', achieved: true },
+      { icon: '🎯', achieved: true },
+      { icon: '👁️', achieved: false },
     ],
-    longestStreak: 20,
-    totalQuestions: "6/1200",
-    easyQuestions: { solved: 2, total: 400 },
-    mediumQuestions: { solved: 3, total: 400 },
-    hardQuestions: { solved: 1, total: 400 },
-    problems: [
-      { title: "Reverse Linked List", status: "solved", topic: "Linked List", difficulty: "Medium" }
-    ]
+    longestStreak: 0,
+    totalQuestions: '—',
+    easyQuestions: { solved: 0, total: 0 },
+    mediumQuestions: { solved: 0, total: 0 },
+    hardQuestions: { solved: 0, total: 0 },
+    problems: [] as ProblemRow[],
+    initials,
   };
 
   // Generate streak calendar data (grid)
-  const generateStreakData = () => {
-    const data = [];
-    
+  // Generate randomness after mount to satisfy react-hooks/purity.
+  const [streakData, setStreakData] = React.useState<number[]>([]);
+
+  React.useEffect(() => {
+    const data: number[] = [];
+
     for (let i = 0; i < 105; i++) {
       const intensity = Math.random() > 0.3 ? Math.floor(Math.random() * 4) : 0;
       data.push(intensity);
     }
-    return data;
-  };
 
-  const streakData = generateStreakData();
+    setStreakData(data);
+  }, []);
 
   // Chart data for ranking graph
   const chartPoints = [
@@ -83,12 +241,166 @@ export default function ProfilePage() {
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto bg-[#0a0a0a] p-8">
+          {loading ? (
+            <div className="text-gray-400">Loading profile…</div>
+          ) : !isAuthed ? (
+            <div className="mb-6 rounded-lg border border-zinc-800 bg-[#0f0f0f] p-4 text-sm text-gray-300">
+              <div className="mb-3">You need to sign in to view and edit your profile.</div>
+              <Button
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+                onClick={() => signIn(undefined, { callbackUrl: '/profile' })}
+              >
+                Sign in
+              </Button>
+            </div>
+          ) : loadError ? (
+            <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">
+              {loadError}
+            </div>
+          ) : null}
           <button onClick={() => window.history.back()} className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 text-sm">
             <ArrowLeft className="w-4 h-4" />
             Back
           </button>
 
           <div className="grid grid-cols-12 gap-6">
+            <Dialog open={editOpen} onOpenChange={setEditOpen}>
+              <DialogContent className="bg-[#1a1a1a] border-zinc-800 text-white">
+                <DialogHeader>
+                  <DialogTitle>Edit profile</DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Name</Label>
+                    <Input
+                      id="name"
+                      value={form.name}
+                      onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                      className="bg-[#0f0f0f] border-zinc-700 text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="image">Avatar image URL</Label>
+                    <Input
+                      id="image"
+                      value={form.image}
+                      onChange={(e) => setForm((f) => ({ ...f, image: e.target.value }))}
+                      className="bg-[#0f0f0f] border-zinc-700 text-white"
+                      placeholder="https://..."
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="bio">Bio</Label>
+                    <Input
+                      id="bio"
+                      value={form.bio}
+                      onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
+                      className="bg-[#0f0f0f] border-zinc-700 text-white"
+                      placeholder="Short bio"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="location">Location</Label>
+                    <Input
+                      id="location"
+                      value={form.location}
+                      onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+                      className="bg-[#0f0f0f] border-zinc-700 text-white"
+                      placeholder="City, Country"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="linkedin">LinkedIn URL</Label>
+                      <Input
+                        id="linkedin"
+                        value={form.linkedinUrl}
+                        onChange={(e) => setForm((f) => ({ ...f, linkedinUrl: e.target.value }))}
+                        className="bg-[#0f0f0f] border-zinc-700 text-white"
+                        placeholder="https://linkedin.com/in/..."
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="github">GitHub URL</Label>
+                      <Input
+                        id="github"
+                        value={form.githubUrl}
+                        onChange={(e) => setForm((f) => ({ ...f, githubUrl: e.target.value }))}
+                        className="bg-[#0f0f0f] border-zinc-700 text-white"
+                        placeholder="https://github.com/..."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="website">Website URL</Label>
+                    <Input
+                      id="website"
+                      value={form.websiteUrl}
+                      onChange={(e) => setForm((f) => ({ ...f, websiteUrl: e.target.value }))}
+                      className="bg-[#0f0f0f] border-zinc-700 text-white"
+                      placeholder="https://your-site.com"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="languages">Languages (comma separated)</Label>
+                    <Input
+                      id="languages"
+                      value={form.languages}
+                      onChange={(e) => setForm((f) => ({ ...f, languages: e.target.value }))}
+                      className="bg-[#0f0f0f] border-zinc-700 text-white"
+                      placeholder="Java, Python, C++"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="skills">Skills (comma separated)</Label>
+                    <Input
+                      id="skills"
+                      value={form.skills}
+                      onChange={(e) => setForm((f) => ({ ...f, skills: e.target.value }))}
+                      className="bg-[#0f0f0f] border-zinc-700 text-white"
+                      placeholder="Dynamic Programming, Hash Table"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="quote">Quote (one line per row)</Label>
+                    <textarea
+                      id="quote"
+                      value={form.quote}
+                      onChange={(e) => setForm((f) => ({ ...f, quote: e.target.value }))}
+                      className="w-full min-h-24 rounded-md bg-[#0f0f0f] border border-zinc-700 px-3 py-2 text-sm text-white outline-none focus-visible:border-orange-500"
+                      placeholder="Write your favorite lines..."
+                    />
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    variant="secondary"
+                    className="bg-[#0f0f0f] hover:bg-[#252525] border border-zinc-700 text-white"
+                    onClick={() => setEditOpen(false)}
+                    disabled={saving}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="bg-orange-500 hover:bg-orange-600 text-white"
+                    onClick={save}
+                    disabled={saving}
+                  >
+                    {saving ? 'Saving…' : 'Save'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             {/* Left Column - Profile Card */}
             <div className="col-span-5">
               <Card className="bg-[#1a1a1a] border-zinc-800 p-6">
@@ -96,7 +408,7 @@ export default function ProfilePage() {
                 <div className="flex gap-4 mb-6">
                   <Avatar className="w-16 h-16">
                     <AvatarImage src={userData.avatar} />
-                    <AvatarFallback>IG</AvatarFallback>
+                    <AvatarFallback>{userData.initials || 'U'}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
                     <h1 className="text-xl font-semibold mb-1 text-white">{userData.name}</h1>
@@ -112,7 +424,11 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Edit Profile Button */}
-                <Button className="w-full mb-6 bg-[#0f0f0f] hover:bg-[#252525] border border-zinc-700 text-white">
+                <Button
+                  className="w-full mb-6 bg-[#0f0f0f] hover:bg-[#252525] border border-zinc-700 text-white"
+                  onClick={openEdit}
+                  disabled={loading || !canEdit}
+                >
                   <Edit className="w-4 h-4 mr-2" />
                   Edit Profile
                 </Button>

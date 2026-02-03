@@ -1,17 +1,25 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
+import { signIn, signOut, useSession } from 'next-auth/react';
 import { Search, Code, User } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function Navbar() {
+  const { data: session, status } = useSession();
+  const user = session?.user;
+
+  // While NextAuth is hydrating the session on the client, avoid rendering the wrong auth CTA.
+  const isLoading = status === 'loading';
+
   return (
     <header className="bg-[#0f0f0f] border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
       <div className="flex items-center gap-6">
-        <a href="/" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2">
           <Code className="w-6 h-6 text-white" />
           <span className="text-white font-semibold text-lg">code.zone</span>
-        </a>
+        </Link>
         
         <div className="hidden md:flex items-center bg-[#1a1a1a] rounded-lg px-4 py-2 w-64 lg:w-96">
           <Search className="w-4 h-4 text-gray-500 mr-2" />
@@ -24,20 +32,49 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center gap-4">
-        <a href="/problems" className="text-gray-400 hover:text-white text-sm hidden lg:block">Problems</a>
-        <a href="/leaderboard" className="text-gray-400 hover:text-white text-sm hidden lg:block">Leaderboard</a>
+        <Link href="/problems" className="text-gray-400 hover:text-white text-sm hidden lg:block">Problems</Link>
+        <Link href="/leaderboard" className="text-gray-400 hover:text-white text-sm hidden lg:block">Leaderboard</Link>
         <button className="text-gray-400 hover:text-white text-sm hidden lg:block">Discuss</button>
         <button className="text-gray-400 hover:text-white text-sm hidden lg:block">Discover</button>
         <button className="text-gray-400 hover:text-white text-sm hidden lg:block">Hackathons</button>
         
-        <a href="/profile" className="flex items-center gap-2">
-          <Avatar className="w-8 h-8 cursor-pointer hover:opacity-80 transition-opacity">
-            <AvatarImage src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop" />
-            <AvatarFallback>
-              <User className="w-4 h-4" />
-            </AvatarFallback>
-          </Avatar>
-        </a>
+        {isLoading ? (
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-20 rounded-md bg-zinc-800 animate-pulse" />
+          </div>
+        ) : user ? (
+          <div className="flex items-center gap-3">
+            <Link href="/profile" className="flex items-center gap-2">
+              <Avatar className="w-8 h-8 cursor-pointer hover:opacity-80 transition-opacity">
+                <AvatarImage src={user.image ?? undefined} />
+                <AvatarFallback>
+                  <User className="w-4 h-4" />
+                </AvatarFallback>
+              </Avatar>
+            </Link>
+            <button
+              className="text-gray-400 hover:text-white text-sm hidden md:block"
+              onClick={() => signOut({ callbackUrl: '/' })}
+            >
+              Sign out
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button
+              className="text-gray-300 hover:text-white text-sm"
+              onClick={() => signIn(undefined, { callbackUrl: '/' })}
+            >
+              Sign in
+            </button>
+            <Link
+              href="/auth/register"
+              className="text-sm bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-md"
+            >
+              Sign up
+            </Link>
+          </div>
+        )}
       </div>
     </header>
   );

@@ -178,7 +178,7 @@ int main() {
           }
           
           passed = JSON.stringify(actualResult.sort()) === JSON.stringify(testCase.expected.sort());
-        } catch (e) {
+        } catch {
           output = submission.run.stdout?.trim() || 'No output';
           passed = false;
         }
@@ -199,11 +199,9 @@ int main() {
     }
 
     return NextResponse.json({ results });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Execution error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to execute code' },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : 'Failed to execute code';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

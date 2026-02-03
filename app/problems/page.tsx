@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import { 
@@ -62,7 +62,7 @@ export default function ProblemsPage() {
       id: 3,
       name: "Fast & Slow Pointers",
       description: "Detect cycles and find middle elements using two-speed pointers",
-      icon: "🐢🐇",
+      icon: "🐇🐢",
       problemCount: 15,
       completed: 3,
       difficulty: "Easy to Medium",
@@ -158,7 +158,7 @@ export default function ProblemsPage() {
       id: 9,
       name: "Graph BFS/DFS",
       description: "Graph traversal algorithms and applications",
-      icon: "🕸️",
+      icon: "🗺️",
       problemCount: 25,
       completed: 3,
       difficulty: "Medium to Hard",
@@ -206,7 +206,7 @@ export default function ProblemsPage() {
       id: 12,
       name: "Greedy Algorithms",
       description: "Make locally optimal choices for global optimization",
-      icon: "🎯",
+      icon: "💰",
       problemCount: 18,
       completed: 6,
       difficulty: "Medium",
@@ -471,7 +471,7 @@ export default function ProblemsPage() {
                               </table>
                               <div className="px-6 py-4 text-center border-t border-zinc-800">
                                 <button className="text-sm text-orange-400 hover:text-orange-300 font-medium">
-                                  View all {pattern.problemCount} problems →
+                                  View all {pattern.problemCount} problems ΓåÆ
                                 </button>
                               </div>
                             </div>

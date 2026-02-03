@@ -1,15 +1,7 @@
 'use client';
 
 import React from 'react';
-import { 
-  Home,
-  Users,
-  MessageCircle,
-  Bookmark,
-  MoreHorizontal,
-  Bell,
-  Settings,
-  Search,
+import {
   Camera,
   Code,
   MoreVertical,
@@ -18,95 +10,19 @@ import {
   Flame,
   Heart,
   Rocket,
-  X
+  MessageCircle,
+  X,
 } from 'lucide-react';
+import Navbar from '@/components/Navbar';
+import Sidebar from '@/components/Sidebar';
 
 export default function CodeZonePage() {
   return (
     <div className="flex flex-col h-screen bg-[#0a0a0a] text-gray-100 overflow-hidden" style={{ fontFamily: 'var(--font-jetbrains-mono)' }}>
-      {/* Top Header */}
-      <header className="bg-[#0f0f0f] border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <Code className="w-6 h-6 text-white" />
-            <span className="text-white font-semibold text-lg">code.zone</span>
-          </div>
-          
-          <div className="hidden md:flex items-center bg-[#1a1a1a] rounded-lg px-4 py-2 w-64 lg:w-96">
-            <Search className="w-4 h-4 text-gray-500 mr-2" />
-            <input 
-              type="text" 
-              placeholder="Search"
-              className="bg-transparent border-none outline-none text-sm text-gray-300 w-full"
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <a href="/problems" className="text-gray-400 hover:text-white text-sm hidden lg:block">Problems</a>
-          <button className="text-gray-400 hover:text-white text-sm hidden lg:block">Discuss</button>
-          <button className="text-gray-400 hover:text-white text-sm hidden lg:block">Discover</button>
-          <button className="text-gray-400 hover:text-white text-sm hidden lg:block">Hackathons</button>
-        </div>
-      </header>
+      <Navbar />
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar */}
-        <aside className="w-64 bg-[#0f0f0f] border-r border-zinc-800 p-4 hidden lg:block overflow-y-auto">
-          <nav className="space-y-1">
-            <a href="/" className="flex items-center gap-3 px-3 py-2 rounded-lg bg-gradient-to-r from-orange-500/20 to-orange-600/10 text-orange-400 font-medium">
-              <Home className="w-5 h-5" />
-              My Feed
-            </a>
-            <a href="/problems" className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-zinc-900 hover:text-white transition-colors">
-              <Code className="w-5 h-5" />
-              Problems
-            </a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-zinc-900 hover:text-white transition-colors">
-              <Users className="w-5 h-5" />
-              Groups
-            </a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-zinc-900 hover:text-white transition-colors">
-              <MessageCircle className="w-5 h-5" />
-              <span>Messages</span>
-              <span className="ml-auto bg-orange-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">5</span>
-            </a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-zinc-900 hover:text-white transition-colors">
-              <Bookmark className="w-5 h-5" />
-              Bookmarks
-            </a>
-            <a href="#" className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-zinc-900 hover:text-white transition-colors">
-              <MoreHorizontal className="w-5 h-5" />
-              More
-            </a>
-          </nav>
-
-          <div className="mt-6 pt-6 border-t border-zinc-800">
-            <button className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-zinc-900 hover:text-white transition-colors w-full">
-              <Bell className="w-5 h-5" />
-              <span>Notifications</span>
-              <span className="ml-auto bg-zinc-700 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">3</span>
-            </button>
-            <button className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-zinc-900 hover:text-white transition-colors w-full">
-              <Settings className="w-5 h-5" />
-              Settings
-            </button>
-          </div>
-
-          <div className="mt-6 pt-6 border-t border-zinc-800">
-            <a href="/profile" className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-zinc-900 rounded-lg transition-colors">
-              <img 
-                src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop"
-                alt="Robert J."
-                className="w-10 h-10 rounded-full"
-              />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-white">Robert J.</p>
-                <p className="text-xs text-gray-400">@robert_dev</p>
-              </div>
-            </a>
-          </div>
-        </aside>
+        <Sidebar />
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto bg-[#0a0a0a]">
@@ -183,7 +99,7 @@ export default function CodeZonePage() {
                   </div>
                   
                   <p className="text-gray-300 mb-4 leading-relaxed">
-                    As the title says, here are all the useful types that I'm using every day or create new types on top of them. I thought it might be handy for some people so I just share here and this will be updated moving forward:
+                    As the title says, here are all the useful types that I&apos;m using every day or create new types on top of them. I thought it might be handy for some people so I just share here and this will be updated moving forward:
                   </p>
 
                   <div className="bg-[#0a0a0a] rounded-lg p-4 border border-zinc-800 mb-3">
@@ -344,7 +260,7 @@ any[] = []> = Arr extends [infer H]
             <div className="space-y-4">
               <div className="text-sm">
                 <p className="text-gray-300 hover:text-white cursor-pointer mb-1">
-                  Why Isn't React Re-rendering When State is Updated with the Same Value?
+                  Why Isn&apos;t React Re-rendering When State is Updated with the Same Value?
                 </p>
                 <span className="text-xs text-gray-500">181 comments</span>
               </div>

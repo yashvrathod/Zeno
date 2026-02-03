@@ -11,3 +11,145 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  username      String?   @unique
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  avatar        String?
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Profile fields
+  bio         String?
+  location    String?
+  websiteUrl  String?
+  linkedinUrl String?
+  githubUrl   String?
+
+  // Arrays stored as JSON for portability.
+  // Example: ["Java", "Python"]
+  languages Json?
+  // Example: ["Dynamic Programming", "Hash Table"]
+  skills    Json?
+  // Example: ["line 1", "line 2"]
+  quote     Json?
+
+  accounts Account[]
+  sessions Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+model Pattern {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  problems ProblemPattern[]
+}
+
+model Problem {
+  id            String     @id @default(cuid())
+  slug          String     @unique
+  title         String
+  statementMd   String
+  constraintsMd String?
+  difficulty    Difficulty @default(EASY)
+  isPublished   Boolean    @default(false)
+
+  // Optional: for listing/search
+  tags Json?
+
+  // Language -> starter code map, e.g. {"javascript":"...","python":"..."}
+  starterCode Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patterns  ProblemPattern[]
+  hints     Hint[]
+  testCases TestCase[]
+}
+
+model ProblemPattern {
+  problemId String
+  patternId String
+
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  pattern Pattern @relation(fields: [patternId], references: [id], onDelete: Cascade)
+
+  @@id([problemId, patternId])
+}
+
+model Hint {
+  id        String @id @default(cuid())
+  problemId String
+  order     Int
+  textMd    String
+
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@unique([problemId, order])
+}
+
+model TestCase {
+  id        String  @id @default(cuid())
+  problemId String
+  order     Int
+  input     String
+  expected  String
+  isHidden  Boolean @default(false)
+
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@unique([problemId, order, isHidden])
+  @@index([problemId])
+}
