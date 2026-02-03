@@ -1,34 +1,28 @@
-'use client';
+"use client";
 
-import * as React from 'react';
-import Link from 'next/link';
-import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';Starter code
-// write solution
+import * as React from "react";
+import Link from "next/link";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
-# write solution
-
-// write solution
-
-
-import { Card } from '@/components/ui/card';
+import { Card } from "@/components/ui/card";
 
 type ProblemListItem = {
   id: string;
   slug: string;
   title: string;
-  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  difficulty: "EASY" | "MEDIUM" | "HARD";
   isPublished: boolean;
   updatedAt: string;
 };
 
 async function fetchProblems(): Promise<ProblemListItem[]> {
-  const res = await fetch('/api/admin/problems', { cache: 'no-store' });
+  const res = await fetch("/api/admin/problems", { cache: "no-store" });
   if (!res.ok) {
     const data = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(data.error || 'Failed to load problems');
+    throw new Error(data.error || "Failed to load problems");
   }
   const data = (await res.json()) as { problems: ProblemListItem[] };
   return data.problems;
@@ -37,15 +31,15 @@ async function fetchProblems(): Promise<ProblemListItem[]> {
 export default function AdminProblemsPage() {
   const [problems, setProblems] = React.useState<ProblemListItem[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [slug, setSlug] = React.useState('');
-  const [title, setTitle] = React.useState('');
+  const [slug, setSlug] = React.useState("");
+  const [title, setTitle] = React.useState("");
 
   const reload = React.useCallback(async () => {
     setLoading(true);
     try {
       setProblems(await fetchProblems());
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to load problems');
+      toast.error(e instanceof Error ? e.message : "Failed to load problems");
     } finally {
       setLoading(false);
     }
@@ -57,44 +51,44 @@ export default function AdminProblemsPage() {
 
   const create = async () => {
     try {
-      const res = await fetch('/api/admin/problems', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/admin/problems", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           slug,
           title,
           statementMd: `# ${title}\n\nWrite the problem statement here.`,
-          difficulty: 'EASY',
+          difficulty: "EASY",
           isPublished: false,
           hints: [],
           patternIds: [],
           testCases: [
-            { input: '1 2', expected: '3', isHidden: false },
-            { input: '10 20', expected: '30', isHidden: true },
+            { input: "1 2", expected: "3", isHidden: false },
+            { input: "10 20", expected: "30", isHidden: true },
           ],
           starterCode: {
-            javascript: '// write solution\n',
-            python: '# write solution\n',
-            java: '// write solution\n',
-            cpp: '// write solution\n',
+            javascript: "// write solution\n",
+            python: "# write solution\n",
+            java: "// write solution\n",
+            cpp: "// write solution\n",
           },
         }),
       });
 
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error || 'Failed to create');
+        throw new Error(data.error || "Failed to create");
       }
 
       const data = (await res.json()) as { problem: { id: string } };
-      toast.success('Problem created');
-      setSlug('');
-      setTitle('');
+      toast.success("Problem created");
+      setSlug("");
+      setTitle("");
       await reload();
       // Navigate to edit
       window.location.href = `/admin/problems/${data.problem.id}`;
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to create');
+      toast.error(e instanceof Error ? e.message : "Failed to create");
     }
   };
 
@@ -103,7 +97,11 @@ export default function AdminProblemsPage() {
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold">Admin • Problems</h1>
-          <Button asChild variant="secondary" className="bg-[#0f0f0f] border border-zinc-700 text-white">
+          <Button
+            asChild
+            variant="secondary"
+            className="bg-[#0f0f0f] border border-zinc-700 text-white"
+          >
             <Link href="/admin/patterns">Manage patterns</Link>
           </Button>
         </div>
@@ -133,7 +131,11 @@ export default function AdminProblemsPage() {
           </div>
 
           <div className="mt-4">
-            <Button className="bg-orange-500 hover:bg-orange-600 text-white" onClick={create} disabled={!slug || !title}>
+            <Button
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+              onClick={create}
+              disabled={!slug || !title}
+            >
               Create problem
             </Button>
           </div>
@@ -146,7 +148,11 @@ export default function AdminProblemsPage() {
         <Card className="bg-[#1a1a1a] border-zinc-800">
           <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
             <h2 className="text-lg font-semibold">All problems</h2>
-            <Button variant="secondary" className="bg-[#0f0f0f] border border-zinc-700 text-white" onClick={reload}>
+            <Button
+              variant="secondary"
+              className="bg-[#0f0f0f] border border-zinc-700 text-white"
+              onClick={reload}
+            >
               Refresh
             </Button>
           </div>
@@ -166,7 +172,9 @@ export default function AdminProblemsPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="text-white font-medium">{p.title}</div>
-                        <div className="text-xs text-gray-400">/{p.slug} • {p.difficulty}</div>
+                        <div className="text-xs text-gray-400">
+                          /{p.slug} • {p.difficulty}
+                        </div>
                       </div>
                       <div className="text-xs">
                         {p.isPublished ? (
