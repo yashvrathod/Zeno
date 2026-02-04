@@ -19,6 +19,17 @@ import {
 import { use } from 'react';
 import Editor from '@monaco-editor/react';
 import Link from 'next/link';
+import AIMentorWidget from '@/components/AIMentorWidget';
+
+async function safeReadJson<T>(res: Response): Promise<{ ok: true; data: T } | { ok: false; errorText: string }> {
+  try {
+    const text = await res.text();
+    if (!text) return { ok: false, errorText: '' };
+    return { ok: true, data: JSON.parse(text) as T };
+  } catch (e) {
+    return { ok: false, errorText: e instanceof Error ? e.message : 'Invalid JSON response' };
+  }
+}
 
 export default function ProblemDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -47,6 +58,11 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionResult, setSubmissionResult] = useState<{success: boolean, message: string} | null>(null);
+
+  // AI mentor event counters
+  const [runCount, setRunCount] = useState(0);
+  const [submitCount, setSubmitCount] = useState(0);
+  const [lastResult, setLastResult] = useState<'pass' | 'fail' | null>(null);
   const [showLeftSidebar, setShowLeftSidebar] = useState(true);
   const [showRightSidebar, setShowRightSidebar] = useState(true);
 
@@ -378,6 +394,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
     setIsRunningTests(true);
     setConsoleOutput('| Compiling and running tests...\n');
     setSubmissionResult(null);
+    setRunCount((c) => c + 1);
     
     try {
       if (!dbProblem?.slug) throw new Error('Problem not loaded');
@@ -394,12 +411,18 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
         }),
       });
 
-      const data = await response.json();
+      const parsed = await safeReadJson<{ results?: unknown; error?: string }>(response);
+      const data = parsed.ok ? parsed.data : {};
 
       if (!response.ok) {
-        setConsoleOutput(`❌ Error: ${data.error || 'Failed to execute code'}`);
+        const err = (data as any)?.error || (parsed.ok ? '' : parsed.errorText) || (await response.text().catch(() => ''));
+        setConsoleOutput(`❌ Error: ${err || 'Failed to execute code'}`);
         setIsRunningTests(false);
         return;
+      }
+
+      if (!parsed.ok) {
+        throw new Error('Invalid response from server');
       }
 
       // Piston API always works (no API key needed!)
@@ -430,6 +453,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
       
       const passedCount = results.filter((r) => r.passed).length;
       output += `\nResult: ${passedCount}/${results.length} tests passed`;
+      setLastResult(passedCount === results.length ? 'pass' : 'fail');
       
       if (passedCount === results.length) {
         output += ' 🎉';
@@ -456,6 +480,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
     setIsSubmitting(true);
     setConsoleOutput('| Submitting solution and running all tests...\n');
     setSubmissionResult(null);
+    setSubmitCount((c) => c + 1);
     
     try {
       if (!dbProblem?.slug) throw new Error('Problem not loaded');
@@ -472,16 +497,22 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
         }),
       });
 
-      const data = await response.json();
+      const parsed = await safeReadJson<{ details?: unknown; error?: string }>(response);
+      const data = parsed.ok ? parsed.data : {};
 
       if (!response.ok) {
+        const err = (data as any)?.error || (parsed.ok ? '' : parsed.errorText) || (await response.text().catch(() => ''));
         setSubmissionResult({
           success: false,
-          message: `Error: ${data.error || 'Failed to execute code'}`
+          message: `Error: ${err || 'Failed to execute code'}`
         });
-        setConsoleOutput(`❌ Submission Error: ${data.error || 'Failed to execute code'}`);
+        setConsoleOutput(`❌ Submission Error: ${err || 'Failed to execute code'}`);
         setIsSubmitting(false);
         return;
+      }
+
+      if (!parsed.ok) {
+        throw new Error('Invalid response from server');
       }
 
       // Piston API always works (no API key needed!)
@@ -530,6 +561,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
       
       const passedCount = results.filter((r) => r.passed).length;
       const allPassed = passedCount === results.length;
+      setLastResult(allPassed ? 'pass' : 'fail');
       
       if (allPassed) {
         setSubmissionResult({
@@ -600,6 +632,15 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="h-screen bg-gradient-to-br from-[#1e1e2e] via-[#1a1a28] to-[#16161f] text-gray-100 flex flex-col relative overflow-hidden" style={{ fontFamily: 'var(--font-jetbrains-mono)' }}>
+      <AIMentorWidget
+        problemTitle={problem.title}
+        problemStatement={problem.description}
+        language={language}
+        code={code}
+        runCount={runCount}
+        submitCount={submitCount}
+        lastResult={lastResult}
+      />
       
       {/* Subtle Background Gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-black via-transparent to-black pointer-events-none"></div>

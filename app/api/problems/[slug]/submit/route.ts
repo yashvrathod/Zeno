@@ -4,13 +4,20 @@ import { runOnPiston } from '@/lib/piston';
 import { auth } from '@/lib/auth';
 
 export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-  const { slug } = await params;
-  const body = (await req.json()) as { code: string; language: 'javascript' | 'python' | 'java' | 'cpp' };
+    const { slug } = await params;
+
+    let body: { code: string; language: 'javascript' | 'python' | 'java' | 'cpp' };
+    try {
+      body = (await req.json()) as { code: string; language: 'javascript' | 'python' | 'java' | 'cpp' };
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
   const problem = await prisma.problem.findUnique({
     where: { slug },
@@ -54,4 +61,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
 
   // IMPORTANT: do NOT return hidden test inputs/expected.
   return NextResponse.json({ allPassed, passedCount, total, details });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

@@ -3,8 +3,15 @@ import prisma from '@/lib/prisma';
 import { runOnPiston } from '@/lib/piston';
 
 export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const body = (await req.json()) as { code: string; language: 'javascript' | 'python' | 'java' | 'cpp' };
+  try {
+    const { slug } = await params;
+
+    let body: { code: string; language: 'javascript' | 'python' | 'java' | 'cpp' };
+    try {
+      body = (await req.json()) as { code: string; language: 'javascript' | 'python' | 'java' | 'cpp' };
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
   const problem = await prisma.problem.findUnique({
     where: { slug },
@@ -37,4 +44,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
 
   const passedCount = results.filter((r) => r.passed).length;
   return NextResponse.json({ passedCount, total: results.length, results });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
