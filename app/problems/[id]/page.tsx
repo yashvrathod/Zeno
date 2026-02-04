@@ -50,6 +50,20 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
   const [showLeftSidebar, setShowLeftSidebar] = useState(true);
   const [showRightSidebar, setShowRightSidebar] = useState(true);
 
+  // Track mobile viewport so we can avoid fixed pixel widths overriding `w-full`.
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Mobile section navigation (Question -> Editor -> Console -> Tests)
+  type MobileSection = 'question' | 'editor' | 'console' | 'tests';
+  const [mobileSection, setMobileSection] = useState<MobileSection>('editor');
+  const questionRef = useRef<HTMLDivElement | null>(null);
+  const editorSectionRef = useRef<HTMLDivElement | null>(null);
+  const consoleSectionRef = useRef<HTMLDivElement | null>(null);
+  const testsRef = useRef<HTMLDivElement | null>(null);
+
+  // Mobile uses a stacked layout (Question -> Editor -> Console -> Tests),
+  // so we allow all panels to be visible at the same time.
+
   // Resizable layout (LeetCode-style) - desktop only.
   const [leftPanelWidth, setLeftPanelWidth] = useState<number>(350);
   const [rightPanelWidth, setRightPanelWidth] = useState<number>(300);
@@ -157,13 +171,90 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
         typeof globalThis & { webkitAudioContext?: typeof AudioContext };
       const AC = w.AudioContext ?? w.webkitAudioContext;
       audioContextRef.current = AC ? new AC() : null;
-
     }
 
     return () => {
       audioContextRef.current?.close();
     };
   }, []);
+
+  // Keep a simple mobile flag in sync with viewport width.
+  // When entering mobile mode, default to the editor view (hide side panels).
+  const prevMobileRef = useRef(false);
+  useEffect(() => {
+    const compute = () => {
+      const nextMobile = window.innerWidth < 768;
+      setIsMobile(nextMobile);
+
+      // Only run the reset when *entering* mobile.
+      // On mobile we want a stacked view, so show everything.
+      if (nextMobile && !prevMobileRef.current) {
+        setShowLeftSidebar(true);
+        setShowRightSidebar(true);
+        setMobileSection('editor');
+      }
+      prevMobileRef.current = nextMobile;
+    };
+
+    compute();
+    window.addEventListener('resize', compute);
+    return () => window.removeEventListener('resize', compute);
+  }, []);
+
+  const scrollToMobileSection = (section: MobileSection) => {
+    if (!isMobile) return;
+
+    // Ensure stacked sections are visible
+    if (section === 'question') setShowLeftSidebar(true);
+    if (section === 'tests') setShowRightSidebar(true);
+
+    const el =
+      section === 'question'
+        ? questionRef.current
+        : section === 'editor'
+          ? editorSectionRef.current
+          : section === 'console'
+            ? consoleSectionRef.current
+            : testsRef.current;
+
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setMobileSection(section);
+  };
+
+  // Track the active section while scrolling on mobile
+  useEffect(() => {
+    if (!isMobile) return;
+
+    const targets: Array<[MobileSection, HTMLDivElement | null]> = [
+      ['question', questionRef.current],
+      ['editor', editorSectionRef.current],
+      ['console', consoleSectionRef.current],
+      ['tests', testsRef.current],
+    ];
+
+    const els = targets.map(([, el]) => el).filter(Boolean) as HTMLDivElement[];
+    if (els.length === 0) return;
+
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => (b.intersectionRatio ?? 0) - (a.intersectionRatio ?? 0))[0];
+        if (!visible?.target) return;
+
+        const found = targets.find(([, el]) => el === visible.target);
+        if (found) setMobileSection(found[0]);
+      },
+      {
+        // Prefer whichever section is closest to the top and meaningfully visible.
+        root: null,
+        threshold: [0.2, 0.35, 0.5],
+      }
+    );
+
+    els.forEach((el) => obs.observe(el));
+    return () => obs.disconnect();
+  }, [isMobile]);
 
   // Typing sound effect function
   const playTypingSound = () => {
@@ -558,17 +649,42 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
         </div>
       </header>
 
-      {/* Main Layout - 3 Column */}
-      <div className="relative z-10 flex-1 flex overflow-hidden">
+      {/* Main Layout - 3 Column on desktop, stacked on mobile */}
+      <div className="relative z-10 flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
+        {/* Mobile section tabs */}
+        <div className="md:hidden sticky top-0 z-20 bg-[#0a0a0f]/95 backdrop-blur border-b border-white/10">
+          <div className="flex items-center gap-2 px-2 py-2 overflow-x-auto">
+            {([
+              ['question', 'Question'],
+              ['editor', 'Editor'],
+              ['console', 'Console'],
+              ['tests', 'Tests'],
+            ] as Array<[MobileSection, string]>).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => scrollToMobileSection(key)}
+                className={`px-3 py-1.5 rounded-md text-xs border transition-colors whitespace-nowrap ${
+                  mobileSection === key
+                    ? 'bg-white/10 border-white/20 text-white'
+                    : 'bg-transparent border-white/10 text-gray-400'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         
         {/* Left Sidebar - VS Code Explorer Style */}
         <div
+          ref={questionRef}
           className={`
-          ${showLeftSidebar ? 'w-full' : 'w-0'}
-          bg-[#0a0a0f] border-r border-white/10 flex flex-col transition-all duration-300
-          ${showLeftSidebar ? 'block' : 'hidden md:block'}
+          ${showLeftSidebar ? 'flex' : 'hidden'}
+          bg-[#0a0a0f] border-r border-white/10 flex flex-col transition-all duration-300 w-full md:w-auto scroll-mt-16
+          ${showLeftSidebar ? 'md:flex' : 'md:hidden'}
         `}
-          style={{ width: showLeftSidebar ? leftPanelWidth : 0 }}
+          style={{ width: !isMobile && showLeftSidebar ? leftPanelWidth : undefined }}
         >
           {/* Problem Title */}
           <div className="p-4 border-b border-white/10">
@@ -648,22 +764,22 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
         />
 
         {/* Middle - Code Editor */}
-        <div className="flex-1 flex flex-col bg-[#0a0a0f] border border-white/10 min-w-0">
+        <div ref={editorSectionRef} className="flex-1 flex flex-col bg-[#0a0a0f] border border-white/10 min-w-0 w-full scroll-mt-16 md:h-auto">
           {/* Editor Toolbar - VS Code Tabs Style */}
           <div className="bg-[#0a0a0f] border-b border-white/10 px-2 md:px-4 py-2 flex items-center justify-between flex-wrap gap-2">
-            {/* Mobile Toggle Buttons */}
+            {/* Mobile section shortcuts */}
             <div className="flex items-center gap-2 md:hidden">
               <button
-                onClick={() => setShowLeftSidebar(!showLeftSidebar)}
+                onClick={() => scrollToMobileSection('question')}
                 className="p-1.5 hover:bg-white/10 rounded transition-colors"
-                title="Toggle Problem"
+                title="Go to Question"
               >
                 <FileCode className="w-4 h-4 text-gray-400" />
               </button>
               <button
-                onClick={() => setShowRightSidebar(!showRightSidebar)}
+                onClick={() => scrollToMobileSection('tests')}
                 className="p-1.5 hover:bg-white/10 rounded transition-colors"
-                title="Toggle Tests"
+                title="Go to Tests"
               >
                 <CheckCircle2 className="w-4 h-4 text-gray-400" />
               </button>
@@ -722,7 +838,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
           </div>
 
           {/* Editor */}
-          <div className="flex-1 relative">
+          <div className="flex-1 relative min-h-[60vh] md:min-h-0">
             <Editor
               height="100%"
               language={language}
@@ -952,8 +1068,9 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
 
           {/* Console Output - VS Code Terminal Style */}
           <div
-            className="bg-[#0a0a0f] border-t border-white/10 flex flex-col"
-            style={{ height: consoleHeight }}
+            ref={consoleSectionRef}
+            className="bg-[#0a0a0f] border-t border-white/10 flex flex-col scroll-mt-16"
+            style={{ height: isMobile ? 180 : consoleHeight }}
           >
             <div className="flex items-center gap-4 px-2 md:px-4 py-1.5 md:py-2 border-b border-white/10 bg-[#0a0a0f]">
               <span className="text-xs md:text-sm font-semibold">Console</span>
@@ -973,12 +1090,13 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
 
         {/* Right Sidebar - Test Cases & Submit */}
         <div
+          ref={testsRef}
           className={`
-          ${showRightSidebar ? 'w-full' : 'w-0'}
-          bg-[#0a0a0f] border-l border-white/10 flex flex-col transition-all duration-300
-          ${showRightSidebar ? 'block' : 'hidden md:block'}
+          ${showRightSidebar ? 'flex' : 'hidden'}
+          bg-[#0a0a0f] border-l border-white/10 flex flex-col transition-all duration-300 w-full md:w-auto scroll-mt-16
+          ${showRightSidebar ? 'md:flex' : 'md:hidden'}
         `}
-          style={{ width: showRightSidebar ? rightPanelWidth : 0 }}
+          style={{ width: !isMobile && showRightSidebar ? rightPanelWidth : undefined }}
         >
           <div className="p-4 border-b border-white/10">
             <h3 className="font-semibold mb-4">Test Cases</h3>

@@ -3,7 +3,14 @@
 import React from 'react';
 import Link from 'next/link';
 import { signIn, signOut, useSession } from 'next-auth/react';
-import { Search, Code, User } from 'lucide-react';
+import { Search, Code, User, Menu } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export default function Navbar() {
@@ -32,6 +39,46 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center gap-4">
+        {/* Mobile menu */}
+        <div className="lg:hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label="Open menu"
+                className="p-2 rounded-md hover:bg-zinc-900 text-gray-300"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem asChild>
+                <Link href="/problems">Problems</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/leaderboard">Leaderboard</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/profile">Profile</Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {user ? (
+                <DropdownMenuItem onSelect={() => signOut({ callbackUrl: '/' })}>
+                  Sign out
+                </DropdownMenuItem>
+              ) : (
+                <>
+                  <DropdownMenuItem onSelect={() => signIn(undefined, { callbackUrl: '/' })}>
+                    Sign in
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/auth/register">Sign up</Link>
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <Link href="/problems" className="text-gray-400 hover:text-white text-sm hidden lg:block">Problems</Link>
         <Link href="/leaderboard" className="text-gray-400 hover:text-white text-sm hidden lg:block">Leaderboard</Link>
         <button className="text-gray-400 hover:text-white text-sm hidden lg:block">Discuss</button>

@@ -240,7 +240,7 @@ export default function ProfilePage() {
         <Sidebar />
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto bg-[#0a0a0a] p-8">
+        <main className="flex-1 overflow-y-auto bg-[#0a0a0a] p-4 md:p-8">
           {loading ? (
             <div className="text-gray-400">Loading profile…</div>
           ) : !isAuthed ? (
@@ -263,7 +263,7 @@ export default function ProfilePage() {
             Back
           </button>
 
-          <div className="grid grid-cols-12 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <Dialog open={editOpen} onOpenChange={setEditOpen}>
               <DialogContent className="bg-[#1a1a1a] border-zinc-800 text-white">
                 <DialogHeader>
@@ -402,17 +402,17 @@ export default function ProfilePage() {
               </DialogContent>
             </Dialog>
             {/* Left Column - Profile Card */}
-            <div className="col-span-5">
+            <div className="lg:col-span-5">
               <Card className="bg-[#1a1a1a] border-zinc-800 p-6">
                 {/* Profile Header */}
-                <div className="flex gap-4 mb-6">
+                <div className="flex flex-col sm:flex-row gap-4 mb-6 min-w-0">
                   <Avatar className="w-16 h-16">
                     <AvatarImage src={userData.avatar} />
                     <AvatarFallback>{userData.initials || 'U'}</AvatarFallback>
                   </Avatar>
-                  <div className="flex-1">
-                    <h1 className="text-xl font-semibold mb-1 text-white">{userData.name}</h1>
-                    <p className="text-sm text-gray-400">{userData.email}</p>
+                  <div className="flex-1 min-w-0">
+                    <h1 className="text-xl font-semibold mb-1 text-white break-words">{userData.name}</h1>
+                    <p className="text-sm text-gray-400 break-all">{userData.email}</p>
                   </div>
                 </div>
 
@@ -461,11 +461,11 @@ export default function ProfilePage() {
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <Linkedin className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-200">{userData.linkedin}</span>
+                      <span className="text-gray-200 break-all">{userData.linkedin}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <Github className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-200">{userData.github}</span>
+                      <span className="text-gray-200 break-all">{userData.github}</span>
                     </div>
                   </div>
                 </div>
@@ -500,11 +500,11 @@ export default function ProfilePage() {
             </div>
 
             {/* Right Column */}
-            <div className="col-span-7 space-y-6">
+            <div className="lg:col-span-7 space-y-6 min-w-0">
               {/* Ranking Card */}
               <Card className="bg-[#1a1a1a] border-zinc-800 p-6">
                 <h2 className="text-lg font-semibold mb-4 text-white">Ranking</h2>
-                <div className="grid grid-cols-3 gap-4 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                   <div>
                     <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
                       <span>🌍</span> Global Rank
@@ -526,8 +526,14 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Chart */}
-                <div className="relative h-48 bg-[#0f0f0f] rounded-lg p-4">
-                  <svg width="100%" height="100%" className="overflow-visible">
+                <div className="relative h-48 bg-[#0f0f0f] rounded-lg p-4 overflow-hidden">
+                  <svg
+                    viewBox="0 0 550 200"
+                    preserveAspectRatio="none"
+                    width="100%"
+                    height="100%"
+                    className="block"
+                  >
                     <defs>
                       <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
                         <stop offset="0%" stopColor="#8b5cf6" />
@@ -561,7 +567,7 @@ export default function ProfilePage() {
               </Card>
 
               {/* Achievement and Streak */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Achievement */}
                 <Card className="bg-[#1a1a1a] border-zinc-800 p-6">
                   <div className="flex items-center justify-between mb-4">
@@ -629,7 +635,7 @@ export default function ProfilePage() {
               {/* Tabs and Table */}
               <Card className="bg-[#1a1a1a] border-zinc-800">
                 <div className="border-b border-zinc-800">
-                  <div className="flex gap-6 px-6 pt-4">
+                  <div className="flex gap-6 px-4 md:px-6 pt-4 overflow-x-auto">
                     <button className="pb-3 border-b-2 border-purple-500 text-sm font-medium text-white">Problems</button>
                     <button className="pb-3 text-sm font-medium text-gray-400 hover:text-white">Courses</button>
                     <button className="pb-3 text-sm font-medium text-gray-400 hover:text-white">Hackathon</button>
@@ -640,8 +646,8 @@ export default function ProfilePage() {
                 </div>
 
                 {/* Stats */}
-                <div className="p-6 border-b border-zinc-800">
-                  <div className="flex items-center gap-8">
+                <div className="p-4 md:p-6 border-b border-zinc-800">
+                  <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
                     <div className="text-sm text-gray-300">
                       Total Question Attempt: <span className="font-semibold text-white">{userData.totalQuestions}</span>
                     </div>
@@ -661,7 +667,7 @@ export default function ProfilePage() {
 
                 {/* Table */}
                 <div className="overflow-x-auto">
-                  <table className="w-full">
+                  <table className="w-full min-w-[640px]">
                     <thead className="bg-[#0f0f0f]">
                       <tr className="text-xs text-gray-400">
                         <th className="text-left px-6 py-3 font-medium">Status</th>
