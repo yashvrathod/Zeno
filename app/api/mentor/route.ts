@@ -66,7 +66,6 @@ function clampText(input: string | undefined, max: number): string {
     : input;
 }
 
-// Determine conversation stage for adaptive context
 function determineConversationStage(
   history: HistoryMsg[],
   stats: UserStats,
@@ -84,7 +83,6 @@ function determineConversationStage(
   return "working";
 }
 
-// Smart history management: use summary for old messages, full detail for recent ones
 function buildConversationHistory(
   history: HistoryMsg[],
   rollingSummaryMd: string | null,
@@ -93,12 +91,10 @@ function buildConversationHistory(
 
   let context = "";
 
-  // If we have a summary, include it (replaces old history)
   if (rollingSummaryMd && rollingSummaryMd.trim()) {
-    context += `<conversation_summary>\nPrevious conversation context:\n${rollingSummaryMd}\n</conversation_summary>\n\n`;
+    context += `<conversation_summary>\nPrevious conversation:\n${rollingSummaryMd}\n</conversation_summary>\n\n`;
   }
 
-  // Only include last 2-3 exchanges (4-6 messages) for immediate context
   const recentCount = rollingSummaryMd ? 4 : 6;
   const recentHistory = history.slice(-recentCount);
 
@@ -116,14 +112,12 @@ function buildConversationHistory(
   return context;
 }
 
-// Adaptive problem context based on conversation stage
 function buildAdaptiveProblemContext(
   body: MentorRequest,
   stage: "initial" | "working" | "debugging" | "stuck",
 ): string {
   const testCases = sanitizeTestCases(body.publicTestCases);
 
-  // Initial: full problem details
   if (stage === "initial") {
     return `
 <problem_context>
@@ -141,7 +135,6 @@ ${buildTestCasesString(testCases)}
 </problem_context>`.trim();
   }
 
-  // Working/Debugging/Stuck: abbreviated problem, focus on constraints and test cases
   return `
 <problem_context>
 <problem id="${body.problemId}">${body.problemTitle ? ` - ${body.problemTitle}` : ""}</problem>
@@ -207,7 +200,6 @@ function buildUserCodeContext(body: MentorRequest): string {
   return context;
 }
 
-// Only include stats when relevant
 function buildRelevantStats(
   stats: UserStats,
   userMessage: string,
@@ -215,7 +207,6 @@ function buildRelevantStats(
 ): string {
   if (!stats) return "";
 
-  // Skip stats if just starting or if message doesn't indicate errors
   const isErrorRelated = /error|wrong|fail|bug|issue|stuck|help/i.test(
     userMessage,
   );
@@ -328,12 +319,15 @@ export async function POST(req: NextRequest) {
 
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
-      return Response.json({ error: "GROQ_API_KEY not configured" }, { status: 500 });
+      return Response.json(
+        { error: "GROQ_API_KEY not configured" },
+        { status: 500 },
+      );
     }
 
     const model = process.env.GROQ_MODEL || "llama-3.1-70b-versatile";
 
-    // Preferences
+    // Load preferences
     const dbSettings = await prisma.userAiSettings.findUnique({
       where: { userId },
       select: { verbosity: true },
@@ -351,7 +345,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Stats
+    // Load stats
     const stats = await prisma.userProblemStats.findUnique({
       where: { userId_problemId: { userId, problemId } },
       select: {
@@ -365,7 +359,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Rolling summary
+    // Load rolling summary
     const existingSummary = await prisma.mentorConversationSummary.findUnique({
       where: { userId_problemId: { userId, problemId } },
       select: { summaryMd: true },
@@ -375,14 +369,19 @@ export async function POST(req: NextRequest) {
     const history = Array.isArray(body.history) ? body.history : [];
     const stage = determineConversationStage(history, stats);
 
+    // Build context
     const mentorSystemPrompt = getMentorSystemPrompt();
     const stylePrompt = verbosityToStylePrompt(verbosity);
     const contextualGuidance = buildContextualGuidance(body, stats, history);
-    const conversationHistory = buildConversationHistory(history, rollingSummaryMd);
+    const conversationHistory = buildConversationHistory(
+      history,
+      rollingSummaryMd,
+    );
     const problemContext = buildAdaptiveProblemContext(body, stage);
     const codeContext = buildUserCodeContext(body);
     const statsContext = buildRelevantStats(stats, body.userMessage, stage);
 
+    // Enhanced system message with stricter guidance rules
     const systemMessage = `${mentorSystemPrompt}
 
 ---
@@ -390,6 +389,42 @@ export async function POST(req: NextRequest) {
 ## SETTINGS
 Verbosity: ${verbosity}
 Style: ${stylePrompt}
+
+---
+
+## CRITICAL MENTORING RULES
+
+You are a Socratic coding mentor. Your role is to GUIDE, not SOLVE.
+
+**NEVER do these:**
+❌ Write complete solutions or full implementations
+❌ Give direct answers to "how do I solve this" questions
+❌ Provide ready-to-copy code blocks with the full solution
+❌ Fix their code directly by rewriting it
+❌ Tell them exactly what algorithm to use without letting them discover it
+
+**ALWAYS do these:**
+✅ Ask probing questions that reveal the path forward
+✅ Guide them to discover patterns and approaches themselves
+✅ Point out what's working and what needs rethinking
+✅ Use analogies and simplified examples to build intuition
+✅ Encourage them to trace through their logic step-by-step
+✅ Celebrate small breakthroughs and understanding
+✅ If they're completely stuck, give a tiny nudge toward the next step only
+
+**Response Guidelines:**
+- Keep responses conversational and concise (2-4 sentences usually)
+- Use questions more than statements
+- When showing code, show only small snippets (1-3 lines) to illustrate a concept, never full solutions
+- If they ask "can you write the code", redirect: "Let's work through this together - what part are you stuck on?"
+- Match their energy and frustration level with empathy
+
+**Handling Copied Solutions:**
+If they admit copying or show a solution they don't understand:
+- Don't judge, appreciate their honesty
+- Focus on building understanding of what the code does
+- Ask them to explain it back to you
+- Help them discover the "why" behind each decision
 
 ---
 
@@ -409,43 +444,58 @@ ${conversationHistory}
 
 ---
 
-Be natural and conversational. You're a mentor, not a script. React genuinely. Build on context. Give just enough help.`;
+Remember: Your goal is to make them a better problem solver, not to solve problems for them. Guide, don't give. Ask, don't tell.`;
 
-    const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
-      { role: "system", content: systemMessage },
-    ];
+    // Build messages array - include recent history + current message
+    const messages: Array<{
+      role: "system" | "user" | "assistant";
+      content: string;
+    }> = [{ role: "system", content: systemMessage }];
 
-    // Include a small window of recent turns + current message
-    for (const msg of history.slice(-6)) {
-      messages.push({ role: msg.role, content: clampText(msg.content, 1000) });
+    // Add recent conversation turns (last 3 exchanges = 6 messages)
+    const recentTurns = history.slice(-6);
+    for (const msg of recentTurns) {
+      messages.push({
+        role: msg.role,
+        content: clampText(msg.content, 1000),
+      });
     }
-    messages.push({ role: "user", content: body.userMessage });
+
+    // Add current user message
+    messages.push({
+      role: "user",
+      content: body.userMessage,
+    });
 
     const temperature = getAdaptiveTemperature(body, stats);
     const maxTokens = verbosityToModelMaxTokens(verbosity);
 
-    // Non-streaming completion (frontend expects JSON)
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
+    // Call Groq API
+    const response = await fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature,
+          max_tokens: maxTokens,
+          top_p: 0.95,
+          frequency_penalty: 0.3,
+          presence_penalty: 0.2,
+        }),
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-        top_p: 0.95,
-        frequency_penalty: 0.3,
-        presence_penalty: 0.2,
-      }),
-    });
+    );
 
     const raw = await response.text();
     if (!response.ok) {
+      console.error("Groq API error:", raw);
       return Response.json(
-        { error: `AI service error (${response.status}): ${raw || response.statusText}` },
+        { error: "AI service temporarily unavailable" },
         { status: 502 },
       );
     }
@@ -454,11 +504,14 @@ Be natural and conversational. You're a mentor, not a script. React genuinely. B
     const assistantMessage = extractAssistantContent(data);
 
     if (!assistantMessage) {
-      return Response.json({ error: "Received empty response from AI service" }, { status: 502 });
+      return Response.json(
+        { error: "Received empty response from AI service" },
+        { status: 502 },
+      );
     }
 
-    // Best-effort summary update
-    void rewriteRollingSummary({
+    // Update rolling summary (non-blocking)
+    rewriteRollingSummary({
       apiKey,
       model,
       previousSummaryMd: rollingSummaryMd,
@@ -468,7 +521,12 @@ Be natural and conversational. You're a mentor, not a script. React genuinely. B
       .then((nextSummary) =>
         prisma.mentorConversationSummary.upsert({
           where: { userId_problemId: { userId, problemId } },
-          create: { userId, problemId, status: "ONGOING", summaryMd: nextSummary },
+          create: {
+            userId,
+            problemId,
+            status: "ONGOING",
+            summaryMd: nextSummary,
+          },
           update: { status: "ONGOING", summaryMd: nextSummary },
         }),
       )
@@ -481,7 +539,9 @@ Be natural and conversational. You're a mentor, not a script. React genuinely. B
     });
   } catch (error) {
     console.error("Mentor API Error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return Response.json({ error: `Server error: ${errorMessage}` }, { status: 500 });
+    return Response.json(
+      { error: "An unexpected error occurred" },
+      { status: 500 },
+    );
   }
 }
