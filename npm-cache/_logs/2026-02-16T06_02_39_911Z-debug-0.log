@@ -5,10 +5,10 @@
 4 silly config load:file:E:\leet\.npmrc
 5 silly config load:file:C:\Users\yashv\.npmrc
 6 silly config load:file:C:\Users\yashv\AppData\Roaming\npm\etc\npmrc
-7 verbose title npm run build
-8 verbose argv "run" "build"
-9 verbose logfile logs-max:10 dir:E:\leet\npm-cache\_logs\2026-02-04T06_52_53_658Z-
-10 verbose logfile E:\leet\npm-cache\_logs\2026-02-04T06_52_53_658Z-debug-0.log
+7 verbose title npm run lint
+8 verbose argv "run" "--loglevel" "silent" "lint"
+9 verbose logfile logs-max:10 dir:E:\leet\npm-cache\_logs\2026-02-16T06_02_39_911Z-
+10 verbose logfile E:\leet\npm-cache\_logs\2026-02-16T06_02_39_911Z-debug-0.log
 11 silly logfile start cleaning logs, removing 1 files
 12 silly logfile done cleaning log files
 13 verbose cwd E:\leet

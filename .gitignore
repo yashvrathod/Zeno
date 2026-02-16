@@ -40,6 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# local scratch notes (not part of app)
+response
+
 /lib/generated/prisma
 
 /lib/generated/prisma

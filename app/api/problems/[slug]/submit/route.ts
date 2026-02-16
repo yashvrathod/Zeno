@@ -3,6 +3,11 @@ import prisma from '@/lib/prisma';
 import { runOnPiston } from '@/lib/piston';
 import { auth } from '@/lib/auth';
 
+function clampDbText(input: unknown, max = 800) {
+  const s = typeof input === 'string' ? input : '';
+  return s.length > max ? s.slice(0, max) + `…[truncated ${s.length - max}]` : s;
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const session = await auth();
@@ -22,6 +27,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   const problem = await prisma.problem.findUnique({
     where: { slug },
     select: {
+      id: true,
       isPublished: true,
       testCases: {
         orderBy: [{ isHidden: 'asc' }, { order: 'asc' }],
@@ -37,14 +43,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   let passedCount = 0;
   const details: Array<{ order: number; isHidden: boolean; passed: boolean; output?: string }> = [];
 
-  for (const tc of problem.testCases) {
-    const { output } = await runOnPiston({
-      code: body.code,
-      language: body.language,
-      stdin: tc.input,
-    });
+  let sawRuntimeError = false;
+  let lastRuntimeError: string | null = null;
 
-    const passed = output.trim() === tc.expected.trim();
+  for (const tc of problem.testCases) {
+    let output = '';
+    let thisTestRuntimeError = false;
+
+    try {
+      ({ output } = await runOnPiston({
+        code: body.code,
+        language: body.language,
+        stdin: tc.input,
+      }));
+    } catch (e) {
+      // Don’t leak hidden test IO. We only store a short error string.
+      sawRuntimeError = true;
+      thisTestRuntimeError = true;
+      lastRuntimeError = clampDbText(e instanceof Error ? e.message : 'Runtime Error');
+      // Treat this test as failed.
+      output = lastRuntimeError;
+    }
+
+    const passed = !thisTestRuntimeError && output.trim() === tc.expected.trim();
     if (passed) passedCount++;
 
     // Only return user output for *public* tests (never leak hidden test IO).
@@ -58,6 +79,33 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
 
   const total = problem.testCases.length;
   const allPassed = passedCount === total;
+
+  // Update bounded per-user-per-problem stats.
+  // NOTE: This does not store full transcripts or code; just aggregate counters + lastStatus.
+  const lastStatus = sawRuntimeError ? 'Runtime Error' : allPassed ? 'Accepted' : 'Wrong Answer';
+  await prisma.userProblemStats.upsert({
+    where: { userId_problemId: { userId: session.user.id, problemId: problem.id } },
+    create: {
+      userId: session.user.id,
+      problemId: problem.id,
+      submitCount: 1,
+      acceptedCount: allPassed ? 1 : 0,
+      wrongAnswerCount: allPassed ? 0 : 1,
+      runtimeErrorCount: sawRuntimeError ? 1 : 0,
+      lastStatus,
+      lastError: sawRuntimeError ? lastRuntimeError : null,
+      lastAt: new Date(),
+    },
+    update: {
+      submitCount: { increment: 1 },
+      acceptedCount: allPassed ? { increment: 1 } : undefined,
+      wrongAnswerCount: allPassed ? undefined : { increment: 1 },
+      runtimeErrorCount: sawRuntimeError ? { increment: 1 } : undefined,
+      lastStatus,
+      lastError: sawRuntimeError ? lastRuntimeError : null,
+      lastAt: new Date(),
+    },
+  });
 
   // IMPORTANT: do NOT return hidden test inputs/expected.
   return NextResponse.json({ allPassed, passedCount, total, details });

@@ -41,6 +41,30 @@ Your authentication system is now ready with:
    postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres
    ```
 
+## 🤖 AI Mentor (Groq - free)
+
+The app includes an event-based DSA mentor that **never sees your code** and uses an LLM **only to rephrase** preset coaching questions.
+
+Set these env vars in `.env.local`:
+
+```env
+LLM_PROVIDER="groq"
+GROQ_API_KEY="your_groq_key_here"
+# Optional overrides
+# GROQ_MODEL="llama-3.1-8b-instant"
+# GROQ_BASE_URL="https://api.groq.com/openai/v1"
+```
+
+If you prefer OpenAI instead:
+
+```env
+LLM_PROVIDER="openai"
+OPENAI_API_KEY="your_openai_key_here"
+# Optional overrides
+# OPENAI_MODEL="gpt-4o-mini"
+# OPENAI_BASE_URL="https://api.openai.com/v1"
+```
+
 2. **Important**: Replace `[YOUR-PASSWORD]` with the database password you created!
 
 ---

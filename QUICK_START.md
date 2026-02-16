@@ -28,6 +28,18 @@
 
 ### **3. Update .env.local (30 seconds)**
 
+Add Groq (free) AI mentor config (optional but recommended):
+
+```env
+# Use Groq for the mentor rephrase-only LLM
+LLM_PROVIDER="groq"
+GROQ_API_KEY="your_groq_key_here"
+# Optional overrides
+# GROQ_MODEL="llama-3.1-8b-instant"
+# GROQ_BASE_URL="https://api.groq.com/openai/v1"
+```
+
+
 Open `.env.local` and replace:
 
 ```env

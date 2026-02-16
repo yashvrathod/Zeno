@@ -270,6 +270,26 @@ async function main() {
         { input: '\n', expected: '\n', isHidden: true },
       ],
     },
+    {
+      slug: 'longest-balanced-subarray-i',
+      title: 'Longest Balanced Subarray I',
+      difficulty: 'MEDIUM',
+      isPublished: true,
+      tags: ['array', 'subarray', 'hashmap'],
+      patternIds: [patternId['Sliding Window']],
+      statementMd: `# Longest Balanced Subarray I\n\nYou are given an integer array **nums**.\n\nA subarray is called **balanced** if the number of **distinct even** numbers in the subarray is equal to the number of **distinct odd** numbers in the subarray.\n\nReturn the length of the longest balanced subarray.\n\n## Input\nFirst line: integer **n**\nSecond line: **n** integers (the array **nums**)\n\n## Output\nPrint a single integer: the length of the longest balanced subarray.\n\n## Examples\nInput\n4\n2 5 4 3\n\nOutput\n4\n\nInput\n5\n3 2 2 5 4\n\nOutput\n5\n\nInput\n4\n1 2 3 2\n\nOutput\n3\n`,
+      constraintsMd: `1 \u2264 n \u2264 1500\n1 \u2264 nums[i] \u2264 10^5`,
+      hints: [
+        'The constraints are small enough for an O(n^2) solution: enumerate the left endpoint and expand the right endpoint while tracking distinct evens/odds.',
+        'Maintain two sets (or frequency maps) for evens and odds; the subarray is balanced when their sizes are equal.',
+      ],
+      testCases: [
+        { input: '4\n2 5 4 3\n', expected: '4\n', isHidden: false },
+        { input: '5\n3 2 2 5 4\n', expected: '5\n', isHidden: false },
+        { input: '4\n1 2 3 2\n', expected: '3\n', isHidden: false },
+        { input: '6\n2 2 2 2 2 2\n', expected: '0\n', isHidden: true },
+      ],
+    },
   ];
 
   for (const p of problems) {

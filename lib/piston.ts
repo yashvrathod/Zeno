@@ -48,14 +48,23 @@ function compareSemverDesc(a: string, b: string) {
 
 async function getRuntimes(apiUrl: string): Promise<PistonRuntime[]> {
   if (runtimeCache.has(apiUrl)) return runtimeCache.get(apiUrl)!;
-  const res = await fetch(`${apiUrl}/runtimes`, { headers: { 'Content-Type': 'application/json' } });
-  if (!res.ok) {
+  try {
+    const res = await fetchWithTimeout(`${apiUrl}/runtimes`, {
+      headers: { 'Content-Type': 'application/json' },
+      timeoutMs: 10_000,
+    });
+    if (!res.ok) {
+      runtimeCache.set(apiUrl, []);
+      return [];
+    }
+    const data = (await res.json()) as PistonRuntime[];
+    runtimeCache.set(apiUrl, Array.isArray(data) ? data : []);
+    return runtimeCache.get(apiUrl)!;
+  } catch {
+    // If runtime discovery fails (network/TLS/etc), fall back to configured versions.
     runtimeCache.set(apiUrl, []);
     return [];
   }
-  const data = (await res.json()) as PistonRuntime[];
-  runtimeCache.set(apiUrl, Array.isArray(data) ? data : []);
-  return runtimeCache.get(apiUrl)!;
 }
 
 async function resolveRuntime(apiUrl: string, languageKey: keyof typeof LANGUAGE_CONFIG) {

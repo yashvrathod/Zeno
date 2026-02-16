@@ -42,6 +42,50 @@ model User {
 
   accounts Account[]
   sessions Session[]
+
+  aiSettings   UserAiSettings?
+  problemStats UserProblemStats[]
+}
+
+model UserAiSettings {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+
+  // How verbose the mentor should be.
+  verbosity String   @default("normal") // 'short' | 'normal' | 'detailed'
+
+  // Free-form user preferences kept small (e.g., "use bullet points", "avoid spoilers").
+  preferencesJson Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserProblemStats {
+  id        String   @id @default(cuid())
+  userId    String
+  problemId String
+
+  // Aggregated counters (bounded: one row per user+problem)
+  runCount         Int @default(0)
+  submitCount      Int @default(0)
+  acceptedCount    Int @default(0)
+  wrongAnswerCount Int @default(0)
+  runtimeErrorCount Int @default(0)
+
+  lastStatus String?
+  lastError  String?
+  lastAt     DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, problemId])
+  @@index([problemId, updatedAt])
 }
 
 model Account {
@@ -152,4 +196,48 @@ model TestCase {
 
   @@unique([problemId, order, isHidden])
   @@index([problemId])
+}
+
+model MentorInteractionLog {
+  id             String   @id @default(cuid())
+  userId         String
+  problemId      String
+  eventType      String
+  mentorQuestion String
+  createdAt      DateTime @default(now())
+
+  @@index([userId, problemId, createdAt])
+  @@index([problemId, createdAt])
+}
+
+// Raw conversation transcript per user+problem.
+// This is temporary: archived into MentorConversationSummary on solve or manual finish.
+model MentorConversationMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  problemId String
+  role      String   // 'user' | 'assistant' | 'system'
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([userId, problemId, createdAt])
+  @@index([problemId, createdAt])
+}
+
+// Archived learning summary after solve/finish.
+model MentorConversationSummary {
+  id              String   @id @default(cuid())
+  userId          String
+  problemId       String
+  status          String   // 'SOLVED' | 'FINISHED'
+  solvedAt        DateTime?
+  summaryMd       String
+  approachNotesMd String?
+  pitfallsMd      String?
+  keyInsightsMd   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, problemId])
+  @@index([problemId, updatedAt])
 }

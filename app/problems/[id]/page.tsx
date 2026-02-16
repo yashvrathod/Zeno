@@ -1,43 +1,57 @@
 ﻿'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
+import {
   ChevronLeft,
   Play,
   CheckCircle2,
   Clock,
   Settings,
-  Bookmark,
   ChevronRight,
   ChevronDown,
   FileCode,
   Zap,
-  Brain,
-  Target,
-  Lightbulb
+  Lightbulb,
 } from 'lucide-react';
 import { use } from 'react';
 import Editor from '@monaco-editor/react';
+import type * as Monaco from 'monaco-editor';
+import type { editor as MonacoEditor } from 'monaco-editor';
 import Link from 'next/link';
-import AIMentorWidget from '@/components/AIMentorWidget';
-
-async function safeReadJson<T>(res: Response): Promise<{ ok: true; data: T } | { ok: false; errorText: string }> {
+import MentorChat from '@/components/MentorChat';
+import { Markdown } from '@/components/Markdown';
+async function safeReadJson(
+  res: Response,
+): Promise<{ ok: true; data: unknown } | { ok: false; errorText: string }> {
   try {
     const text = await res.text();
     if (!text) return { ok: false, errorText: '' };
-    return { ok: true, data: JSON.parse(text) as T };
+    return { ok: true, data: JSON.parse(text) };
   } catch (e) {
     return { ok: false, errorText: e instanceof Error ? e.message : 'Invalid JSON response' };
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function getString(obj: Record<string, unknown>, key: string): string | undefined {
+  const v = obj[key];
+  return typeof v === 'string' ? v : undefined;
+}
+
+function getErrorFromUnknown(data: unknown): string | undefined {
+  if (!isRecord(data)) return undefined;
+  return getString(data, 'error');
+}
+
 export default function ProblemDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  console.log('Problem ID:', id, 'Type:', typeof id);
   const [language, setLanguage] = useState<'javascript' | 'python' | 'java' | 'cpp'>('javascript');
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
-  const [level, setLevel] = useState(12);
+  const [level] = useState(12);
   const [xp, setXp] = useState(450);
   const [streak, setStreak] = useState(7);
   const [consoleOutput, setConsoleOutput] = useState('');
@@ -59,10 +73,6 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionResult, setSubmissionResult] = useState<{success: boolean, message: string} | null>(null);
 
-  // AI mentor event counters
-  const [runCount, setRunCount] = useState(0);
-  const [submitCount, setSubmitCount] = useState(0);
-  const [lastResult, setLastResult] = useState<'pass' | 'fail' | null>(null);
   const [showLeftSidebar, setShowLeftSidebar] = useState(true);
   const [showRightSidebar, setShowRightSidebar] = useState(true);
 
@@ -96,7 +106,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
       }
   >(null);
 
-  const editorRef = useRef<unknown>(null);
+  const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
   // Load real problem data from backend
@@ -122,43 +132,85 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
 
   const [code, setCode] = useState('');
 
+  // Realtime syntax/compile feedback (debounced)
+  const [syntaxStatus, setSyntaxStatus] = useState<'idle' | 'checking' | 'ok' | 'error'>('idle');
+  const [syntaxError, setSyntaxError] = useState<string>('');
+  const syntaxTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const syntaxReqIdRef = useRef(0);
+  const monacoRef = useRef<typeof Monaco | null>(null);
+
+  // Lightweight local metrics / behavior tracking
+  const lastActivityAtRef = useRef<number>(Date.now());
+  const consecutiveSubmitFailsRef = useRef<number>(0);
+  const [runCount, setRunCount] = useState(0);
+  const [submitCount, setSubmitCount] = useState(0);
+  const [lastResult, setLastResult] = useState<'pass' | 'fail' | null>(null);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
         const res = await fetch(`/api/problems/${id}`, { cache: 'no-store' });
-        const data = (await res.json()) as
-          | { problem: unknown }
-          | { error?: string };
-        if (!res.ok) throw new Error('error' in data ? data.error || 'Failed to load problem' : 'Failed to load problem');
+        const rawUnknown = (await res.json().catch(() => null)) as unknown;
+        if (!res.ok) {
+          const err = getErrorFromUnknown(rawUnknown);
+          throw new Error(err || 'Failed to load problem');
+        }
 
-        const p = ('problem' in data ? data.problem : null) as {
-          id: string;
-          slug: string;
-          title: string;
-          statementMd: string;
-          constraintsMd?: string | null;
-          difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-          hints?: unknown;
-          publicTestCases?: unknown;
-          starterCode?: unknown;
-        };
-        const starter = (p.starterCode ?? {}) as Record<string, string>;
+        if (!isRecord(rawUnknown)) throw new Error('Invalid problem response');
+        const pUnknown = rawUnknown['problem'];
+        if (!isRecord(pUnknown)) throw new Error('Invalid problem response');
+
+        const starterCodeUnknown = pUnknown['starterCode'];
+        const starter: Record<string, string> = isRecord(starterCodeUnknown)
+          ? Object.fromEntries(
+              Object.entries(starterCodeUnknown).filter(
+                (kv): kv is [string, string] => typeof kv[0] === 'string' && typeof kv[1] === 'string',
+              ),
+            )
+          : {};
+
+        const idVal = getString(pUnknown, 'id') ?? '';
+        const slugVal = getString(pUnknown, 'slug') ?? '';
+        const titleVal = getString(pUnknown, 'title') ?? '';
+        const statementMdVal = getString(pUnknown, 'statementMd') ?? '';
+        const constraintsMdVal = ((): string | null => {
+          const v = pUnknown['constraintsMd'];
+          return v === null || typeof v === 'string' ? (v as string | null) : null;
+        })();
+        const difficultyVal = ((): 'EASY' | 'MEDIUM' | 'HARD' => {
+          const v = getString(pUnknown, 'difficulty');
+          return v === 'EASY' || v === 'MEDIUM' || v === 'HARD' ? v : 'EASY';
+        })();
+        const hintsVal = Array.isArray(pUnknown['hints'])
+          ? (pUnknown['hints'].filter((x) => typeof x === 'string') as string[])
+          : [];
+        const publicTestCasesVal = Array.isArray(pUnknown['publicTestCases'])
+          ? (pUnknown['publicTestCases'].filter(isRecord).map((tc) => ({
+              order: typeof tc.order === 'number' ? tc.order : 0,
+              input: typeof tc.input === 'string' ? tc.input : '',
+              expected: typeof tc.expected === 'string' ? tc.expected : '',
+            })) as Array<{ order: number; input: string; expected: string }>)
+          : [];
 
         const normalized = {
-          id: p.id as string,
-          slug: p.slug as string,
-          title: p.title as string,
-          statementMd: p.statementMd as string,
-          constraintsMd: (p.constraintsMd ?? null) as string | null,
-          difficulty: p.difficulty as 'EASY' | 'MEDIUM' | 'HARD',
-          hints: Array.isArray(p.hints) ? (p.hints as string[]) : [],
-          publicTestCases: Array.isArray(p.publicTestCases) ? (p.publicTestCases as Array<{ order: number; input: string; expected: string }>) : [],
+          id: idVal,
+          slug: slugVal,
+          title: titleVal,
+          statementMd: statementMdVal,
+          constraintsMd: constraintsMdVal,
+          difficulty: difficultyVal,
+          hints: hintsVal,
+          publicTestCases: publicTestCasesVal,
           starterCode: starter,
         };
 
+        if (!normalized.slug) throw new Error('Problem slug missing');
+
         if (!mounted) return;
         setDbProblem(normalized);
+
+        // Mentor: PROBLEM_OPENED is emitted by a separate effect after `dbProblem` is set.
 
         const initialByLang = {
           javascript: starter.javascript ?? '',
@@ -167,7 +219,8 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
           cpp: starter.cpp ?? '',
         };
         setCodeByLanguage(initialByLang);
-        setCode(initialByLang[language] ?? '');
+        // code is set by a separate effect that reacts to `language` and `dbProblem`.
+
       } catch (e) {
         if (!mounted) return;
         setConsoleOutput(e instanceof Error ? e.message : 'Failed to load problem');
@@ -177,7 +230,6 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
     return () => {
       mounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   // Initialize Audio Context for typing sounds + respect reduced motion
@@ -190,7 +242,13 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
     }
 
     return () => {
-      audioContextRef.current?.close();
+      try {
+        audioContextRef.current?.close();
+      } catch {
+        // ignore
+      } finally {
+        audioContextRef.current = null;
+      }
     };
   }, []);
 
@@ -200,7 +258,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
   useEffect(() => {
     const compute = () => {
       const nextMobile = window.innerWidth < 768;
-      setIsMobile(nextMobile);
+      setIsMobile((prev) => (prev === nextMobile ? prev : nextMobile));
 
       // Only run the reset when *entering* mobile.
       // On mobile we want a stacked view, so show everything.
@@ -310,7 +368,8 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
         setRightPanelWidth(next);
       } else {
         const dy = e.clientY - drag.startY;
-        const next = Math.min(320, Math.max(100, drag.startConsole - dy));
+        // Dragging down should increase height.
+        const next = Math.min(320, Math.max(100, drag.startConsole + dy));
         setConsoleHeight(next);
       }
     };
@@ -363,27 +422,130 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
   // Handle language switching with code persistence
   const handleLanguageChange = (newLanguage: 'javascript' | 'python' | 'java' | 'cpp') => {
     // Save current code before switching
-    setCodeByLanguage(prev => ({
+    setCodeByLanguage((prev) => ({
       ...prev,
       [language]: code,
     }));
-    
-    // Switch to new language
+
+    // Switch to new language (actual code value will be set by the effect below)
     setLanguage(newLanguage);
-    
-    // Load code for new language
-    setCode(codeByLanguage[newLanguage] || dbProblem?.starterCode?.[newLanguage] || '');
   };
 
+  // When language changes, load the saved code or starter code for that language.
+  useEffect(() => {
+    if (!dbProblem) return;
+    setCode((prev) => {
+      const next = codeByLanguage[language] ?? dbProblem.starterCode?.[language] ?? '';
+      return next === prev ? prev : next;
+    });
+
+    // Trigger syntax check when switching languages.
+    const next = codeByLanguage[language] ?? dbProblem.starterCode?.[language] ?? '';
+    scheduleSyntaxCheck(next, language);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [language, dbProblem, codeByLanguage]);
+
   // Update code when it changes
+  const scheduleSyntaxCheck = (nextCode: string, nextLanguage: typeof language) => {
+    // Clear any existing timer
+    if (syntaxTimerRef.current) clearTimeout(syntaxTimerRef.current);
+
+    // If empty, clear markers/status
+    if (!nextCode.trim()) {
+      setSyntaxStatus('idle');
+      setSyntaxError('');
+      const monaco = monacoRef.current;
+      const editor = editorRef.current;
+      const model = editor?.getModel();
+      if (monaco?.editor && model) monaco.editor.setModelMarkers(model, 'syntax-check', []);
+      return;
+    }
+
+    setSyntaxStatus('checking');
+
+    syntaxTimerRef.current = setTimeout(async () => {
+      const reqId = ++syntaxReqIdRef.current;
+      try {
+        const res = await fetch('/api/syntax-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ language: nextLanguage, code: nextCode }),
+        });
+        const data = (await res.json().catch(() => null)) as unknown;
+
+        // Ignore outdated responses
+        if (reqId !== syntaxReqIdRef.current) return;
+
+        const editor = editorRef.current;
+        const monaco = monacoRef.current;
+        const model = editor?.getModel();
+
+        if (!res.ok) {
+          setSyntaxStatus('error');
+          const msg = String((isRecord(data) && typeof data.error === 'string' ? data.error : undefined) || 'Syntax check failed');
+          setSyntaxError(msg);
+          if (monaco?.editor && model) {
+            monaco.editor.setModelMarkers(model, 'syntax-check', [
+              {
+                severity: monaco.MarkerSeverity.Error,
+                message: msg,
+                startLineNumber: 1,
+                startColumn: 1,
+                endLineNumber: 1,
+                endColumn: 1,
+              },
+            ]);
+          }
+          return;
+        }
+
+        if (isRecord(data) && data.ok === false && typeof data.error === 'string') {
+          const msg = String(data.error);
+          setSyntaxStatus('error');
+          setSyntaxError(msg);
+          if (monaco?.editor && model) {
+            // Best-effort parse for "line X" patterns (js/python/cpp)
+            let line = 1;
+            const m = msg.match(/line\s+(\d+)/i);
+            if (m?.[1]) line = Math.max(1, Number(m[1]) || 1);
+
+            monaco.editor.setModelMarkers(model, 'syntax-check', [
+              {
+                severity: monaco.MarkerSeverity.Error,
+                message: msg,
+                startLineNumber: line,
+                startColumn: 1,
+                endLineNumber: line,
+                endColumn: 1,
+              },
+            ]);
+          }
+          return;
+        }
+
+        setSyntaxStatus('ok');
+        setSyntaxError('');
+        if (monaco?.editor && model) monaco.editor.setModelMarkers(model, 'syntax-check', []);
+      } catch (e) {
+        if (reqId !== syntaxReqIdRef.current) return;
+        setSyntaxStatus('error');
+        const msg = e instanceof Error ? e.message : 'Syntax check failed';
+        setSyntaxError(msg);
+      }
+    }, 600);
+  };
+
   const handleCodeChange = (value: string | undefined) => {
+    lastActivityAtRef.current = Date.now();
     const newCode = value || '';
     setCode(newCode);
-    setCodeByLanguage(prev => ({
+    setCodeByLanguage((prev) => ({
       ...prev,
       [language]: newCode,
     }));
     playTypingSound();
+
+    scheduleSyntaxCheck(newCode, language);
   };
 
   // Public test cases are loaded from the backend (problem.publicTestCases).
@@ -391,6 +553,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
 
   // Run tests function with Judge0 API
   const runTests = async () => {
+    lastActivityAtRef.current = Date.now();
     setIsRunningTests(true);
     setConsoleOutput('| Compiling and running tests...\n');
     setSubmissionResult(null);
@@ -411,12 +574,13 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
         }),
       });
 
-      const parsed = await safeReadJson<{ results?: unknown; error?: string }>(response);
+      const parsed = await safeReadJson(response);
       const data = parsed.ok ? parsed.data : {};
 
       if (!response.ok) {
-        const err = (data as any)?.error || (parsed.ok ? '' : parsed.errorText) || (await response.text().catch(() => ''));
+        const err = getErrorFromUnknown(data) || (parsed.ok ? '' : parsed.errorText) || (await response.text().catch(() => ''));
         setConsoleOutput(`❌ Error: ${err || 'Failed to execute code'}`);
+
         setIsRunningTests(false);
         return;
       }
@@ -452,10 +616,12 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
       });
       
       const passedCount = results.filter((r) => r.passed).length;
+      const allPassed = passedCount === results.length;
       output += `\nResult: ${passedCount}/${results.length} tests passed`;
-      setLastResult(passedCount === results.length ? 'pass' : 'fail');
+      setLastResult(allPassed ? 'pass' : 'fail');
+
       
-      if (passedCount === results.length) {
+      if (allPassed) {
         output += ' 🎉';
       }
       
@@ -468,15 +634,9 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
-  // NOTE: Previously this page had a client-side Two Sum runner.
-  // All execution is now handled by server-side /run and /submit endpoints.
-  // Keeping this stub to avoid refactoring the UI further.
-  const runTestsClientSide = async () => {
-    setConsoleOutput('Client-side runner removed. Use Run / Submit.');
-  };
-
   // Submit solution function with Judge0
   const handleSubmit = async () => {
+    lastActivityAtRef.current = Date.now();
     setIsSubmitting(true);
     setConsoleOutput('| Submitting solution and running all tests...\n');
     setSubmissionResult(null);
@@ -497,16 +657,18 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
         }),
       });
 
-      const parsed = await safeReadJson<{ details?: unknown; error?: string }>(response);
+      const parsed = await safeReadJson(response);
       const data = parsed.ok ? parsed.data : {};
 
       if (!response.ok) {
-        const err = (data as any)?.error || (parsed.ok ? '' : parsed.errorText) || (await response.text().catch(() => ''));
+        const err = getErrorFromUnknown(data) || (parsed.ok ? '' : parsed.errorText) || (await response.text().catch(() => ''));
         setSubmissionResult({
           success: false,
           message: `Error: ${err || 'Failed to execute code'}`
         });
         setConsoleOutput(`❌ Submission Error: ${err || 'Failed to execute code'}`);
+
+  
         setIsSubmitting(false);
         return;
       }
@@ -564,6 +726,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
       setLastResult(allPassed ? 'pass' : 'fail');
       
       if (allPassed) {
+        consecutiveSubmitFailsRef.current = 0;
         setSubmissionResult({
           success: true,
           message: '✅ Accepted! Your solution passed all test cases. 🎉'
@@ -575,6 +738,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
         setXp(prev => prev + 50);
         setStreak(prev => prev + 1);
       } else {
+        consecutiveSubmitFailsRef.current += 1;
         setSubmissionResult({
           success: false,
           message: `❌ Wrong Answer. ${passedCount}/${results.length} tests passed.`
@@ -593,12 +757,6 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  // NOTE: Client-side submission was Two-Sum-specific and has been disabled.
-  const submitClientSide = async () => {
-    setSubmissionResult({ success: false, message: 'Client-side submit removed. Use Submit.' });
-    setConsoleOutput('Client-side submit removed. Use Submit.');
   };
 
 
@@ -632,16 +790,6 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="h-screen bg-gradient-to-br from-[#1e1e2e] via-[#1a1a28] to-[#16161f] text-gray-100 flex flex-col relative overflow-hidden" style={{ fontFamily: 'var(--font-jetbrains-mono)' }}>
-      <AIMentorWidget
-        problemTitle={problem.title}
-        problemStatement={problem.description}
-        language={language}
-        code={code}
-        runCount={runCount}
-        submitCount={submitCount}
-        lastResult={lastResult}
-      />
-      
       {/* Subtle Background Gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-black via-transparent to-black pointer-events-none"></div>
       <div className="absolute inset-0 pointer-events-none opacity-20">
@@ -747,7 +895,9 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
           <div className="flex-1 overflow-y-auto p-4 space-y-6 text-sm">
             <div>
               <h3 className="text-gray-400 uppercase text-xs font-semibold mb-2">Description</h3>
-              <p className="text-gray-300 leading-relaxed">{problem.description}</p>
+              <div className="text-gray-300 leading-relaxed">
+                <Markdown md={problem.description} />
+              </div>
             </div>
 
             <div>
@@ -839,7 +989,50 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
               </select>
             </div>
 
-            <div className="flex items-center gap-1 md:gap-2">
+            <div className="flex items-center gap-2 md:gap-3">
+              {/* LeetCode-like stats */}
+              <div className="hidden lg:flex items-center gap-2 text-[11px] text-gray-400 border border-white/10 rounded px-2 py-1 bg-white/5">
+                <span className="font-mono">Runs:</span>
+                <span className="text-gray-200 font-mono">{runCount}</span>
+                <span className="text-gray-600">•</span>
+                <span className="font-mono">Submits:</span>
+                <span className="text-gray-200 font-mono">{submitCount}</span>
+                <span className="text-gray-600">•</span>
+                <span className="font-mono">Last:</span>
+                <span
+                  className={
+                    lastResult === 'pass' ? 'text-green-400 font-mono' : lastResult === 'fail' ? 'text-red-400 font-mono' : 'text-gray-500 font-mono'
+                  }
+                >
+                  {lastResult === 'pass' ? 'Accepted' : lastResult === 'fail' ? 'Failed' : '—'}
+                </span>
+              </div>
+
+              {/* Syntax status */}
+              <div className="hidden sm:flex items-center gap-2 text-[11px] text-gray-400 border border-white/10 rounded px-2 py-1 bg-white/5">
+                <span className="font-mono">Syntax:</span>
+                <span
+                  className={
+                    syntaxStatus === 'ok'
+                      ? 'text-green-400'
+                      : syntaxStatus === 'error'
+                        ? 'text-red-400'
+                        : syntaxStatus === 'checking'
+                          ? 'text-blue-300'
+                          : 'text-gray-500'
+                  }
+                  title={syntaxError || undefined}
+                >
+                  {syntaxStatus === 'ok'
+                    ? 'OK'
+                    : syntaxStatus === 'error'
+                      ? 'Error'
+                      : syntaxStatus === 'checking'
+                        ? 'Checking…'
+                        : 'Idle'}
+                </span>
+              </div>
+
               {/* Settings Dropdown */}
               <div className="relative">
                 <button
@@ -849,7 +1042,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
                 >
                   <Settings className="w-4 h-4 text-gray-400" />
                 </button>
-                
+
                 {showSettings && (
                   <div className="absolute top-full right-0 mt-2 bg-black/90 backdrop-blur-xl border border-white/20 rounded-lg shadow-xl p-3 min-w-[200px] z-50">
                     <div className="text-xs font-semibold text-gray-400 mb-2">Editor Settings</div>
@@ -866,14 +1059,24 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
                 )}
               </div>
 
-              <button 
+              <button
                 onClick={runTests}
-                disabled={isRunningTests}
+                disabled={isRunningTests || !dbProblem}
                 className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 bg-[#0e639c] hover:bg-[#1177bb] disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded text-xs md:text-sm transition-colors"
               >
                 <Play className="w-3 h-3 md:w-4 md:h-4" />
                 <span className="hidden sm:inline">{isRunningTests ? 'Running...' : 'Run Tests'}</span>
                 <span className="sm:hidden">Run</span>
+              </button>
+
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting || !dbProblem}
+                className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded text-xs md:text-sm transition-colors"
+              >
+                <CheckCircle2 className="w-3 h-3 md:w-4 md:h-4" />
+                <span className="hidden sm:inline">{isSubmitting ? 'Submitting...' : 'Submit'}</span>
+                <span className="sm:hidden">Submit</span>
               </button>
             </div>
           </div>
@@ -887,6 +1090,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
               onChange={handleCodeChange}
               onMount={(editor, monaco) => {
                 editorRef.current = editor;
+                monacoRef.current = monaco;
                 
                 // Custom Black Theme
                 monaco.editor.defineTheme('vscode-black', {
@@ -950,7 +1154,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
                 });
                 
                 // Enhanced bracket matching animations
-                editor.onDidChangeCursorPosition((e) => {
+                editor.onDidChangeCursorPosition(() => {
                   // This triggers bracket highlighting
                   editor.deltaDecorations([], []);
                 });
@@ -1134,7 +1338,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
           ref={testsRef}
           className={`
           ${showRightSidebar ? 'flex' : 'hidden'}
-          bg-[#0a0a0f] border-l border-white/10 flex flex-col transition-all duration-300 w-full md:w-auto scroll-mt-16
+          bg-[#0a0a0f] border-l border-white/10 flex flex-col min-h-0 transition-all duration-300 w-full md:w-auto scroll-mt-16
           ${showRightSidebar ? 'md:flex' : 'md:hidden'}
         `}
           style={{ width: !isMobile && showRightSidebar ? rightPanelWidth : undefined }}
@@ -1197,7 +1401,17 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
 
-          <div className="flex-1 p-4 flex flex-col gap-3">
+          <div className="flex-1 min-h-0 p-4 flex flex-col gap-3">
+            <MentorChat
+              problemId={id}
+              problemTitle={dbProblem?.title}
+              problemStatementMd={dbProblem?.statementMd}
+              problemConstraintsMd={dbProblem?.constraintsMd ?? undefined}
+              publicTestCases={dbProblem?.publicTestCases ?? []}
+              language={language}
+              userCode={code}
+            />
+
             {submissionResult && (
               <div className={`p-3 rounded-lg text-sm ${
                 submissionResult.success 

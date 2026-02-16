@@ -1,0 +1,26 @@
+Welcome to the Climbing Stairs problem! You're about to tackle a classic dynamic programming challenge.
+
+Before we dive in, do you want help clarifying the problem statement or would you like to start brainstorming a solution on your own?
+i know it but i dont no how to solve this
+You're familiar with the problem, but you're unsure about how to approach it. Let's break it down to the most basic level.
+
+**Goal:** Find the number of distinct ways to climb n stairs, where you can climb 1 or 2 steps at a time.
+
+**Constraints:** 1 ≤ n ≤ 45
+
+**What do you need to find?** The number of ways to reach the top.
+
+**What's the simplest approach?** Think about the base cases. What are the possible ways to climb 1, 2, or 3 stairs? Can you come up with a brute-force solution for these small cases?
+
+Can you write down the number of ways to climb 1, 2, and 3 stairs?
+if(n==2 || n == 1) return 1
+if(n==3) return 2;
+You've started with a good observation, but it looks like you're stuck on how to generalize it for larger values of n.
+
+**What's the pattern?** You've correctly identified that there are 2 ways to reach the 2nd step (1+1 or 2) and 3 ways to reach the 3rd step (1+1+1, 1+2, or 2+1). However, how can you extend this pattern to reach the nth step?
+
+**What's the issue with your current approach?** Your current code only checks for the base cases (n=1, n=2, and n=3), but it doesn't consider how to reach the nth step for larger values of n.
+
+**What's the next step?** Think about how you can use the information you have for the base cases to build up to the nth step. Can you come up with a recursive approach or a dynamic programming solution that uses the base cases to compute the number of ways to reach the nth step?
+
+Can you write down a recursive formula or
