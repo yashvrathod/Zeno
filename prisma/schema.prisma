@@ -57,6 +57,15 @@ model UserAiSettings {
   // Free-form user preferences kept small (e.g., "use bullet points", "avoid spoilers").
   preferencesJson Json?
 
+  // User's own API keys (encrypted/hashed in production)
+  groqApiKey    String? // User's Groq API key
+  openaiApiKey  String? // User's OpenAI API key
+  googleApiKey  String? // User's Google AI Studio API key
+  ollamaBaseUrl String? // User's Ollama server URL (e.g., http://localhost:11434)
+  ollamaModel   String? // User's preferred Ollama model (e.g., llama3.1, codellama)
+  apiProvider   String? @default("server") // 'server' | 'groq' | 'openai' | 'google' | 'ollama'
+  hasCompletedOnboarding Boolean @default(false) // Track if user has seen API setup
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -218,6 +227,7 @@ model MentorConversationMessage {
   problemId String
   role      String   // 'user' | 'assistant' | 'system'
   content   String
+  metadata  Json?    // Stores { rung, stage, tone } for tracking progression
   createdAt DateTime @default(now())
 
   @@index([userId, problemId, createdAt])
@@ -229,12 +239,15 @@ model MentorConversationSummary {
   id              String   @id @default(cuid())
   userId          String
   problemId       String
-  status          String   // 'SOLVED' | 'FINISHED'
+  status          String   // 'SOLVED' | 'FINISHED' | 'ONGOING'
   solvedAt        DateTime?
   summaryMd       String
   approachNotesMd String?
   pitfallsMd      String?
   keyInsightsMd   String?
+  messageCount    Int      @default(0)
+  lastRung        Int      @default(1)
+  breakthroughs   String[] // patterns the student has mastered
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

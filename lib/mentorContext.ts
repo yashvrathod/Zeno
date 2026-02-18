@@ -23,6 +23,37 @@ type MentorRequest = {
   history?: HistoryMsg[];
 };
 
+/**
+ * Learning Ladder - 6 Rungs of Mastery
+ * Maps student's current understanding level to teaching approach
+ */
+export type LearningRung = 1 | 2 | 3 | 4 | 5 | 6;
+
+export type TeachingStage =
+  | "EXPLORE" // User hasn't started thinking yet
+  | "STRATEGIZE" // User is figuring out approach
+  | "IMPLEMENT" // User is coding
+  | "DEBUG" // User has errors / wrong answers
+  | "STUCK" // User is frustrated / looping
+  | "REFLECT"; // User solved it — deepen understanding
+
+export type ConversationTone =
+  | "encouraging"
+  | "analytical"
+  | "challenging"
+  | "empathetic";
+
+/**
+ * Complete mentor context including stage, rung, and behavioral flags
+ */
+export type MentorContext = {
+  stage: TeachingStage;
+  rung: LearningRung;
+  tone: ConversationTone;
+  shouldUpdateSummary: boolean;
+  allowFullSolution: boolean;
+};
+
 export function buildContextualGuidance(
   body: MentorRequest,
   stats: UserStats,
@@ -216,4 +247,68 @@ export function getAdaptiveTemperature(
 
   // Default balanced temperature
   return 0.6;
+}
+
+/**
+ * Detects the student's current Learning Ladder rung (1-6)
+ * 
+ * RUNG 1 — PATTERN BLINDNESS: Student blanks on problem
+ * RUNG 2 — PATTERN RECOGNITION: Student guesses pattern unsurely
+ * RUNG 3 — STRATEGY FORMATION: Has pattern, can't build approach
+ * RUNG 4 — IMPLEMENTATION: Right idea, buggy code
+ * RUNG 5 — OPTIMIZATION: Solves brute force, can't optimize
+ * RUNG 6 — MASTERY: Solved it
+ */
+export function detectLearningRung(
+  history: HistoryMsg[],
+  stats: UserStats,
+  userMessage: string,
+  userCode?: string,
+  previousRung?: number,
+): LearningRung {
+  const msg = userMessage.toLowerCase();
+  const hasCode = !!userCode && userCode.trim().length > 50;
+  const hasSubmitted = stats && stats.submitCount > 0;
+  const isAccepted = stats && stats.acceptedCount > 0;
+  const hasErrors = stats && (stats.wrongAnswerCount > 0 || stats.runtimeErrorCount > 0);
+  
+  // Use previousRung as a baseline - students generally progress forward
+  // This helps maintain continuity across page refreshes
+  const lastKnownRung = previousRung ?? 1;
+
+  // Rung 6: MASTERY - Solved it, complexity discussed
+  if (isAccepted) {
+    const complexityDiscussed = history.some((h) =>
+      /time complexity|space complexity|big o|o\(n\)|o\(log n\)|optimization/i.test(h.content)
+    );
+    if (complexityDiscussed) return 6;
+    return 5; // Accepted but not yet discussed complexity
+  }
+
+  // Rung 5: OPTIMIZATION - Has working solution but slow/needs optimization
+  if (stats && stats.acceptedCount > 0) return 5;
+
+  // Rung 4: IMPLEMENTATION - Has code with errors or wrong answers
+  if (hasCode && (hasErrors || hasSubmitted)) return 4;
+
+  // Rung 3: STRATEGY FORMATION - Confident pattern name but no code yet
+  const patternKeywords = [
+    'two pointer', 'sliding window', 'binary search', 'dynamic programming', 'dp',
+    'greedy', 'backtrack', 'dfs', 'bfs', 'hash map', 'hash table', 'heap',
+    'stack', 'queue', 'trie', 'union find', 'graph', 'tree'
+  ];
+  const mentionsPattern = patternKeywords.some((p) => msg.includes(p));
+  const uncertainWords = ['think', 'maybe', 'probably', 'might', 'could', 'perhaps', 'not sure'];
+  const soundsUncertain = uncertainWords.some((w) => msg.includes(w));
+
+  if (mentionsPattern && !soundsUncertain && !hasCode) return 3;
+
+  // Rung 2: PATTERN RECOGNITION - Mentions pattern but uncertain
+  if (mentionsPattern && soundsUncertain) return 2;
+
+  // Rung 1: PATTERN BLINDNESS - Just started, no approach mentioned
+  if (history.length < 2 && !hasCode && !mentionsPattern) return 1;
+
+  // Default: early exploration
+  return history.length < 4 ? 1 : 2;
 }

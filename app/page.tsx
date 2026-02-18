@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useSession } from 'next-auth/react';
 import {
   Camera,
   Code,
@@ -15,11 +16,40 @@ import {
 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
+import ApiOnboardingDialog from '@/components/ApiOnboardingDialog';
 
 export default function CodeZonePage() {
+  const { data: session, status } = useSession();
+  const [showOnboarding, setShowOnboarding] = React.useState(false);
+  const [hasCheckedOnboarding, setHasCheckedOnboarding] = React.useState(false);
+
+  // Check if user needs onboarding
+  React.useEffect(() => {
+    if (status === 'authenticated' && !hasCheckedOnboarding) {
+      setHasCheckedOnboarding(true);
+      
+      // Check if user has completed onboarding
+      fetch('/api/settings/ai')
+        .then(res => res.json())
+        .then(data => {
+          if (!data.hasCompletedOnboarding) {
+            // Show onboarding after a short delay for better UX
+            setTimeout(() => setShowOnboarding(true), 1000);
+          }
+        })
+        .catch(err => console.error('Failed to check onboarding status:', err));
+    }
+  }, [status, hasCheckedOnboarding]);
+
   return (
     <div className="flex flex-col h-screen bg-[#0a0a0a] text-gray-100 overflow-hidden" style={{ fontFamily: 'var(--font-jetbrains-mono)' }}>
       <Navbar />
+      
+      {/* API Onboarding Dialog */}
+      <ApiOnboardingDialog 
+        open={showOnboarding} 
+        onClose={() => setShowOnboarding(false)} 
+      />
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />

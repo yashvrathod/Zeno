@@ -5,21 +5,21 @@
 4 silly config load:file:E:\leet\.npmrc
 5 silly config load:file:C:\Users\yashv\.npmrc
 6 silly config load:file:C:\Users\yashv\AppData\Roaming\npm\etc\npmrc
-7 verbose title npm run lint
-8 verbose argv "run" "--loglevel" "silent" "lint"
-9 verbose logfile logs-max:10 dir:E:\leet\npm-cache\_logs\2026-02-16T06_14_11_486Z-
-10 verbose logfile E:\leet\npm-cache\_logs\2026-02-16T06_14_11_486Z-debug-0.log
+7 verbose title npm exec prisma generate
+8 verbose argv "exec" "--" "prisma" "generate"
+9 verbose logfile logs-max:10 dir:E:\leet\npm-cache\_logs\2026-02-18T17_37_29_240Z-
+10 verbose logfile E:\leet\npm-cache\_logs\2026-02-18T17_37_29_240Z-debug-0.log
 11 silly logfile start cleaning logs, removing 2 files
-12 silly logfile error removing log file E:\leet\npm-cache\_logs\2026-02-16T05_38_02_092Z-debug-0.log [Error: EPERM: operation not permitted, lstat 'E:\leet\npm-cache\_logs\2026-02-16T05_38_02_092Z-debug-0.log'] {
+12 silly logfile error removing log file E:\leet\npm-cache\_logs\2026-02-18T16_55_06_346Z-debug-0.log [Error: EPERM: operation not permitted, lstat 'E:\leet\npm-cache\_logs\2026-02-18T16_55_06_346Z-debug-0.log'] {
 12 silly logfile   errno: -4048,
 12 silly logfile   code: 'EPERM',
 12 silly logfile   syscall: 'lstat',
-12 silly logfile   path: 'E:\\leet\\npm-cache\\_logs\\2026-02-16T05_38_02_092Z-debug-0.log'
+12 silly logfile   path: 'E:\\leet\\npm-cache\\_logs\\2026-02-18T16_55_06_346Z-debug-0.log'
 12 silly logfile }
 13 silly logfile done cleaning log files
 14 verbose cwd E:\leet
 15 verbose os Windows_NT 10.0.26100
 16 verbose node v20.19.1
 17 verbose npm  v11.7.0
-18 verbose exit 1
-19 verbose code 1
+18 verbose exit 0
+19 info ok

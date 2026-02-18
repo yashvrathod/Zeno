@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { signIn, signOut, useSession } from 'next-auth/react';
-import { Search, Code, User, Menu } from 'lucide-react';
+import { Search, Code, User, Menu, Settings } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,6 +61,11 @@ export default function Navbar() {
               <DropdownMenuItem asChild>
                 <Link href="/profile">Profile</Link>
               </DropdownMenuItem>
+              {user && (
+                <DropdownMenuItem asChild>
+                  <Link href="/settings">Settings</Link>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               {user ? (
                 <DropdownMenuItem onSelect={() => signOut({ callbackUrl: '/' })}>
@@ -91,20 +96,33 @@ export default function Navbar() {
           </div>
         ) : user ? (
           <div className="flex items-center gap-3">
-            <Link href="/profile" className="flex items-center gap-2">
-              <Avatar className="w-8 h-8 cursor-pointer hover:opacity-80 transition-opacity">
-                <AvatarImage src={user.image ?? undefined} />
-                <AvatarFallback>
-                  <User className="w-4 h-4" />
-                </AvatarFallback>
-              </Avatar>
-            </Link>
-            <button
-              className="text-gray-400 hover:text-white text-sm hidden md:block"
-              onClick={() => signOut({ callbackUrl: '/' })}
-            >
-              Sign out
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="flex items-center gap-2">
+                  <Avatar className="w-8 h-8 cursor-pointer hover:opacity-80 transition-opacity">
+                    <AvatarImage src={user.image ?? undefined} />
+                    <AvatarFallback>
+                      <User className="w-4 h-4" />
+                    </AvatarFallback>
+                  </Avatar>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem asChild>
+                  <Link href="/profile">Profile</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/settings" className="flex items-center gap-2">
+                    <Settings className="w-4 h-4" />
+                    API Settings
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => signOut({ callbackUrl: '/' })}>
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         ) : (
           <div className="flex items-center gap-2">
