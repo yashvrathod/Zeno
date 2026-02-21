@@ -5,10 +5,10 @@
 4 silly config load:file:E:\leet\.npmrc
 5 silly config load:file:C:\Users\yashv\.npmrc
 6 silly config load:file:C:\Users\yashv\AppData\Roaming\npm\etc\npmrc
-7 verbose title npm exec prisma generate
-8 verbose argv "exec" "--" "prisma" "generate"
-9 verbose logfile logs-max:10 dir:E:\leet\npm-cache\_logs\2026-02-18T17_24_59_675Z-
-10 verbose logfile E:\leet\npm-cache\_logs\2026-02-18T17_24_59_675Z-debug-0.log
+7 verbose title npm exec prisma db push
+8 verbose argv "exec" "--" "prisma" "db" "push"
+9 verbose logfile logs-max:10 dir:E:\leet\npm-cache\_logs\2026-02-19T16_59_41_097Z-
+10 verbose logfile E:\leet\npm-cache\_logs\2026-02-19T16_59_41_097Z-debug-0.log
 11 silly logfile start cleaning logs, removing 1 files
 12 silly logfile done cleaning log files
 13 verbose cwd E:\leet

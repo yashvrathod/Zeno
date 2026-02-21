@@ -17,6 +17,7 @@ type ApiSettings = {
   groqApiKey: string | null;
   openaiApiKey: string | null;
   googleApiKey: string | null;
+  openrouterApiKey: string | null;
   ollamaBaseUrl: string | null;
   ollamaModel: string | null;
   apiProvider: string;
@@ -31,6 +32,7 @@ export default function SettingsPage() {
     groqApiKey: '',
     openaiApiKey: '',
     googleApiKey: '',
+    openrouterApiKey: '',
     ollamaBaseUrl: 'http://localhost:11434',
     ollamaModel: 'llama3.1',
     apiProvider: 'server',
@@ -57,6 +59,7 @@ export default function SettingsPage() {
         groqApiKey: data.groqApiKey || '',
         openaiApiKey: data.openaiApiKey || '',
         googleApiKey: data.googleApiKey || '',
+        openrouterApiKey: data.openrouterApiKey || '',
         ollamaBaseUrl: data.ollamaBaseUrl || 'http://localhost:11434',
         ollamaModel: data.ollamaModel || 'llama3.1',
         apiProvider: data.apiProvider || 'server',
@@ -78,6 +81,7 @@ export default function SettingsPage() {
           groqApiKey: settings.groqApiKey?.trim() || null,
           openaiApiKey: settings.openaiApiKey?.trim() || null,
           googleApiKey: settings.googleApiKey?.trim() || null,
+          openrouterApiKey: settings.openrouterApiKey?.trim() || null,
           ollamaBaseUrl: settings.ollamaBaseUrl?.trim() || null,
           ollamaModel: settings.ollamaModel?.trim() || null,
           apiProvider: settings.apiProvider,
@@ -222,6 +226,23 @@ export default function SettingsPage() {
                   </button>
 
                   <button
+                    onClick={() => setSettings((s) => ({ ...s, apiProvider: 'openrouter' }))}
+                    className={`p-4 rounded-lg border-2 transition-colors ${
+                      settings.apiProvider === 'openrouter'
+                        ? 'border-orange-500 bg-orange-500/10'
+                        : 'border-zinc-700 bg-[#0f0f0f] hover:border-zinc-600'
+                    }`}
+                  >
+                    <div className="font-semibold mb-1">OpenRouter</div>
+                    <div className="text-sm text-gray-400">
+                      Access 200+ models, pay-as-you-go
+                    </div>
+                    {settings.apiProvider === 'openrouter' && (
+                      <Badge className="mt-2 bg-orange-500 text-white">Active</Badge>
+                    )}
+                  </button>
+
+                  <button
                     onClick={() => setSettings((s) => ({ ...s, apiProvider: 'ollama' }))}
                     className={`p-4 rounded-lg border-2 transition-colors ${
                       settings.apiProvider === 'ollama'
@@ -323,6 +344,33 @@ export default function SettingsPage() {
                           className="text-orange-500 hover:underline"
                         >
                           aistudio.google.com/apikey
+                        </a>
+                      </p>
+                    </div>
+                  )}
+
+                  {settings.apiProvider === 'openrouter' && (
+                    <div className="space-y-2">
+                      <Label htmlFor="openrouterKey">OpenRouter API Key</Label>
+                      <Input
+                        id="openrouterKey"
+                        type="password"
+                        value={settings.openrouterApiKey || ''}
+                        onChange={(e) =>
+                          setSettings((s) => ({ ...s, openrouterApiKey: e.target.value }))
+                        }
+                        className="bg-[#0f0f0f] border-zinc-700 text-white font-mono"
+                        placeholder="sk-or-v1-..."
+                      />
+                      <p className="text-xs text-gray-500">
+                        Get your API key at{' '}
+                        <a
+                          href="https://openrouter.ai/keys"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-orange-500 hover:underline"
+                        >
+                          openrouter.ai/keys
                         </a>
                       </p>
                     </div>

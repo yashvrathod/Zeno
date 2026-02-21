@@ -45,6 +45,14 @@ model User {
 
   aiSettings   UserAiSettings?
   problemStats UserProblemStats[]
+  
+  // Social features
+  posts         Post[]
+  postLikes     PostLike[]
+  comments      Comment[]
+  followers     Follow[]   @relation("Following")
+  following     Follow[]   @relation("Follower")
+  channelFollows ChannelFollow[]
 }
 
 model UserAiSettings {
@@ -58,12 +66,13 @@ model UserAiSettings {
   preferencesJson Json?
 
   // User's own API keys (encrypted/hashed in production)
-  groqApiKey    String? // User's Groq API key
-  openaiApiKey  String? // User's OpenAI API key
-  googleApiKey  String? // User's Google AI Studio API key
-  ollamaBaseUrl String? // User's Ollama server URL (e.g., http://localhost:11434)
-  ollamaModel   String? // User's preferred Ollama model (e.g., llama3.1, codellama)
-  apiProvider   String? @default("server") // 'server' | 'groq' | 'openai' | 'google' | 'ollama'
+  groqApiKey       String? // User's Groq API key
+  openaiApiKey     String? // User's OpenAI API key
+  googleApiKey     String? // User's Google AI Studio API key
+  openrouterApiKey String? // User's OpenRouter API key
+  ollamaBaseUrl    String? // User's Ollama server URL (e.g., http://localhost:11434)
+  ollamaModel      String? // User's preferred Ollama model (e.g., llama3.1, codellama)
+  apiProvider      String? @default("server") // 'server' | 'groq' | 'openai' | 'google' | 'openrouter' | 'ollama'
   hasCompletedOnboarding Boolean @default(false) // Track if user has seen API setup
 
   createdAt DateTime @default(now())
@@ -253,4 +262,101 @@ model MentorConversationSummary {
 
   @@unique([userId, problemId])
   @@index([problemId, updatedAt])
+}
+
+// Social Feed Posts
+model Post {
+  id          String   @id @default(cuid())
+  userId      String
+  content     String
+  codeSnippet String?
+  language    String?  // programming language if code snippet exists
+  imageUrl    String?
+  tags        String[] // hashtags
+  likeCount   Int      @default(0)
+  commentCount Int     @default(0)
+  shareCount  Int      @default(0)
+  featured    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes       PostLike[]
+  comments    Comment[]
+
+  @@index([userId, createdAt])
+  @@index([featured, createdAt])
+  @@index([createdAt])
+}
+
+// Post Likes
+model PostLike {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId])
+}
+
+// Comments on Posts
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  content   String
+  likeCount Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@index([userId])
+}
+
+// User Following System
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String   // user who is following
+  followingId String   // user being followed
+  createdAt   DateTime @default(now())
+
+  follower    User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+// Channel Following
+model ChannelFollow {
+  id        String   @id @default(cuid())
+  userId    String
+  channelId String   // channel name/identifier (e.g., "vscode", "react")
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channelId])
+  @@index([userId])
+  @@index([channelId])
+}
+
+// Trending Topics Tracking
+model TrendingTopic {
+  id        String   @id @default(cuid())
+  tag       String   @unique
+  postCount Int      @default(1)
+  weekCount Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@index([postCount])
+  @@index([weekCount])
 }

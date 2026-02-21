@@ -18,6 +18,7 @@ export async function GET() {
         groqApiKey: true,
         openaiApiKey: true,
         googleApiKey: true,
+        openrouterApiKey: true,
         ollamaBaseUrl: true,
         ollamaModel: true,
         apiProvider: true,
@@ -31,6 +32,7 @@ export async function GET() {
       groqApiKey: settings?.groqApiKey ? '••••••••' : null,
       openaiApiKey: settings?.openaiApiKey ? '••••••••' : null,
       googleApiKey: settings?.googleApiKey ? '••••••••' : null,
+      openrouterApiKey: settings?.openrouterApiKey ? '••••••••' : null,
       ollamaBaseUrl: settings?.ollamaBaseUrl || null,
       ollamaModel: settings?.ollamaModel || null,
       apiProvider: settings?.apiProvider || 'server',
@@ -55,10 +57,10 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { groqApiKey, openaiApiKey, googleApiKey, ollamaBaseUrl, ollamaModel, apiProvider, verbosity, hasCompletedOnboarding } = body;
+    const { groqApiKey, openaiApiKey, googleApiKey, openrouterApiKey, ollamaBaseUrl, ollamaModel, apiProvider, verbosity, hasCompletedOnboarding } = body;
 
     // Validate API provider
-    const validProviders = ['server', 'groq', 'openai', 'google', 'ollama'];
+    const validProviders = ['server', 'groq', 'openai', 'google', 'openrouter', 'ollama'];
     if (apiProvider && !validProviders.includes(apiProvider)) {
       return Response.json(
         { error: 'Invalid API provider' },
@@ -74,6 +76,7 @@ export async function PATCH(req: NextRequest) {
         groqApiKey: groqApiKey || null,
         openaiApiKey: openaiApiKey || null,
         googleApiKey: googleApiKey || null,
+        openrouterApiKey: openrouterApiKey || null,
         ollamaBaseUrl: ollamaBaseUrl || null,
         ollamaModel: ollamaModel || null,
         apiProvider: apiProvider || 'server',
@@ -84,6 +87,7 @@ export async function PATCH(req: NextRequest) {
         ...(groqApiKey !== undefined && { groqApiKey: groqApiKey || null }),
         ...(openaiApiKey !== undefined && { openaiApiKey: openaiApiKey || null }),
         ...(googleApiKey !== undefined && { googleApiKey: googleApiKey || null }),
+        ...(openrouterApiKey !== undefined && { openrouterApiKey: openrouterApiKey || null }),
         ...(ollamaBaseUrl !== undefined && { ollamaBaseUrl: ollamaBaseUrl || null }),
         ...(ollamaModel !== undefined && { ollamaModel: ollamaModel || null }),
         ...(apiProvider && { apiProvider }),

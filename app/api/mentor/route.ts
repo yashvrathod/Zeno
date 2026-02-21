@@ -487,7 +487,8 @@ function parseRetryAfterMs(response: Response, rawBody: string): number | null {
   const match = rawBody.match(/try again in\s+(\d+(?:\.\d+)?)s/i);
   if (match?.[1]) {
     const seconds = Number(match[1]);
-    if (Number.isFinite(seconds) && seconds > 0) return Math.ceil(seconds * 1000);
+    if (Number.isFinite(seconds) && seconds > 0)
+      return Math.ceil(seconds * 1000);
   }
 
   return null;
@@ -698,7 +699,17 @@ function extractAssistantContent(payload: unknown): string {
   if (!isRecord(first)) return "";
   const message = first.message;
   if (!isRecord(message)) return "";
-  return typeof message.content === "string" ? message.content.trim() : "";
+  
+  let content = typeof message.content === "string" ? message.content.trim() : "";
+  
+  // DeepSeek R1 models output reasoning in <think>...</think> tags
+  // We need to strip these out to get only the final answer
+  if (content.includes("<think>") || content.includes("</think>")) {
+    // Remove everything between <think> and </think> tags (including the tags)
+    content = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  }
+  
+  return content;
 }
 
 // ─────────────────────────────────────────────
@@ -741,14 +752,26 @@ New exchange:
 
 [MENTOR]\n${clampText(params.assistantMessage, 1000)}`;
 
+  // Build headers (Ollama doesn't need auth)
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+  };
+
+  // Only add Authorization for non-Ollama providers
+  if (params.apiKey !== "ollama") {
+    headers.Authorization = `Bearer ${params.apiKey}`;
+  }
+
+  // For Ollama, apiBaseUrl already includes /v1, so just append the endpoint
+  const summaryUrl = params.apiBaseUrl
+    ? `${params.apiBaseUrl}/chat/completions`
+    : "https://api.groq.com/openai/v1/chat/completions";
+
   const { raw } = await groqFetchWithRetry(
-    `${params.apiBaseUrl || 'https://api.groq.com/openai/v1'}/chat/completions`,
+    summaryUrl,
     {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${params.apiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify({
         model: process.env.GROQ_SUMMARY_MODEL || params.model,
         messages: [
@@ -757,6 +780,7 @@ New exchange:
         ],
         temperature: 0.2,
         max_tokens: 350,
+        stream: false, // Explicitly disable streaming
       }),
     },
     { maxRetries: 2, baseDelayMs: 1500 }, // Increased delay for summary API call
@@ -791,103 +815,148 @@ export async function POST(req: NextRequest) {
     const problemId = body.problemId;
 
     // ── Parallel fetch: Load settings, stats, summary, and persisted messages ──
-    const [userAiSettings, stats, existingSummary, persistedMessages] = await Promise.all([
-      prisma.userAiSettings.findUnique({
-        where: { userId },
-        select: {
-          apiProvider: true,
-          groqApiKey: true,
-          openaiApiKey: true,
-          googleApiKey: true,
-          ollamaBaseUrl: true,
-          ollamaModel: true,
-          verbosity: true,
-        },
-      }),
-      prisma.userProblemStats.findUnique({
-        where: { userId_problemId: { userId, problemId } },
-        select: {
-          runCount: true,
-          submitCount: true,
-          acceptedCount: true,
-          wrongAnswerCount: true,
-          runtimeErrorCount: true,
-          lastStatus: true,
-          lastError: true,
-        },
-      }),
-      prisma.mentorConversationSummary.findUnique({
-        where: { userId_problemId: { userId, problemId } },
-        select: { summaryMd: true, messageCount: true, lastRung: true },
-      }),
-      prisma.mentorConversationMessage.findMany({
-        where: {
-          userId,
-          problemId,
-        },
-        orderBy: { createdAt: 'asc' },
-        select: {
-          role: true,
-          content: true,
-          metadata: true,
-          createdAt: true,
-        },
-      }),
-    ]);
+    const [userAiSettings, stats, existingSummary, persistedMessages] =
+      await Promise.all([
+        prisma.userAiSettings.findUnique({
+          where: { userId },
+          select: {
+            apiProvider: true,
+            groqApiKey: true,
+            openaiApiKey: true,
+            googleApiKey: true,
+            openrouterApiKey: true,
+            ollamaBaseUrl: true,
+            ollamaModel: true,
+            verbosity: true,
+          },
+        }),
+        prisma.userProblemStats.findUnique({
+          where: { userId_problemId: { userId, problemId } },
+          select: {
+            runCount: true,
+            submitCount: true,
+            acceptedCount: true,
+            wrongAnswerCount: true,
+            runtimeErrorCount: true,
+            lastStatus: true,
+            lastError: true,
+          },
+        }),
+        prisma.mentorConversationSummary.findUnique({
+          where: { userId_problemId: { userId, problemId } },
+          select: { summaryMd: true, messageCount: true, lastRung: true },
+        }),
+        prisma.mentorConversationMessage.findMany({
+          where: {
+            userId,
+            problemId,
+          },
+          orderBy: { createdAt: "asc" },
+          select: {
+            role: true,
+            content: true,
+            metadata: true,
+            createdAt: true,
+          },
+        }),
+      ]);
 
-    const provider = userAiSettings?.apiProvider || 'server';
-    
+    const provider = userAiSettings?.apiProvider || "server";
+
+    console.log("[DEBUG] Provider selected:", provider);
+    console.log("[DEBUG] User settings:", {
+      hasGroqKey: !!userAiSettings?.groqApiKey,
+      hasOpenAIKey: !!userAiSettings?.openaiApiKey,
+      hasGoogleKey: !!userAiSettings?.googleApiKey,
+      hasOpenRouterKey: !!userAiSettings?.openrouterApiKey,
+      hasOllamaConfig: !!(userAiSettings?.ollamaBaseUrl && userAiSettings?.ollamaModel),
+    });
+    console.log("[DEBUG] Server env:", {
+      hasGroqKey: !!process.env.GROQ_API_KEY,
+      hasOpenRouterKey: !!process.env.OPENROUTER,
+    });
+
     // Determine which API key to use (user's key takes priority)
     let apiKey: string | undefined;
     let apiBaseUrl: string;
     let model: string;
 
-    if (provider === 'groq' && userAiSettings?.groqApiKey) {
+    if (provider === "groq" && userAiSettings?.groqApiKey) {
       // User's Groq key
       apiKey = userAiSettings.groqApiKey;
-      apiBaseUrl = 'https://api.groq.com/openai/v1';
-      model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
-    } else if (provider === 'openai' && userAiSettings?.openaiApiKey) {
+      apiBaseUrl = "https://api.groq.com/openai/v1";
+      model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+    } else if (provider === "openai" && userAiSettings?.openaiApiKey) {
       // User's OpenAI key
       apiKey = userAiSettings.openaiApiKey;
-      apiBaseUrl = 'https://api.openai.com/v1';
-      model = 'gpt-4o-mini';
-    } else if (provider === 'google' && userAiSettings?.googleApiKey) {
+      apiBaseUrl = "https://api.openai.com/v1";
+      model = "gpt-4o-mini";
+    } else if (provider === "google" && userAiSettings?.googleApiKey) {
       // User's Google AI key
       apiKey = userAiSettings.googleApiKey;
-      apiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta/openai';
-      model = 'gemini-1.5-flash';
-    } else if (provider === 'ollama' && userAiSettings?.ollamaBaseUrl && userAiSettings?.ollamaModel) {
+      apiBaseUrl = "https://generativelanguage.googleapis.com/v1beta/openai";
+      model = "gemini-1.5-flash";
+    } else if (provider === "openrouter" && userAiSettings?.openrouterApiKey) {
+      // User's OpenRouter key
+      apiKey = userAiSettings.openrouterApiKey;
+      apiBaseUrl = "https://openrouter.ai/api/v1";
+      model = "deepseek/deepseek-r1-0528:free";
+    } else if (
+      provider === "ollama" &&
+      userAiSettings?.ollamaBaseUrl &&
+      userAiSettings?.ollamaModel
+    ) {
       // User's local Ollama instance (no API key needed)
-      apiKey = 'ollama'; // Dummy key, Ollama doesn't need auth
-      apiBaseUrl = userAiSettings.ollamaBaseUrl;
+      apiKey = "ollama"; // Dummy key, Ollama doesn't need auth
+      // Ollama uses /v1 as the base, not /openai/v1
+      apiBaseUrl = userAiSettings.ollamaBaseUrl.replace(/\/+$/, "") + "/v1";
       model = userAiSettings.ollamaModel;
+    } else if (provider === "server" && process.env.OPENROUTER) {
+      // Fall back to server's OpenRouter key if available
+      apiKey = process.env.OPENROUTER;
+      apiBaseUrl = "https://openrouter.ai/api/v1";
+      model = "deepseek/deepseek-r1-0528:free";
     } else {
       // Fall back to server's default Groq key
       apiKey = process.env.GROQ_API_KEY;
-      apiBaseUrl = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1';
-      model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+      apiBaseUrl =
+        process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1";
+      model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
     }
+
+    console.log("[DEBUG] Selected API:", {
+      provider,
+      apiBaseUrl,
+      model,
+      hasApiKey: !!apiKey,
+      apiKeyPrefix: apiKey?.substring(0, 10) + "...",
+    });
 
     if (!apiKey) {
       return Response.json(
-        { error: 'No API key configured. Please add your API key in Settings or contact support.' },
+        {
+          error:
+            "No API key configured. Please add your API key in Settings or contact support.",
+        },
         { status: 500 },
       );
     }
 
     // ── Handle verbosity inference and update ──
     const inferred = inferVerbosityFromText(body.userMessage);
-    let verbosity: Verbosity = (userAiSettings?.verbosity as Verbosity) || "normal";
+    let verbosity: Verbosity =
+      (userAiSettings?.verbosity as Verbosity) || "normal";
 
     if (inferred && inferred !== verbosity) {
       verbosity = inferred;
       // Non-blocking update
-      prisma.userAiSettings.upsert({
-        where: { userId },
-        create: { userId, verbosity },
-        update: { verbosity },
-      }).catch((e) => console.warn("Failed to update verbosity:", e));
+      prisma.userAiSettings
+        .upsert({
+          where: { userId },
+          create: { userId, verbosity },
+          update: { verbosity },
+        })
+        .catch((e) => console.warn("Failed to update verbosity:", e));
     }
 
     const rollingSummaryMd = existingSummary?.summaryMd ?? null;
@@ -899,18 +968,25 @@ export async function POST(req: NextRequest) {
       role: m.role as "user" | "assistant",
       content: m.content,
     }));
-    
+
     // If frontend sent history that's newer than persisted, merge them
     const frontendHistory = Array.isArray(body.history) ? body.history : [];
-    const history = persistedHistory.length > 0 ? persistedHistory : frontendHistory;
+    const history =
+      persistedHistory.length > 0 ? persistedHistory : frontendHistory;
 
     // ── Detect stage, tone, and learning rung (using persistent data) ──
     const stage = detectTeachingStage(history, stats, body.userMessage);
     const tone = detectTone(history, body.userMessage, stage);
-    
+
     // Use lastRung from database as starting point, then detect current rung
     const previousRung = existingSummary?.lastRung ?? 1;
-    const rung = detectLearningRung(history, stats, body.userMessage, body.userCode, previousRung);
+    const rung = detectLearningRung(
+      history,
+      stats,
+      body.userMessage,
+      body.userCode,
+      previousRung,
+    );
 
     // ── Loop detection: Check if student is asking semantically similar questions ──
     let loopDetected = false;
@@ -968,7 +1044,10 @@ export async function POST(req: NextRequest) {
     const statsContext = buildStatsContext(stats, body.userMessage, stage);
 
     // ── Extract problem context and select guide question ──
-    const probContext = extractProblemContext(body.userCode, body.problemStatementMd);
+    const probContext = extractProblemContext(
+      body.userCode,
+      body.problemStatementMd,
+    );
     const guideQuestion = selectGuideQuestion(rung, stage, probContext);
 
     // ── Build loop alert if detected ──
@@ -1024,34 +1103,63 @@ Change your approach completely. Try:
     // ── Call AI Provider ──
     let raw: string;
     try {
+      // Build headers based on provider (Ollama doesn't need auth)
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+
+      if (provider !== "ollama") {
+        headers.Authorization = `Bearer ${apiKey}`;
+      }
+
+      // Build request body based on provider
+      const requestBody: Record<string, unknown> = {
+        model,
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+        stream: false, // Explicitly disable streaming for all providers
+      };
+
+      // Add OpenAI-specific parameters only for compatible providers
+      if (provider === "groq" || provider === "openai") {
+        requestBody.top_p = 0.95;
+        requestBody.frequency_penalty = 0.4;
+        requestBody.presence_penalty = 0.3;
+      }
+
       ({ raw } = await groqFetchWithRetry(
         `${apiBaseUrl}/chat/completions`,
         {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model,
-            messages,
-            temperature,
-            max_tokens: maxTokens,
-            top_p: 0.95,
-            frequency_penalty: 0.4, // Reduce repetitive phrasing
-            presence_penalty: 0.3, // Encourage exploring different angles
-          }),
+          headers,
+          body: JSON.stringify(requestBody),
         },
         { maxRetries: 4, baseDelayMs: 2000 }, // Increased delay for rate limits
       ));
     } catch (e) {
-      console.error("Groq API error:", e);
+      console.error("AI API error:", e);
+
+      // Provide more helpful error messages based on provider
+      let errorMessage =
+        "AI service is temporarily unavailable. Please try again in a few seconds.";
+
+      if (provider === "ollama") {
+        errorMessage =
+          "Cannot connect to Ollama. Please ensure:\n1. Ollama is installed and running\n2. The server URL is correct (default: http://localhost:11434)\n3. The model is downloaded (run: ollama pull " +
+          model +
+          ")";
+      } else if (e instanceof Error && e.message.includes("401")) {
+        errorMessage =
+          "Invalid API key. Please check your API key in Settings.";
+      } else if (e instanceof Error && e.message.includes("429")) {
+        errorMessage =
+          "Rate limit exceeded. Please wait a moment or use your own API key in Settings.";
+      }
+
       return Response.json(
-        {
-          error:
-            "AI service is rate-limited or temporarily unavailable. Please try again in a few seconds.",
-        },
-        { status: 429 },
+        { error: errorMessage },
+        { status: provider === "ollama" ? 503 : 429 },
       );
     }
 
@@ -1085,26 +1193,30 @@ Change your approach completely. Try:
     };
 
     // Save user message
-    prisma.mentorConversationMessage.create({
-      data: {
-        userId,
-        problemId,
-        role: "user",
-        content: body.userMessage,
-        metadata: conversationMetadata,
-      },
-    }).catch((e) => console.warn("Failed to save user message:", e));
+    prisma.mentorConversationMessage
+      .create({
+        data: {
+          userId,
+          problemId,
+          role: "user",
+          content: body.userMessage,
+          metadata: conversationMetadata,
+        },
+      })
+      .catch((e) => console.warn("Failed to save user message:", e));
 
     // Save assistant message
-    prisma.mentorConversationMessage.create({
-      data: {
-        userId,
-        problemId,
-        role: "assistant",
-        content: assistantMessage,
-        metadata: conversationMetadata,
-      },
-    }).catch((e) => console.warn("Failed to save assistant message:", e));
+    prisma.mentorConversationMessage
+      .create({
+        data: {
+          userId,
+          problemId,
+          role: "assistant",
+          content: assistantMessage,
+          metadata: conversationMetadata,
+        },
+      })
+      .catch((e) => console.warn("Failed to save assistant message:", e));
 
     // ── Update rolling summary (non-blocking, server-side message count) ──
     // Update summary every 4 messages based on server-side counter
@@ -1132,8 +1244,8 @@ Change your approach completely. Try:
               messageCount: newMessageCount,
               lastRung: rung,
             },
-            update: { 
-              status: "ONGOING", 
+            update: {
+              status: "ONGOING",
               summaryMd: nextSummary,
               messageCount: newMessageCount,
               lastRung: rung,
@@ -1143,21 +1255,23 @@ Change your approach completely. Try:
         .catch((e) => console.warn("Failed to update summary:", e));
     } else {
       // Still update message count and rung even if not rewriting summary
-      prisma.mentorConversationSummary.upsert({
-        where: { userId_problemId: { userId, problemId } },
-        create: {
-          userId,
-          problemId,
-          status: "ONGOING",
-          summaryMd: rollingSummaryMd || "",
-          messageCount: newMessageCount,
-          lastRung: rung,
-        },
-        update: {
-          messageCount: newMessageCount,
-          lastRung: rung,
-        },
-      }).catch((e) => console.warn("Failed to update message count:", e));
+      prisma.mentorConversationSummary
+        .upsert({
+          where: { userId_problemId: { userId, problemId } },
+          create: {
+            userId,
+            problemId,
+            status: "ONGOING",
+            summaryMd: rollingSummaryMd || "",
+            messageCount: newMessageCount,
+            lastRung: rung,
+          },
+          update: {
+            messageCount: newMessageCount,
+            lastRung: rung,
+          },
+        })
+        .catch((e) => console.warn("Failed to update message count:", e));
     }
 
     return Response.json({

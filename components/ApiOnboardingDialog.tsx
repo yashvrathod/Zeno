@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
-type Provider = 'server' | 'groq' | 'openai' | 'google' | 'ollama';
+type Provider = 'server' | 'groq' | 'openai' | 'google' | 'openrouter' | 'ollama';
 
 type ApiOnboardingDialogProps = {
   open: boolean;
@@ -25,6 +25,7 @@ export default function ApiOnboardingDialog({ open, onClose }: ApiOnboardingDial
     groqApiKey: '',
     openaiApiKey: '',
     googleApiKey: '',
+    openrouterApiKey: '',
     ollamaBaseUrl: 'http://localhost:11434',
     ollamaModel: 'llama3.1',
   });
@@ -43,6 +44,8 @@ export default function ApiOnboardingDialog({ open, onClose }: ApiOnboardingDial
         payload.openaiApiKey = config.openaiApiKey;
       } else if (selectedProvider === 'google' && config.googleApiKey) {
         payload.googleApiKey = config.googleApiKey;
+      } else if (selectedProvider === 'openrouter' && config.openrouterApiKey) {
+        payload.openrouterApiKey = config.openrouterApiKey;
       } else if (selectedProvider === 'ollama') {
         payload.ollamaBaseUrl = config.ollamaBaseUrl;
         payload.ollamaModel = config.ollamaModel;
@@ -268,6 +271,31 @@ export default function ApiOnboardingDialog({ open, onClose }: ApiOnboardingDial
                 </div>
               </button>
 
+              {/* OpenRouter */}
+              <button
+                onClick={() => setSelectedProvider('openrouter')}
+                className={`p-5 rounded-lg border-2 text-left transition-all ${
+                  selectedProvider === 'openrouter'
+                    ? 'border-orange-500 bg-orange-500/10 shadow-lg'
+                    : 'border-zinc-700 bg-[#0f0f0f] hover:border-zinc-600'
+                }`}
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <Server className="w-6 h-6 text-orange-400" />
+                  {selectedProvider === 'openrouter' && (
+                    <Badge className="bg-orange-500 text-white text-xs">Selected</Badge>
+                  )}
+                </div>
+                <div className="font-semibold mb-1 text-lg">OpenRouter</div>
+                <div className="text-sm text-gray-400 mb-2">
+                  Access 200+ models, pay-as-you-go
+                </div>
+                <div className="flex gap-1 flex-wrap">
+                  <Badge variant="outline" className="text-xs">200+ models</Badge>
+                  <Badge variant="outline" className="text-xs">Flexible</Badge>
+                </div>
+              </button>
+
               {/* Ollama (Local) */}
               <button
                 onClick={() => setSelectedProvider('ollama')}
@@ -329,7 +357,7 @@ export default function ApiOnboardingDialog({ open, onClose }: ApiOnboardingDial
               ← Back
             </button>
 
-            <h2 className="text-2xl font-bold mb-2">Configure {selectedProvider === 'server' ? 'Server Default' : selectedProvider === 'google' ? 'Google AI' : selectedProvider === 'ollama' ? 'Ollama' : selectedProvider.toUpperCase()}</h2>
+            <h2 className="text-2xl font-bold mb-2">Configure {selectedProvider === 'server' ? 'Server Default' : selectedProvider === 'google' ? 'Google AI' : selectedProvider === 'ollama' ? 'Ollama' : selectedProvider === 'openrouter' ? 'OpenRouter' : selectedProvider.toUpperCase()}</h2>
             <p className="text-gray-400 mb-6">
               {selectedProvider === 'server' 
                 ? "You're all set! No configuration needed."
@@ -413,6 +441,33 @@ export default function ApiOnboardingDialog({ open, onClose }: ApiOnboardingDial
                       className="text-orange-500 hover:underline"
                     >
                       aistudio.google.com/apikey
+                    </a>
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {selectedProvider === 'openrouter' && (
+              <div className="space-y-4 mb-6">
+                <div className="space-y-2">
+                  <Label htmlFor="openrouterKey">OpenRouter API Key</Label>
+                  <Input
+                    id="openrouterKey"
+                    type="password"
+                    value={config.openrouterApiKey}
+                    onChange={(e) => setConfig((c) => ({ ...c, openrouterApiKey: e.target.value }))}
+                    className="bg-[#0f0f0f] border-zinc-700 text-white font-mono"
+                    placeholder="sk-or-v1-..."
+                  />
+                  <p className="text-xs text-gray-500">
+                    Get your API key at{' '}
+                    <a
+                      href="https://openrouter.ai/keys"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-orange-500 hover:underline"
+                    >
+                      openrouter.ai/keys
                     </a>
                   </p>
                 </div>
