@@ -827,6 +827,7 @@ export async function POST(req: NextRequest) {
             openrouterApiKey: true,
             ollamaBaseUrl: true,
             ollamaModel: true,
+            preferredFreeModel: true,
             verbosity: true,
           },
         }),
@@ -873,7 +874,7 @@ export async function POST(req: NextRequest) {
     });
     console.log("[DEBUG] Server env:", {
       hasGroqKey: !!process.env.GROQ_API_KEY,
-      hasOpenRouterKey: !!process.env.OPENROUTER,
+      hasOpenRouterKey: !!(process.env.OPENROUTER || process.env.OPENROUTER_API_KEY),
     });
 
     // Determine which API key to use (user's key takes priority)
@@ -881,7 +882,12 @@ export async function POST(req: NextRequest) {
     let apiBaseUrl: string;
     let model: string;
 
-    if (provider === "groq" && userAiSettings?.groqApiKey) {
+    if (provider === "openrouter" && userAiSettings?.openrouterApiKey) {
+      // User's OpenRouter key with their preferred free model
+      apiKey = userAiSettings.openrouterApiKey;
+      apiBaseUrl = "https://openrouter.ai/api/v1";
+      model = userAiSettings.preferredFreeModel || "nvidia/nemotron-3-nano-30b-a3b:free";
+    } else if (provider === "groq" && userAiSettings?.groqApiKey) {
       // User's Groq key
       apiKey = userAiSettings.groqApiKey;
       apiBaseUrl = "https://api.groq.com/openai/v1";
@@ -896,11 +902,6 @@ export async function POST(req: NextRequest) {
       apiKey = userAiSettings.googleApiKey;
       apiBaseUrl = "https://generativelanguage.googleapis.com/v1beta/openai";
       model = "gemini-1.5-flash";
-    } else if (provider === "openrouter" && userAiSettings?.openrouterApiKey) {
-      // User's OpenRouter key
-      apiKey = userAiSettings.openrouterApiKey;
-      apiBaseUrl = "https://openrouter.ai/api/v1";
-      model = "deepseek/deepseek-r1-0528:free";
     } else if (
       provider === "ollama" &&
       userAiSettings?.ollamaBaseUrl &&
@@ -911,17 +912,26 @@ export async function POST(req: NextRequest) {
       // Ollama uses /v1 as the base, not /openai/v1
       apiBaseUrl = userAiSettings.ollamaBaseUrl.replace(/\/+$/, "") + "/v1";
       model = userAiSettings.ollamaModel;
-    } else if (provider === "server" && process.env.OPENROUTER) {
-      // Fall back to server's OpenRouter key if available
-      apiKey = process.env.OPENROUTER;
+    } else if (provider === "server" && (process.env.OPENROUTER || process.env.OPENROUTER_API_KEY)) {
+      // PRIORITY: Server's OpenRouter key with free models (unlimited usage!)
+      apiKey = process.env.OPENROUTER || process.env.OPENROUTER_API_KEY;
       apiBaseUrl = "https://openrouter.ai/api/v1";
-      model = "deepseek/deepseek-r1-0528:free";
-    } else {
-      // Fall back to server's default Groq key
+      model = userAiSettings?.preferredFreeModel || "nvidia/nemotron-3-nano-30b-a3b:free";
+    } else if (process.env.OPENROUTER || process.env.OPENROUTER_API_KEY) {
+      // FALLBACK: OpenRouter free models for unlimited usage (no rate limits!)
+      apiKey = process.env.OPENROUTER || process.env.OPENROUTER_API_KEY;
+      apiBaseUrl = "https://openrouter.ai/api/v1";
+      model = "nvidia/nemotron-3-nano-30b-a3b:free";
+    } else if (process.env.GROQ_API_KEY) {
+      // Last resort: Groq (has rate limits)
       apiKey = process.env.GROQ_API_KEY;
-      apiBaseUrl =
-        process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1";
+      apiBaseUrl = process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1";
       model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+    } else {
+      // No API keys available
+      apiKey = undefined;
+      apiBaseUrl = "";
+      model = "";
     }
 
     console.log("[DEBUG] Selected API:", {

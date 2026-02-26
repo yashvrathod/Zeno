@@ -21,6 +21,7 @@ export async function GET() {
         openrouterApiKey: true,
         ollamaBaseUrl: true,
         ollamaModel: true,
+        preferredFreeModel: true,
         apiProvider: true,
         verbosity: true,
         hasCompletedOnboarding: true,
@@ -35,6 +36,7 @@ export async function GET() {
       openrouterApiKey: settings?.openrouterApiKey ? '••••••••' : null,
       ollamaBaseUrl: settings?.ollamaBaseUrl || null,
       ollamaModel: settings?.ollamaModel || null,
+      preferredFreeModel: settings?.preferredFreeModel || 'nvidia/nemotron-3-nano-30b-a3b:free',
       apiProvider: settings?.apiProvider || 'server',
       verbosity: settings?.verbosity || 'normal',
       hasCompletedOnboarding: settings?.hasCompletedOnboarding || false,
@@ -57,7 +59,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { groqApiKey, openaiApiKey, googleApiKey, openrouterApiKey, ollamaBaseUrl, ollamaModel, apiProvider, verbosity, hasCompletedOnboarding } = body;
+    const { groqApiKey, openaiApiKey, googleApiKey, openrouterApiKey, ollamaBaseUrl, ollamaModel, apiProvider, preferredFreeModel, verbosity, hasCompletedOnboarding } = body;
 
     // Validate API provider
     const validProviders = ['server', 'groq', 'openai', 'google', 'openrouter', 'ollama'];
@@ -79,6 +81,7 @@ export async function PATCH(req: NextRequest) {
         openrouterApiKey: openrouterApiKey || null,
         ollamaBaseUrl: ollamaBaseUrl || null,
         ollamaModel: ollamaModel || null,
+        preferredFreeModel: preferredFreeModel || 'nvidia/nemotron-3-nano-30b-a3b:free',
         apiProvider: apiProvider || 'server',
         verbosity: verbosity || 'normal',
         hasCompletedOnboarding: hasCompletedOnboarding ?? false,
@@ -90,6 +93,7 @@ export async function PATCH(req: NextRequest) {
         ...(openrouterApiKey !== undefined && { openrouterApiKey: openrouterApiKey || null }),
         ...(ollamaBaseUrl !== undefined && { ollamaBaseUrl: ollamaBaseUrl || null }),
         ...(ollamaModel !== undefined && { ollamaModel: ollamaModel || null }),
+        ...(preferredFreeModel !== undefined && { preferredFreeModel: preferredFreeModel || 'nvidia/nemotron-3-nano-30b-a3b:free' }),
         ...(apiProvider && { apiProvider }),
         ...(verbosity && { verbosity }),
         ...(hasCompletedOnboarding !== undefined && { hasCompletedOnboarding }),

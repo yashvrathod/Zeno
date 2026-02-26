@@ -73,6 +73,7 @@ model UserAiSettings {
   ollamaBaseUrl    String? // User's Ollama server URL (e.g., http://localhost:11434)
   ollamaModel      String? // User's preferred Ollama model (e.g., llama3.1, codellama)
   apiProvider      String? @default("server") // 'server' | 'groq' | 'openai' | 'google' | 'openrouter' | 'ollama'
+  preferredFreeModel String? @default("nvidia/nemotron-3-nano-30b-a3b:free") // OpenRouter free model selection
   hasCompletedOnboarding Boolean @default(false) // Track if user has seen API setup
 
   createdAt DateTime @default(now())
