@@ -145,25 +145,52 @@ export default function ProblemsPage() {
                       {pattern.description}
                     </p>
 
-                    <div className="mt-auto pt-8 border-t border-white/5 flex items-center justify-between">
-                       <div className="flex items-center gap-4">
-                          <div className="flex flex-col">
-                             <span className="text-[10px] font-bold text-zinc-700 tracking-widest uppercase">Complexity</span>
-                             <span className="text-xs text-zinc-400">Mixed Level</span>
+                    <div className="mt-auto space-y-8">
+                       <div className="pt-8 border-t border-white/5 flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                             <div className="flex flex-col">
+                                <span className="text-[10px] font-bold text-zinc-700 tracking-widest uppercase">Complexity</span>
+                                <span className="text-xs text-zinc-400">Mixed Level</span>
+                             </div>
+                             <div className="w-px h-6 bg-white/5" />
+                             <div className="flex flex-col">
+                                <span className="text-[10px] font-bold text-zinc-700 tracking-widest uppercase">Nodes</span>
+                                <span className="text-xs text-zinc-400">{pattern.problemCount} Problems</span>
+                             </div>
                           </div>
-                          <div className="w-px h-6 bg-white/5" />
-                          <div className="flex flex-col">
-                             <span className="text-[10px] font-bold text-zinc-700 tracking-widest uppercase">Nodes</span>
-                             <span className="text-xs text-zinc-400">{pattern.problemCount} Problems</span>
+                          
+                          <button 
+                           onClick={() => setExpandedPattern(expandedPattern === pattern.id ? null : pattern.id)}
+                           className="flex items-center gap-2 text-[10px] font-bold tracking-widest text-zinc-500 hover:text-white transition-colors uppercase"
+                          >
+                            {expandedPattern === pattern.id ? 'Hide Nodes' : 'Show Nodes'}
+                            <ArrowRight size={14} className={`transition-transform duration-300 ${expandedPattern === pattern.id ? '-rotate-90' : 'group-hover:translate-x-1'}`} />
+                          </button>
+                       </div>
+
+                       {/* Expanded Problem List */}
+                       <div className={`space-y-2 transition-all duration-500 overflow-hidden ${expandedPattern === pattern.id ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                          <div className="grid grid-cols-1 gap-1 pb-4">
+                             {pattern.problems.map((problem) => (
+                               <Link 
+                                 key={problem.id}
+                                 href={`/problems/${problem.leetcodeId}`}
+                                 className="flex items-center justify-between py-3 px-4 rounded-xl hover:bg-white/[0.03] border border-transparent hover:border-white/5 transition-all group/item"
+                               >
+                                 <div className="flex items-center gap-3">
+                                    <div className="w-1 h-1 rounded-full bg-zinc-800 group-hover/item:bg-purple-500 transition-colors" />
+                                    <span className="text-sm text-zinc-400 group-hover/item:text-white transition-colors font-light">{problem.title}</span>
+                                 </div>
+                                 <span className={`text-[9px] font-bold uppercase tracking-widest ${
+                                   problem.difficulty === 'EASY' ? 'text-emerald-500/50' : 
+                                   problem.difficulty === 'MEDIUM' ? 'text-amber-500/50' : 'text-rose-500/50'
+                                 }`}>
+                                   {problem.difficulty}
+                                 </span>
+                               </Link>
+                             ))}
                           </div>
                        </div>
-                       
-                       <Link 
-                        href={`/problems/${pattern.problems[0]?.leetcodeId ?? ''}`}
-                        className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-zinc-500 hover:bg-white hover:text-black transition-all shadow-xl group-hover:scale-110 active:scale-95"
-                       >
-                         <ArrowRight size={18} />
-                       </Link>
                     </div>
                   </div>
                 ))}

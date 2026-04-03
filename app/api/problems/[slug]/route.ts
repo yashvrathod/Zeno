@@ -4,8 +4,13 @@ import prisma from '@/lib/prisma';
 export async function GET(_: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
 
-  const problem = await prisma.problem.findUnique({
-    where: { slug },
+  const problem = await prisma.problem.findFirst({
+    where: {
+      OR: [
+        { id: slug },
+        { slug: slug }
+      ]
+    },
     include: {
       patterns: { include: { pattern: true } },
       hints: { orderBy: { order: 'asc' } },

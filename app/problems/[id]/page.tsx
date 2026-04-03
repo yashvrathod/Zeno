@@ -2,11 +2,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Settings,
-  LayoutGrid,
-  Activity,
-  Code,
-  Circle,
   ArrowUpRight,
   Sparkles,
   Copy,
@@ -17,10 +12,10 @@ import {
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import Editor from '@monaco-editor/react';
 import { Markdown } from '@/components/Markdown';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import Sidebar from '@/components/Sidebar';
 
 type Problem = {
   id: string;
@@ -36,7 +31,6 @@ type Problem = {
 export default function ProblemDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: problemId } = React.use(params);
   const { data: session } = useSession();
-  const pathname = usePathname();
   const [dbProblem, setDbProblem] = useState<Problem | null>(null);
   const [mentorInput, setMentorInput] = useState('');
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
@@ -102,27 +96,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="flex h-screen bg-[#050505] text-zinc-400 font-sans overflow-hidden">
-      {/* Integrated Thin Sidebar */}
-      <aside className="w-16 flex flex-col items-center py-6 border-r border-white/5 bg-[#050505] z-50">
-        <div className="mb-12">
-           <Link href="/" className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/10 italic font-serif text-white text-lg hover:border-white/40 transition-colors">
-             A
-           </Link>
-        </div>
-        
-        <nav className="flex-1 flex flex-col gap-8">
-          <SidebarIcon href="/" icon={<LayoutGrid size={20} />} label="WORKBENCH" active={pathname === '/'} />
-          <SidebarIcon href="/problems" icon={<Code size={20} />} label="ARCHITECT" active={pathname.startsWith('/problems')} />
-          <SidebarIcon href="/leaderboard" icon={<Activity size={20} />} label="LEADERBOARD" active={pathname === '/leaderboard'} />
-          <SidebarIcon href="/settings" icon={<Circle size={18} />} label="SETTINGS" active={pathname === '/settings'} />
-        </nav>
-
-        <div className="mt-auto">
-          <Link href="/settings" className="p-2 text-zinc-600 hover:text-white transition-colors">
-            <Settings size={20} />
-          </Link>
-        </div>
-      </aside>
+      <Sidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Navbar */}
