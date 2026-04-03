@@ -4,19 +4,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
 import {
-  ChevronDown,
-  CheckCircle2,
-  Circle,
-  Clock,
   Search,
   LayoutGrid,
   List,
   ArrowRight,
-  Layers,
   Sparkles,
-  Activity,
   Target,
-  BarChart3,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -32,11 +25,9 @@ type UiPattern = {
   id: string;
   name: string;
   description: string;
-  icon: string;
   problemCount: number;
   completed: number;
-  difficulty: string;
-  problems: Array<{ id: string; title: string; difficulty: string; leetcodeId: string; status: 'unsolved' | 'attempted' | 'solved' }>;
+  problems: Array<{ id: string; title: string; difficulty: string; leetcodeId: string }>;
 };
 
 async function fetchPatterns(): Promise<ApiPattern[]> {
@@ -53,32 +44,24 @@ export default function ProblemsPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   useEffect(() => {
-    let mounted = true;
-    fetchPatterns().then((p) => { if (mounted) setApiPatterns(p); }).catch(() => { if (mounted) setApiPatterns([]); });
-    return () => { mounted = false; };
+    fetchPatterns().then(setApiPatterns).catch(() => setApiPatterns([]));
   }, []);
 
   const patterns: UiPattern[] = useMemo(() => {
     if (apiPatterns) {
-      return apiPatterns.map((p, idx) => {
-        const iconPool = ['👆', '🪟', '🐇🐢', '📊', '🔍', '🏆', '🌳', '🌲', '🧠', '🔗'];
-        return {
-          id: p.id,
-          name: p.name,
-          description: p.description ?? '',
-          icon: iconPool[idx % iconPool.length],
-          problemCount: p.problemCount,
-          completed: 0,
-          difficulty: 'Mixed',
-          problems: p.problems.map((pr) => ({
-            id: pr.id,
-            title: pr.title,
-            difficulty: pr.difficulty === 'EASY' ? 'Easy' : pr.difficulty === 'MEDIUM' ? 'Medium' : 'Hard',
-            leetcodeId: pr.slug,
-            status: 'unsolved',
-          })),
-        };
-      });
+      return apiPatterns.map((p) => ({
+        id: p.id,
+        name: p.name,
+        description: p.description ?? '',
+        problemCount: p.problemCount,
+        completed: 0,
+        problems: p.problems.map((pr) => ({
+          id: pr.id,
+          title: pr.title,
+          difficulty: pr.difficulty,
+          leetcodeId: pr.id,
+        })),
+      }));
     }
     return [];
   }, [apiPatterns]);
@@ -91,211 +74,156 @@ export default function ProblemsPage() {
     );
   }, [patterns, searchQuery]);
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch(difficulty) {
-      case 'Easy': return 'text-emerald-400';
-      case 'Medium': return 'text-amber-400';
-      case 'Hard': return 'text-rose-400';
-      default: return 'text-zinc-500';
-    }
-  };
-
   return (
-    <div className="flex flex-col h-screen bg-[#020204] text-zinc-400 font-sans overflow-hidden">
-      <Navbar />
+    <div className="flex h-screen bg-[#050505] text-zinc-400 font-sans overflow-hidden">
+      <Sidebar />
 
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Navbar />
 
-        <main className="flex-1 overflow-y-auto border-l border-white/10 bg-[#020204] selection:bg-purple-500/30">
-          <div className="flex justify-center">
-            <div className="w-full max-w-5xl px-8 py-12 flex gap-12">
-              
-              {/* Content Column */}
-              <div className="flex-1 min-w-0">
-                {/* Elegant Header */}
-                <div className="flex flex-col gap-6 mb-16">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 px-3 py-1 bg-purple-500/10 border border-purple-500/20 rounded-full">
-                      <Sparkles size={12} className="text-purple-400" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-purple-400">Curriculum v2.0</span>
-                    </div>
-                    <div className="flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/5 rounded-full">
-                      <Activity size={12} className="text-white/40" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">241 Problems</span>
-                    </div>
+        <main className="flex-1 overflow-y-auto bg-[#0a0a0c] selection:bg-purple-500/30 scrollbar-hide">
+          <div className="max-w-6xl mx-auto px-12 py-16 flex gap-16">
+            
+            <div className="flex-1 min-w-0">
+              {/* Aether Header */}
+              <div className="space-y-6 mb-16 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
+                    <Sparkles size={14} className="text-purple-400" />
                   </div>
-                  <div>
-                    <h1 className="text-4xl font-bold text-white tracking-tight mb-3">Pattern Library</h1>
-                    <p className="text-sm text-white/40 max-w-xl leading-relaxed font-light">
-                      Master the core foundations through curated algorithmic patterns. Each module is designed to bridge the gap between theory and implementation.
-                    </p>
-                  </div>
+                  <span className="text-[10px] font-bold tracking-[0.3em] text-zinc-500 uppercase">CURRICULUM ARCHITECT</span>
                 </div>
-
-                {/* Clean Controls */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12 pb-8 border-b border-white/10">
-                  <div className="relative flex-1 max-w-md group">
-                    <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-white/10 group-focus-within:text-purple-500 transition-colors" size={18} />
-                    <input 
-                      type="text"
-                      placeholder="Search patterns..."
-                      className="w-full bg-transparent py-3 pl-8 text-sm text-white placeholder:text-zinc-800 outline-none transition-all"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                  </div>
-                  
-                  <div className="flex items-center gap-4 bg-[#08080a] p-1 rounded-xl border border-white/10">
-                    <button 
-                      onClick={() => setViewMode('grid')}
-                      className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white/10 text-white shadow-lg' : 'text-zinc-600 hover:text-zinc-400'}`}
-                    >
-                      <LayoutGrid size={16} />
-                    </button>
-                    <button 
-                      onClick={() => setViewMode('list')}
-                      className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white/10 text-white shadow-lg' : 'text-zinc-600 hover:text-zinc-400'}`}
-                    >
-                      <List size={16} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Grid Layout with Surface Elevation */}
-                {viewMode === 'grid' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {filteredPatterns.map((pattern) => (
-                      <div key={pattern.id} className="group relative bg-[#08080a] border border-white/15 rounded-2xl p-8 transition-all hover:bg-[#0c0c0e] hover:border-white/25 shadow-lg">
-                        <div className="flex items-start justify-between mb-8">
-                          <div className="w-14 h-14 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center text-2xl group-hover:border-purple-500/30 transition-all">
-                            <span className="grayscale group-hover:grayscale-0 transition-all opacity-40 group-hover:opacity-100">{pattern.icon}</span>
-                          </div>
-                          <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest font-mono">MOD_{pattern.id.slice(-2)}</span>
-                        </div>
-                        
-                        <h3 className="text-lg font-bold text-white mb-3 group-hover:text-purple-400 transition-colors tracking-tight">{pattern.name}</h3>
-                        <p className="text-sm text-zinc-500 leading-relaxed mb-8 line-clamp-2 font-light">
-                          {pattern.description}
-                        </p>
-
-                        <div className="mt-auto space-y-6">
-                          <div className="space-y-2">
-                            <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest font-mono">
-                              <span className="text-zinc-600">COMPLETION</span>
-                              <span className="text-purple-400">{Math.round((pattern.completed / pattern.problemCount) * 100)}%</span>
-                            </div>
-                            <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-purple-500 transition-all duration-1000 ease-out"
-                                style={{ width: `${(pattern.completed / pattern.problemCount) * 100}%` }}
-                              />
-                            </div>
-                          </div>
-                          
-                          <button 
-                            onClick={() => setExpandedPattern(expandedPattern === pattern.name ? null : pattern.name)}
-                            className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500 group-hover:text-white transition-all"
-                          >
-                            {expandedPattern === pattern.name ? 'COLLAPSE' : 'EXPAND MODULE'}
-                            <ArrowRight size={12} className={`transition-transform duration-300 ${expandedPattern === pattern.name ? '-rotate-90' : 'group-hover:translate-x-1'}`} />
-                          </button>
-                        </div>
-
-                        {/* Expandable Problem List */}
-                        <div className={`mt-6 space-y-1 transition-all duration-500 overflow-hidden ${expandedPattern === pattern.name ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                          <div className="pt-6 border-t border-white/5 grid grid-cols-1 gap-1">
-                            {pattern.problems.map((problem) => (
-                              <Link 
-                                key={problem.id}
-                                href={`/problems/${problem.leetcodeId}`}
-                                className="flex items-center justify-between p-2.5 rounded-lg hover:bg-white/5 transition-all group/item"
-                              >
-                                <span className="text-xs text-zinc-400 group-hover/item:text-white transition-colors">{problem.title}</span>
-                                <span className={`text-[9px] font-bold uppercase tracking-widest ${getDifficultyColor(problem.difficulty)}`}>
-                                  {problem.difficulty}
-                                </span>
-                              </Link>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="bg-[#08080a] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
-                    {filteredPatterns.map((pattern) => (
-                      <div key={pattern.id} className="group border-b border-white/5 last:border-0">
-                        <div 
-                          className="flex items-center justify-between px-8 py-6 cursor-pointer hover:bg-white/[0.02] transition-all"
-                          onClick={() => setExpandedPattern(expandedPattern === pattern.name ? null : pattern.name)}
-                        >
-                          <div className="flex items-center gap-8">
-                            <span className="text-xl grayscale opacity-20 group-hover:opacity-100 transition-opacity w-8 text-center">{pattern.icon}</span>
-                            <h3 className="text-white font-semibold group-hover:text-purple-400 transition-colors tracking-tight">{pattern.name}</h3>
-                          </div>
-                          <ChevronDown size={16} className={`text-zinc-700 transition-transform duration-300 ${expandedPattern === pattern.name ? 'rotate-180 text-purple-400' : ''}`} />
-                        </div>
-                        {expandedPattern === pattern.name && (
-                          <div className="bg-black/20 px-12 py-8 animate-in fade-in slide-in-from-top-4 duration-500">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-4">
-                              {pattern.problems.map((problem) => (
-                                <Link 
-                                  key={problem.id}
-                                  href={`/problems/${problem.leetcodeId}`}
-                                  className="flex items-center justify-between py-1 group/link"
-                                >
-                                  <span className="text-xs text-zinc-500 group-hover/link:text-white transition-colors">{problem.title}</span>
-                                  <span className={`text-[8px] font-bold uppercase tracking-widest ${getDifficultyColor(problem.difficulty)}`}>
-                                    {problem.difficulty}
-                                  </span>
-                                </Link>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                
+                <h1 className="text-5xl font-serif italic text-white leading-tight tracking-tight">
+                  Algorithmic foundations for the modern architect.
+                </h1>
+                <p className="text-lg text-zinc-500 font-light max-w-2xl leading-relaxed">
+                  Master the core patterns of computation through our curated curriculum. Each module represents a neural path toward mastery.
+                </p>
               </div>
 
-              {/* Module Navigator Rail */}
-              <div className="hidden lg:block w-64 shrink-0 h-fit sticky top-12">
-                <div className="space-y-10">
-                  <section>
-                    <h4 className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-6 flex items-center gap-2">
-                      <Target size={12} />
-                      <span>MASTER PROGRESS</span>
-                    </h4>
-                    <div className="space-y-6">
-                      {[
-                        { label: 'Analytical', val: 78, color: 'bg-emerald-500' },
-                        { label: 'Syntax', val: 45, color: 'bg-amber-500' },
-                        { label: 'Efficiency', val: 62, color: 'bg-purple-500' },
-                      ].map((stat) => (
-                        <div key={stat.label} className="space-y-2">
-                          <div className="flex justify-between text-[9px] uppercase tracking-widest font-mono">
-                            <span className="text-zinc-600">{stat.label}</span>
-                            <span className="text-zinc-400">{stat.val}%</span>
-                          </div>
-                          <div className="h-[1px] w-full bg-white/5">
-                            <div className={`h-full ${stat.color}`} style={{ width: `${stat.val}%` }} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-
-                  <button className="w-full py-4 bg-white text-black rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-purple-500 hover:text-white transition-all shadow-xl">
-                    RESUME CURRICULUM
+              {/* Controls */}
+              <div className="flex items-center justify-between mb-12 border-b border-white/5 pb-8">
+                <div className="relative flex-1 max-w-md group">
+                  <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-zinc-700 group-focus-within:text-purple-500 transition-colors" size={18} />
+                  <input 
+                    type="text"
+                    placeholder="Search neural paths..."
+                    className="w-full bg-transparent py-3 pl-8 text-sm text-white placeholder:text-zinc-800 outline-none transition-all font-light"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setViewMode('grid')}
+                    className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'text-white' : 'text-zinc-700 hover:text-zinc-500'}`}
+                  >
+                    <LayoutGrid size={18} />
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('list')}
+                    className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'text-white' : 'text-zinc-700 hover:text-zinc-500'}`}
+                  >
+                    <List size={18} />
                   </button>
                 </div>
               </div>
 
+              {/* Pattern Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                {filteredPatterns.map((pattern) => (
+                  <div key={pattern.id} className="group flex flex-col bg-[#0d0d10] border border-white/5 rounded-2xl p-8 hover:border-white/10 transition-all duration-500">
+                    <div className="flex justify-between items-start mb-8">
+                       <span className="text-[10px] font-bold text-zinc-700 tracking-[0.3em] uppercase font-mono">MOD_{pattern.id.slice(-4).toUpperCase()}</span>
+                       <div className="w-2 h-2 rounded-full bg-zinc-800 group-hover:bg-purple-500 transition-colors shadow-[0_0_10px_rgba(168,85,247,0)] group-hover:shadow-[0_0_10px_rgba(168,85,247,0.5)]" />
+                    </div>
+
+                    <h3 className="text-2xl font-serif italic text-white mb-4 group-hover:text-purple-200 transition-colors">{pattern.name}</h3>
+                    <p className="text-sm text-zinc-500 font-light leading-relaxed mb-10 line-clamp-2">
+                      {pattern.description}
+                    </p>
+
+                    <div className="mt-auto pt-8 border-t border-white/5 flex items-center justify-between">
+                       <div className="flex items-center gap-4">
+                          <div className="flex flex-col">
+                             <span className="text-[10px] font-bold text-zinc-700 tracking-widest uppercase">Complexity</span>
+                             <span className="text-xs text-zinc-400">Mixed Level</span>
+                          </div>
+                          <div className="w-px h-6 bg-white/5" />
+                          <div className="flex flex-col">
+                             <span className="text-[10px] font-bold text-zinc-700 tracking-widest uppercase">Nodes</span>
+                             <span className="text-xs text-zinc-400">{pattern.problemCount} Problems</span>
+                          </div>
+                       </div>
+                       
+                       <Link 
+                        href={`/problems/${pattern.problems[0]?.leetcodeId ?? ''}`}
+                        className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-zinc-500 hover:bg-white hover:text-black transition-all shadow-xl group-hover:scale-110 active:scale-95"
+                       >
+                         <ArrowRight size={18} />
+                       </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
+
+            {/* Side Rail */}
+            <aside className="hidden lg:block w-72 shrink-0 space-y-16">
+               <section className="space-y-8 p-8 bg-[#0d0d10] border border-white/5 rounded-2xl">
+                  <div className="flex items-center gap-3">
+                    <Target size={14} className="text-zinc-600" />
+                    <h4 className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">Global Sync</h4>
+                  </div>
+                  
+                  <div className="space-y-6">
+                    <ProgressItem label="Analytical" value={74} />
+                    <ProgressItem label="Syntax" value={42} />
+                    <ProgressItem label="Efficiency" value={61} />
+                  </div>
+
+                  <button className="w-full py-4 bg-white/5 border border-white/10 text-white rounded-xl text-[10px] font-bold tracking-widest uppercase hover:bg-white hover:text-black transition-all">
+                    Resume Neural Path
+                  </button>
+               </section>
+
+               <section className="px-8 space-y-6">
+                  <h4 className="text-[10px] font-bold text-zinc-700 uppercase tracking-widest">Recent Activity</h4>
+                  <div className="space-y-4">
+                     {[1, 2, 3].map(i => (
+                       <div key={i} className="flex gap-4 items-start border-l border-white/5 pl-4 py-1">
+                          <div className="w-1 h-1 rounded-full bg-purple-500 mt-1.5" />
+                          <div className="flex flex-col gap-1">
+                             <span className="text-xs text-zinc-400 font-light">Solved "Two Sum"</span>
+                             <span className="text-[9px] text-zinc-700 uppercase tracking-tighter">2 hours ago</span>
+                          </div>
+                       </div>
+                     ))}
+                  </div>
+               </section>
+            </aside>
+
           </div>
         </main>
+      </div>
+    </div>
+  );
+}
+
+function ProgressItem({ label, value }: { label: string, value: number }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-between text-[9px] font-bold text-zinc-600 uppercase tracking-widest">
+        <span>{label}</span>
+        <span>{value}%</span>
+      </div>
+      <div className="h-[2px] w-full bg-white/5 overflow-hidden">
+        <div 
+          className="h-full bg-purple-500 transition-all duration-1000"
+          style={{ width: `${value}%` }}
+        />
       </div>
     </div>
   );
