@@ -1,8 +1,12 @@
 /* eslint-disable no-console */
 /* eslint-disable @typescript-eslint/no-require-imports */
-
-const { PrismaClient } = require('@prisma/client');
-const { PrismaPg } = require('@prisma/adapter-pg');
+import "dotenv/config";
+import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import crypto from 'crypto';
+// const { PrismaClient } = require('@prisma/client');
+// const { PrismaPg } = require('@prisma/adapter-pg');
+// const crypto = require('crypto');
 
 function createPrismaClient() {
   const connectionString = process.env.DATABASE_URL;
@@ -15,289 +19,186 @@ function createPrismaClient() {
 
 const prisma = createPrismaClient();
 
-function starterCodeTemplates() {
-  return {
-    javascript: `// Read from stdin, write to stdout.\n// Implement your solution in main() or directly.\n\nconst fs = require('fs');\nconst input = fs.readFileSync(0,'utf8').trim().split(/\\s+/);\nlet idx = 0;\n\nfunction main() {\n  // TODO\n  console.log('');\n}\n\nmain();\n`,
-    python: `# Read from stdin, write to stdout\nimport sys\n\ndef main():\n    data = sys.stdin.read().strip().split()\n    # TODO\n    print('')\n\nif __name__ == '__main__':\n    main()\n`,
-    java: `import java.io.*;\nimport java.util.*;\n\npublic class Main {\n  public static void main(String[] args) throws Exception {\n    FastScanner fs = new FastScanner(System.in);\n    // TODO\n    System.out.println();\n  }\n\n  static class FastScanner {\n    private final InputStream in;\n    private final byte[] buffer = new byte[1 << 16];\n    private int ptr = 0, len = 0;\n    FastScanner(InputStream in) { this.in = in; }\n    private int read() throws IOException {\n      if (ptr >= len) {\n        len = in.read(buffer);\n        ptr = 0;\n        if (len <= 0) return -1;\n      }\n      return buffer[ptr++];\n    }\n    String next() throws IOException {\n      StringBuilder sb = new StringBuilder();\n      int c;\n      while ((c = read()) != -1 && Character.isWhitespace(c)) {}\n      if (c == -1) return null;\n      do {\n        sb.append((char)c);\n        c = read();\n      } while (c != -1 && !Character.isWhitespace(c));\n      return sb.toString();\n    }\n    int nextInt() throws IOException { return Integer.parseInt(next()); }\n  }\n}\n`,
-    cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nint main(){\n  ios::sync_with_stdio(false);\n  cin.tie(nullptr);\n  // TODO\n  return 0;\n}\n`,
-  };
-}
+// ─────────────────────────────────────────────────────────────────────────
+// EXPLORE STAGE — pre-seeded questions and mentor responses
+// These cover the range of questions a user might ask when first
+// understanding the "Valid Palindrome" problem.
+// ─────────────────────────────────────────────────────────────────────────
 
-function normalizeTestCases(testCases) {
-  const pub = testCases.filter((t) => !t.isHidden);
-  const hid = testCases.filter((t) => t.isHidden);
-  return [
-    ...pub.map((t, i) => ({ ...t, isHidden: false, order: i + 1 })),
-    ...hid.map((t, i) => ({ ...t, isHidden: true, order: i + 1 })),
-  ];
-}
+const exploreQuestions = [
+  {
+    question: "Can you explain what this problem is asking?",
+    response: "Let me break it down: you're given a string and you need to check if it reads the same forwards and backwards. But there's a twist — you should **only consider alphanumeric characters** (letters and numbers) and **ignore case**. So 'Race a car' won't match because after stripping non-alphanumeric characters and lowercasing, 'raceacar' is not the same as 'racacecar'. The key questions you should answer before coding: What happens with spaces? Punctuation? Empty strings?",
+  },
+  {
+    question: "What is a palindrome?",
+    response: "A **palindrome** is a word, phrase, or sequence that reads the same backwards as forwards. Examples: 'madam', 'racecar', '12321'. In this problem, we need to check if the given string is a palindrome, but with two important rules:\n\n1. **Ignore non-alphanumeric characters** — spaces, commas, colons don't count.\n2. **Ignore case** — 'A' and 'a' are treated as the same character.\n\nSo 'A man, a plan, a canal: Panama' becomes 'amanaplanacanalpanama' after cleaning — which IS a palindrome!",
+  },
+  {
+    question: "What are the constraints?",
+    response: "The constraint is `1 <= |s| <= 2*10^5`, meaning the string can be up to 200,000 characters long.\n\n**What this means for your approach:**\n- An O(n^2) solution won't work — that's ~40 billion operations\n- You need O(n) time — just one or two passes through the string\n- An O(n) approach with two pointers (one from each end) is optimal here\n- Space can be O(1) if you use two pointers directly on the string, or O(n) if you filter first",
+  },
+  {
+    question: "What's the expected input and output?",
+    response: "**Input:** A single line containing a string `s` (may include spaces, punctuation, mixed case)\n\n**Output:** Print \"true\" if it's a palindrome (after cleaning), \"false\" otherwise.\n\n**Examples:**\n- Input: `A man, a plan, a canal: Panama` → Output: `true`\n- Input: `race a car` → Output: `false`\n- Input: ` ` (just spaces) → Output: `true` (empty after cleaning)",
+  },
+  {
+    question: "What edge cases should I consider?",
+    response: "Great question! Here are the key edge cases:\n\n1. **Empty string** — `\"\"` → is this a palindrome? (Yes, vacuously true)\n2. **Only special characters** — `\"   !!!\"` → after cleaning, it's empty → true\n3. **Single character** — `\"a\"` → always a palindrome\n4. **All same characters** — `\"aaaaa\"` → true\n5. **Mixed case same letters** — `\"aA\"` → after lowercasing, \"aa\" → true\n6. **Numbers** — `\"0P\"` → \"0p\" → not a palindrome → false\n7. **Very long string** — up to 200,000 chars — your solution must handle this efficiently",
+  },
+  {
+    question: "Can you give me an example walkthrough?",
+    response: "Let's trace through `\"race a car\"` step by step:\n\n1. **Clean the string:** Remove non-alphanumeric chars → `\"raceacar\"`\n2. **Lowercase:** → `\"raceacar\"`\n3. **Compare from both ends:**\n   - `r` == `r` ✓\n   - `a` == `a` ✓  \n   - `c` == `a` ✗ → NOT a palindrome!\n\nNow let's try `\"A man, a plan, a canal: Panama\"`:\n1. **Clean:** → `\"AmanaplanacanalPanama\"`\n2. **Lowercase:** → `\"amanaplanacanalpanama\"`\n3. **Compare from both ends:**\n   - `a` == `a` ✓, `m` == `m` ✓, `a` == `a` ✓... every pair matches → TRUE!",
+  },
+  {
+    question: "What's a brute force way to solve this?",
+    response: "The simplest brute force approach:\n\n1. **Step 1:** Create a new string with only alphanumeric characters, all lowercased\n2. **Step 2:** Create the reverse of that cleaned string\n3. **Step 3:** Compare the cleaned string with its reverse\n\n```python\ncleaned = ''.join(c.lower() for c in s if c.isalnum())\nprint('true' if cleaned == cleaned[::-1] else 'false')\n```\n\nThis is O(n) time and O(n) space. It works! But can you think of a way to do it with **O(1) extra space**?",
+  },
+  {
+    question: "How do I optimize this?",
+    response: "To get O(1) extra space, use the **Two Pointers** approach:\n\n1. Start with one pointer at the beginning (`left = 0`) and one at the end (`right = len(s) - 1`)\n2. **Skip** non-alphanumeric characters by moving the pointers inward\n3. **Compare** the characters at both pointers (lowercased)\n4. If they differ → return false. If left >= right → return true.\n\n```python\nleft, right = 0, len(s) - 1\nwhile left < right:\n    while left < right and not s[left].isalnum():\n        left += 1\n    while left < right and not s[right].isalnum():\n        right -= 1\n    if s[left].lower() != s[right].lower():\n        print('false')\n        return\n    left += 1\n    right -= 1\nprint('true')\n```\n\nThis is O(n) time and O(1) space — optimal!",
+  },
+  {
+    question: "What is the two pointer approach?",
+    response: "The **Two Pointer** technique uses two indices that move through the data structure to solve the problem:\n\n- **Meet-in-the-middle** pointers: One starts at the left end, one at the right end. They move toward each other. Perfect for palindrome/verification problems.\n- **Fast and slow** pointers: Both start at the same place but move at different speeds. Good for cycle detection, finding middle elements.\n\nFor this palindrome problem, we use the meet-in-the-middle variant:\n- `left` starts at index 0, moves right\n- `right` starts at last index, moves left\n- They compare characters and skip non-alphanumeric ones\n\n**Why is this pattern useful?** Instead of creating a cleaned copy of the string (which costs O(n) space), you process it in-place by just adjusting pointers. This saves memory while keeping the same O(n) time complexity.",
+  },
+  {
+    question: "How do I filter only alphanumeric characters?",
+    response: "Different languages have different built-in methods:\n\n- **Python:** `char.isalnum()` — returns True if char is a letter or number\n- **JavaScript/Node.js:** `/[a-zA-Z0-9]/.test(char)` — regex test\n- **Java:** `Character.isLetterOrDigit(char)`\n- **C++:** `isalnum(char)` from `<cctype>`\n\nYou should skip characters that return false from these checks. For comparing, also remember to convert to lowercase: `char.toLowerCase()` in most languages.",
+  },
+  {
+    question: "What's the time and space complexity?",
+    response: "For the optimal two-pointer approach:\n\n- **Time: O(n)** — you visit each character at most once. The two pointers together scan through the string a single time.\n- **Space: O(1)** — you only use two pointer variables (left and right). No new strings or arrays are created.\n\nFor the simpler clean-and-reverse approach:\n- **Time: O(n)** — still linear (building cleaned string + reversing + comparing)\n- **Space: O(n)** — you allocate a new string for the cleaned version\n\nBoth are O(n) time, but the two-pointer version wins on space. In interviews, two-pointer is the expected answer.",
+  },
+  {
+    question: "Should I clean the string first or use two pointers?",
+    response: "Both are valid! Here's the trade-off:\n\n**Clean first (simpler):**\n- Easier to reason about and debug\n- Uses extra memory for the cleaned string\n- Fine for most practical purposes\n\n**Two pointers (optimal):**\n- Slightly trickier logic (need to skip non-alphanumeric on both sides)\n- O(1) space — no extra memory\n- Better for interviews and memory-constrained environments\n\n**Recommendation:** Start with the cleaner approach to verify your understanding, then optimize to two pointers. In an interview, mention both and explain why two pointers is better.",
+  },
+  {
+    question: "What happens with an empty string or just spaces?",
+    response: "An empty string `\"\"` or a string with only spaces/special characters like `\"   !!!\"` should return **true**.\n\nHere's why: After filtering out non-alphanumeric characters, you're left with an empty string. An empty string reads the same forwards and backwards — it's **vacuously** a palindrome.\n\nIn the two-pointer approach, this is naturally handled: if there are no alphanumeric characters, the `left` pointer keeps moving right past all of them, and the loop condition `left < right` becomes false before any comparison is made — so you fall through to `true`.",
+  },
+  {
+    question: "How do I handle case sensitivity?",
+    response: "Case sensitivity is handled by converting all characters to lowercase (or uppercase) before comparing.\n\n**In Python:** `char.lower()`\n**In JavaScript:** `char.toLowerCase()`\n**In Java:** `Character.toLowerCase(ch)`\n**In C++:** `tolower(char)`\n\nSo when comparing, you do: `if (leftChar.toLowerCase() !== rightChar.toLowerCase()) → not a palindrome`\n\nThis ensures that 'A' matches 'a', 'B' matches 'b', etc.",
+  },
+  {
+    question: "Can you show me a simple solution in Python?",
+    response: "Here's the simplest clean solution:\n\n```python\nimport sys\n\ndef main():\n    s = sys.stdin.readline().strip()\n    cleaned = [c.lower() for c in s if c.isalnum()]\n    if cleaned == cleaned[::-1]:\n        print('true')\n    else:\n        print('false')\n\nmain()\n```\n\nThis works in 3 lines:\n1. Read the input\n2. Build a list of lowercase alphanumeric chars\n3. Compare the list with its reverse (`[::-1]`)\n\nTime: O(n), Space: O(n). Simple and correct. For an interview, you'd also want to show the two-pointer O(1) space version.",
+  },
+];
 
-async function upsertPatternByName(name, description) {
-  return prisma.pattern.upsert({
-    where: { name },
-    update: { description: description ?? null },
-    create: { name, description: description ?? null },
-    select: { id: true, name: true },
-  });
-}
-
-async function upsertProblem(problem) {
-  const templates = starterCodeTemplates();
-
-  return prisma.$transaction(async (tx) => {
-    const saved = await tx.problem.upsert({
-      where: { slug: problem.slug },
-      update: {
-        title: problem.title,
-        statementMd: problem.statementMd,
-        constraintsMd: problem.constraintsMd ?? null,
-        difficulty: problem.difficulty,
-        isPublished: problem.isPublished,
-        tags: problem.tags ?? undefined,
-        starterCode: problem.starterCode ?? templates,
-      },
-      create: {
-        slug: problem.slug,
-        title: problem.title,
-        statementMd: problem.statementMd,
-        constraintsMd: problem.constraintsMd ?? null,
-        difficulty: problem.difficulty,
-        isPublished: problem.isPublished,
-        tags: problem.tags ?? undefined,
-        starterCode: problem.starterCode ?? templates,
-      },
-      select: { id: true, slug: true },
-    });
-
-    // Re-sync patterns
-    await tx.problemPattern.deleteMany({ where: { problemId: saved.id } });
-    if (problem.patternIds?.length) {
-      await tx.problemPattern.createMany({
-        data: problem.patternIds.map((patternId) => ({ problemId: saved.id, patternId })),
-        skipDuplicates: true,
-      });
-    }
-
-    // Re-sync hints
-    await tx.hint.deleteMany({ where: { problemId: saved.id } });
-    if (problem.hints?.length) {
-      const cleaned = problem.hints.map((h) => String(h).trim()).filter(Boolean);
-      if (cleaned.length) {
-        await tx.hint.createMany({
-          data: cleaned.map((textMd, idx) => ({ problemId: saved.id, order: idx + 1, textMd })),
-        });
-      }
-    }
-
-    // Re-sync test cases
-    await tx.testCase.deleteMany({ where: { problemId: saved.id } });
-    const normalized = normalizeTestCases(problem.testCases ?? []);
-    if (normalized.length) {
-      await tx.testCase.createMany({
-        data: normalized.map((tc) => ({
-          problemId: saved.id,
-          order: tc.order,
-          input: String(tc.input ?? ''),
-          expected: String(tc.expected ?? ''),
-          isHidden: Boolean(tc.isHidden),
-        })),
-      });
-    }
-
-    return saved;
-  });
+function sha256Hash(text) {
+  return crypto.createHash('sha256').update(text).digest('hex');
 }
 
 async function main() {
-  console.log('Seeding patterns + problems...');
+  console.log('🌱 Seeding — 1 pattern, 1 problem, pre-seeded EXPLORE cache...\n');
 
-  const patterns = await Promise.all([
-    upsertPatternByName('Two Pointers', 'Use two indices moving towards each other to optimize search/scan.'),
-    upsertPatternByName('Sliding Window', 'Maintain a moving window to solve subarray/substring problems.'),
-    upsertPatternByName('Binary Search', 'Divide and conquer on sorted/monotonic search space.'),
-    upsertPatternByName('Merge Intervals', 'Sort and merge overlapping intervals.'),
-    upsertPatternByName('Dynamic Programming', 'Optimize over overlapping subproblems.'),
-    upsertPatternByName('Graph BFS/DFS', 'Traverse graphs with BFS/DFS.'),
-    upsertPatternByName('Heap / Top K', 'Use heaps to keep top/bottom k elements.'),
-    upsertPatternByName('Tree Traversal', 'DFS/BFS on trees.'),
-  ]);
+  // ── 1. Create one pattern ──
+  const pattern = await prisma.pattern.upsert({
+    where: { name: 'Two Pointers' },
+    update: { description: 'Use two indices moving towards each other.' },
+    create: { name: 'Two Pointers', description: 'Use two indices moving towards each other.' },
+  });
+  console.log(`✓ Pattern: ${pattern.name} (${pattern.id})`);
 
-  const patternId = Object.fromEntries(patterns.map((p) => [p.name, p.id]));
-
-  const problems = [
-    {
-      slug: 'sum-of-two-integers',
-      title: 'Sum of Two Integers',
-      difficulty: 'EASY',
-      isPublished: true,
-      tags: ['warmup'],
-      patternIds: [patternId['Two Pointers']],
-      statementMd: `# Sum of Two Integers\n\nGiven two integers **a** and **b**, print their sum.\n\n## Input\nTwo integers in one line.\n\n## Output\nPrint a single integer: a + b.\n`,
-      constraintsMd: `-10^9 ≤ a, b ≤ 10^9`,
-      hints: ['Just parse two integers and print their sum.'],
-      testCases: [
-        { input: '1 2\n', expected: '3\n', isHidden: false },
-        { input: '10 20\n', expected: '30\n', isHidden: false },
-        { input: '-5 9\n', expected: '4\n', isHidden: true },
-      ],
-    },
-    {
+  // ── 2. Create one problem ──
+  const problem = await prisma.problem.upsert({
+    where: { slug: 'valid-palindrome' },
+    update: {},
+    create: {
       slug: 'valid-palindrome',
       title: 'Valid Palindrome',
+      statementMd: `# Valid Palindrome\n\nGiven a string **s**, determine if it is a palindrome considering only alphanumeric characters and ignoring case.\n\n## Input\nA single line string s.\n\n## Output\nPrint "true" if s is a palindrome, otherwise "false".`,
+      constraintsMd: '1 ≤ |s| ≤ 2*10^5',
       difficulty: 'EASY',
       isPublished: true,
-      tags: ['string'],
-      patternIds: [patternId['Two Pointers']],
-      statementMd: `# Valid Palindrome\n\nGiven a string **s**, determine if it is a palindrome considering only alphanumeric characters and ignoring case.\n\n## Input\nA single line string s.\n\n## Output\nPrint \"true\" if s is a palindrome, otherwise \"false\".\n`,
-      constraintsMd: `1 ≤ |s| ≤ 2*10^5`,
-      hints: ['Use two pointers from both ends; skip non-alphanumerics.'],
-      testCases: [
-        { input: 'A man, a plan, a canal: Panama\n', expected: 'true\n', isHidden: false },
-        { input: 'race a car\n', expected: 'false\n', isHidden: false },
-        { input: '0P\n', expected: 'false\n', isHidden: true },
-      ],
+      tags: ['string', 'warmup'],
     },
-    {
-      slug: 'longest-substring-without-repeating-characters',
-      title: 'Longest Substring Without Repeating Characters',
-      difficulty: 'MEDIUM',
-      isPublished: true,
-      tags: ['string'],
-      patternIds: [patternId['Sliding Window']],
-      statementMd: `# Longest Substring Without Repeating Characters\n\nGiven a string **s**, find the length of the longest substring without repeating characters.\n\n## Input\nA single line string s.\n\n## Output\nPrint a single integer: the maximum length.\n`,
-      constraintsMd: `0 ≤ |s| ≤ 2*10^5`,
-      hints: ['Sliding window with a map of last seen positions.'],
-      testCases: [
-        { input: 'abcabcbb\n', expected: '3\n', isHidden: false },
-        { input: 'bbbbb\n', expected: '1\n', isHidden: false },
-        { input: 'pwwkew\n', expected: '3\n', isHidden: true },
-      ],
-    },
-    {
-      slug: 'binary-search',
-      title: 'Binary Search',
-      difficulty: 'EASY',
-      isPublished: true,
-      tags: ['array'],
-      patternIds: [patternId['Binary Search']],
-      statementMd: `# Binary Search\n\nYou are given a sorted array of integers and a target. Return the index of the target in the array or -1 if it does not exist.\n\n## Input\nFirst line: n\nSecond line: n integers (sorted)\nThird line: target\n\n## Output\nIndex (0-based) or -1\n`,
-      constraintsMd: `1 ≤ n ≤ 2*10^5`,
-      hints: ['Classic binary search.'],
-      testCases: [
-        { input: '5\n-1 0 3 5 9\n9\n', expected: '4\n', isHidden: false },
-        { input: '5\n-1 0 3 5 9\n2\n', expected: '-1\n', isHidden: false },
-        { input: '1\n5\n5\n', expected: '0\n', isHidden: true },
-      ],
-    },
-    {
-      slug: 'merge-intervals',
-      title: 'Merge Intervals',
-      difficulty: 'MEDIUM',
-      isPublished: true,
-      tags: ['intervals'],
-      patternIds: [patternId['Merge Intervals']],
-      statementMd: `# Merge Intervals\n\nGiven a list of intervals, merge all overlapping intervals and output the resulting intervals.\n\n## Input\nFirst line: n\nNext n lines: l r\n\n## Output\nMerged intervals (one per line) in ascending order of start.\n`,
-      constraintsMd: `1 ≤ n ≤ 2*10^5`,
-      hints: ['Sort by start; then sweep and merge.'],
-      testCases: [
-        { input: '4\n1 3\n2 6\n8 10\n15 18\n', expected: '1 6\n8 10\n15 18\n', isHidden: false },
-        { input: '2\n1 4\n4 5\n', expected: '1 5\n', isHidden: false },
-        { input: '1\n5 7\n', expected: '5 7\n', isHidden: true },
-      ],
-    },
-    {
-      slug: 'climbing-stairs',
-      title: 'Climbing Stairs',
-      difficulty: 'EASY',
-      isPublished: true,
-      tags: ['dp'],
-      patternIds: [patternId['Dynamic Programming']],
-      statementMd: `# Climbing Stairs\n\nYou can climb 1 or 2 steps. Given n, return number of distinct ways to reach the top.\n\n## Input\nSingle integer n\n\n## Output\nNumber of ways\n`,
-      constraintsMd: `1 ≤ n ≤ 45`,
-      hints: ['Fibonacci DP.'],
-      testCases: [
-        { input: '2\n', expected: '2\n', isHidden: false },
-        { input: '3\n', expected: '3\n', isHidden: false },
-        { input: '45\n', expected: '1836311903\n', isHidden: true },
-      ],
-    },
-    {
-      slug: 'number-of-islands',
-      title: 'Number of Islands',
-      difficulty: 'MEDIUM',
-      isPublished: true,
-      tags: ['graph'],
-      patternIds: [patternId['Graph BFS/DFS']],
-      statementMd: `# Number of Islands\n\nGiven a grid of '0' and '1', count the number of islands (connected 1s using 4-direction adjacency).\n\n## Input\nFirst line: r c\nNext r lines: string of length c (chars 0/1)\n\n## Output\nNumber of islands\n`,
-      constraintsMd: `1 ≤ r,c ≤ 500`,
-      hints: ['Run DFS/BFS from each unvisited land cell.'],
-      testCases: [
-        { input: '4 5\n11000\n11000\n00100\n00011\n', expected: '3\n', isHidden: false },
-        { input: '1 1\n0\n', expected: '0\n', isHidden: false },
-        { input: '2 2\n11\n11\n', expected: '1\n', isHidden: true },
-      ],
-    },
-    {
-      slug: 'top-k-frequent-elements',
-      title: 'Top K Frequent Elements',
-      difficulty: 'MEDIUM',
-      isPublished: true,
-      tags: ['heap'],
-      patternIds: [patternId['Heap / Top K']],
-      statementMd: `# Top K Frequent Elements\n\nGiven an integer array and integer k, output the k most frequent elements in any order.\n\n## Input\nFirst line: n k\nSecond line: n integers\n\n## Output\nPrint k integers separated by space (any order).\n`,
-      constraintsMd: `1 ≤ n ≤ 2*10^5`,
-      hints: ['Use hashmap + heap (or bucket sort).'],
-      testCases: [
-        { input: '6 2\n1 1 1 2 2 3\n', expected: '1 2\n', isHidden: false },
-        { input: '1 1\n1\n', expected: '1\n', isHidden: false },
-        { input: '10 3\n4 4 4 5 5 6 6 6 7 7\n', expected: '4 6 5\n', isHidden: true },
-      ],
-    },
-    {
-      slug: 'invert-binary-tree',
-      title: 'Invert Binary Tree',
-      difficulty: 'EASY',
-      isPublished: true,
-      tags: ['tree'],
-      patternIds: [patternId['Tree Traversal']],
-      statementMd: `# Invert Binary Tree\n\nGiven a binary tree, invert it (swap left/right recursively).\n\nFor this platform seed, we represent a tree as a level-order list with 'null'.\n\n## Input\nA single line of space-separated tokens (e.g. 4 2 7 1 3 6 9).\n\n## Output\nLevel-order of inverted tree using same format.\n\nNote: This is a seed problem; you can refine format/executor later.\n`,
-      constraintsMd: `Number of nodes ≤ 10^4`,
-      hints: ['DFS recursively swapping children.'],
-      testCases: [
-        { input: '4 2 7 1 3 6 9\n', expected: '4 7 2 9 6 3 1\n', isHidden: false },
-        { input: '2 1 3\n', expected: '2 3 1\n', isHidden: false },
-        { input: '\n', expected: '\n', isHidden: true },
-      ],
-    },
-    {
-      slug: 'longest-balanced-subarray-i',
-      title: 'Longest Balanced Subarray I',
-      difficulty: 'MEDIUM',
-      isPublished: true,
-      tags: ['array', 'subarray', 'hashmap'],
-      patternIds: [patternId['Sliding Window']],
-      statementMd: `# Longest Balanced Subarray I\n\nYou are given an integer array **nums**.\n\nA subarray is called **balanced** if the number of **distinct even** numbers in the subarray is equal to the number of **distinct odd** numbers in the subarray.\n\nReturn the length of the longest balanced subarray.\n\n## Input\nFirst line: integer **n**\nSecond line: **n** integers (the array **nums**)\n\n## Output\nPrint a single integer: the length of the longest balanced subarray.\n\n## Examples\nInput\n4\n2 5 4 3\n\nOutput\n4\n\nInput\n5\n3 2 2 5 4\n\nOutput\n5\n\nInput\n4\n1 2 3 2\n\nOutput\n3\n`,
-      constraintsMd: `1 \u2264 n \u2264 1500\n1 \u2264 nums[i] \u2264 10^5`,
-      hints: [
-        'The constraints are small enough for an O(n^2) solution: enumerate the left endpoint and expand the right endpoint while tracking distinct evens/odds.',
-        'Maintain two sets (or frequency maps) for evens and odds; the subarray is balanced when their sizes are equal.',
-      ],
-      testCases: [
-        { input: '4\n2 5 4 3\n', expected: '4\n', isHidden: false },
-        { input: '5\n3 2 2 5 4\n', expected: '5\n', isHidden: false },
-        { input: '4\n1 2 3 2\n', expected: '3\n', isHidden: false },
-        { input: '6\n2 2 2 2 2 2\n', expected: '0\n', isHidden: true },
-      ],
-    },
-  ];
+  });
+  console.log(`✓ Problem: ${problem.title} (${problem.slug})`);
 
-  for (const p of problems) {
-    await upsertProblem(p);
-    console.log(`✓ ${p.slug}`);
+  // ── 3. Link problem to pattern ──
+  await prisma.problemPattern.upsert({
+    where: { problemId_patternId: { problemId: problem.id, patternId: pattern.id } },
+    update: {},
+    create: { problemId: problem.id, patternId: pattern.id },
+  });
+  console.log(`✓ Linked to pattern: ${pattern.name}`);
+
+  // ── 4. Create hints ──
+  await prisma.hint.deleteMany({ where: { problemId: problem.id } });
+  await prisma.hint.createMany({
+    data: [
+      { problemId: problem.id, order: 1, textMd: 'Use two pointers from both ends of the string. Skip non-alphanumeric characters.', hintType: 'strategy', escalationLevel: 1 },
+      { problemId: problem.id, order: 2, textMd: 'Compare characters at both pointers after converting to lowercase. If they differ, it\'s not a palindrome.', hintType: 'detail', escalationLevel: 2 },
+      { problemId: problem.id, order: 3, textMd: 'Edge cases: empty strings and single characters are palindromes. Use `.isalnum()` to filter characters.', hintType: 'edge_case', escalationLevel: 3 },
+    ],
+  });
+  console.log('✓ Hints (3 levels)');
+
+  // ── 5. Create test cases ──
+  await prisma.testCase.deleteMany({ where: { problemId: problem.id } });
+  await prisma.testCase.createMany({
+    data: [
+      { problemId: problem.id, order: 1, input: 'A man, a plan, a canal: Panama\n', expected: 'true\n', isHidden: false },
+      { problemId: problem.id, order: 2, input: 'race a car\n', expected: 'false\n', isHidden: false },
+      { problemId: problem.id, order: 3, input: '0P\n', expected: 'false\n', isHidden: true },
+    ],
+  });
+  console.log('✓ Test cases (2 public, 1 hidden)');
+
+  // ── 6. Pre-seed CacheEntry records for EXPLORE stage ──
+  // These act as "system-level" cache entries that any user can hit.
+  // We use a special user ID so they're shared across all users.
+  const SYSTEM_USER = 'system';
+
+  // Clear old cache for this problem
+  await prisma.cacheEntry.deleteMany({ where: { problemId: problem.id } });
+  console.log(`\n📦 Seeding ${exploreQuestions.length} pre-built Q&A cache entries...\n`);
+
+  // Lazy load the embedding pipeline
+  let pipeline = null;
+  async function getEmbeddingVector(text) {
+    if (!pipeline) {
+      const { pipeline: p } = await import("@xenova/transformers");
+      pipeline = await p("feature-extraction", "Xenova/all-MiniLM-L6-v2");
+    }
+    const result = await pipeline(text, { pooling: "mean", normalize: true });
+    const tensor = result.embeddings || result.last_hidden_state?.data || result.data;
+    return Array.from(tensor);
   }
 
-  console.log('Seed complete.');
+  for (let i = 0; i < exploreQuestions.length; i++) {
+    const qa = exploreQuestions[i];
+    const questionMd5 = sha256Hash(qa.question);
+
+    // Generate a real 384-d embedding
+    let realEmbedding;
+    try {
+      realEmbedding = await getEmbeddingVector(qa.question);
+      const nonzero = realEmbedding.filter(v => Math.abs(v) > 0.0001).length;
+      console.log(`  [${i + 1}/${exploreQuestions.length}] "${qa.question.slice(0, 55)}..." (${realEmbedding.length}D, ${nonzero} nonzero)`);
+    } catch (e) {
+      console.warn(`  ⚠️ Embedding failed for "${qa.question}":`, e.message);
+      realEmbedding = new Array(384).fill(0).map((_, idx) => Math.sin(idx * 137.508 + i * 271.33) * 0.01);
+    }
+
+    await prisma.cacheEntry.create({
+      data: {
+        problemId: problem.id,
+        questionMd5,
+        embedding: realEmbedding,
+        response: qa.response,
+        stage: 'EXPLORE',
+        rung: 1,
+        usedCount: 0,
+      },
+    });
+  }
+
+  console.log(`\n✅ Seed complete!\n   Problem: ${problem.title}\n   Pattern: ${pattern.name}\n   Hints: 3 levels\n   Test cases: 3\n   Pre-seeded Q&A: ${exploreQuestions.length} entries\n\nYou can now test the mentor EXPLORE stage with questions like:\n  - "What is this problem asking?"\n  - "What's a palindrome?"\n  - "What are the edge cases?"\n  - "How do I optimize this?"`);
 }
 
 main()

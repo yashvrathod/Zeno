@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,95 +7,95 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  username      String?   @unique
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  avatar        String?
-  lastLoginAt   DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  // Profile fields
-  bio         String?
-  location    String?
-  websiteUrl  String?
-  linkedinUrl String?
-  githubUrl   String?
-
-  // Arrays stored as JSON for portability.
-  // Example: ["Java", "Python"]
-  languages Json?
-  // Example: ["Dynamic Programming", "Hash Table"]
-  skills    Json?
-  // Example: ["line 1", "line 2"]
-  quote     Json?
-
-  accounts Account[]
-  sessions Session[]
-
-  aiSettings   UserAiSettings?
-  problemStats UserProblemStats[]
-  
-  // Social features
-  posts         Post[]
-  postLikes     PostLike[]
-  comments      Comment[]
-  followers     Follow[]   @relation("Following")
-  following     Follow[]   @relation("Follower")
-  channelFollows ChannelFollow[]
+  id                 String             @id @default(cuid())
+  name               String?
+  username           String?            @unique
+  email              String             @unique
+  emailVerified      DateTime?
+  image              String?
+  password           String?
+  avatar             String?
+  lastLoginAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  currentStreak      Int                @default(0)
+  longestStreak      Int                @default(0)
+  lastSolvedDate     DateTime?
+  totalSolved        Int                @default(0)
+  interviewReadiness Int                @default(0)
+  bio                String?
+  location           String?
+  websiteUrl         String?
+  linkedinUrl        String?
+  githubUrl          String?
+  languages          Json?
+  skills             Json?
+  quote              Json?
+  accounts           Account[]
+  channelFollows     ChannelFollow[]
+  comments           Comment[]
+  following          Follow[]           @relation("Follower")
+  followers          Follow[]           @relation("Following")
+  posts              Post[]
+  postLikes          PostLike[]
+  sessions           Session[]
+  StudentProfile     StudentProfile?
+  Subscription       Subscription?
+  aiSettings         UserAiSettings?
+  problemStats       UserProblemStats[]
 }
 
 model UserAiSettings {
-  id        String   @id @default(cuid())
-  userId    String   @unique
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
 
-  // How verbose the mentor should be.
-  verbosity String   @default("normal") // 'short' | 'normal' | 'detailed'
+  // 🔥 Core settings
+  apiProvider            String?  @default("server")
+  verbosity              String   @default("normal")
+  preferredFreeModel     String?  @default("nvidia/nemotron-3-nano-30b-a3b:free")
 
-  // Free-form user preferences kept small (e.g., "use bullet points", "avoid spoilers").
-  preferencesJson Json?
+  // 🔑 API Keys (BYOK)
+  groqApiKey             String?
+  openaiApiKey           String?   
+  googleApiKey           String?   
+  openrouterApiKey       String?   
 
-  // User's own API keys (encrypted/hashed in production)
-  groqApiKey       String? // User's Groq API key
-  openaiApiKey     String? // User's OpenAI API key
-  googleApiKey     String? // User's Google AI Studio API key
-  openrouterApiKey String? // User's OpenRouter API key
-  ollamaBaseUrl    String? // User's Ollama server URL (e.g., http://localhost:11434)
-  ollamaModel      String? // User's preferred Ollama model (e.g., llama3.1, codellama)
-  apiProvider      String? @default("server") // 'server' | 'groq' | 'openai' | 'google' | 'openrouter' | 'ollama'
-  preferredFreeModel String? @default("nvidia/nemotron-3-nano-30b-a3b:free") // OpenRouter free model selection
-  hasCompletedOnboarding Boolean @default(false) // Track if user has seen API setup
+  // 🧠 Local LLM (Ollama)
+  ollamaBaseUrl          String?   
+  ollamaModel            String?   
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // 📦 Extra config
+  groqModel              String?
+  preferencesJson        Json?
+  hasCompletedOnboarding Boolean  @default(false)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model UserProblemStats {
-  id        String   @id @default(cuid())
-  userId    String
-  problemId String
-
-  // Aggregated counters (bounded: one row per user+problem)
-  runCount         Int @default(0)
-  submitCount      Int @default(0)
-  acceptedCount    Int @default(0)
-  wrongAnswerCount Int @default(0)
-  runtimeErrorCount Int @default(0)
-
-  lastStatus String?
-  lastError  String?
-  lastAt     DateTime @default(now())
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String    @id @default(cuid())
+  userId            String
+  problemId         String
+  runCount          Int       @default(0)
+  submitCount       Int       @default(0)
+  acceptedCount     Int       @default(0)
+  wrongAnswerCount  Int       @default(0)
+  runtimeErrorCount Int       @default(0)
+  firstAttemptAt    DateTime?
+  solvedAt          DateTime?
+  timeSpentSeconds  Int       @default(0)
+  hintsUsed         Int       @default(0)
+  escalationReached Int       @default(1)
+  lastStatus        String?
+  lastError         String?
+  lastAt            DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  Problem           Problem   @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, problemId])
   @@index([problemId, updatedAt])
@@ -120,8 +114,7 @@ model Account {
   scope             String?
   id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -131,8 +124,7 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model VerificationToken {
@@ -143,62 +135,55 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-enum Difficulty {
-  EASY
-  MEDIUM
-  HARD
-}
-
 model Pattern {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  problems ProblemPattern[]
+  id                                                              String                @id @default(cuid())
+  name                                                            String                @unique
+  description                                                     String?
+  createdAt                                                       DateTime              @default(now())
+  updatedAt                                                       DateTime              @updatedAt
+  PatternPrerequisite_PatternPrerequisite_patternIdToPattern      PatternPrerequisite[] @relation("PatternPrerequisite_patternIdToPattern")
+  PatternPrerequisite_PatternPrerequisite_prerequisiteIdToPattern PatternPrerequisite[] @relation("PatternPrerequisite_prerequisiteIdToPattern")
+  problems                                                        ProblemPattern[]
 }
 
 model Problem {
-  id            String     @id @default(cuid())
-  slug          String     @unique
-  title         String
-  statementMd   String
-  constraintsMd String?
-  difficulty    Difficulty @default(EASY)
-  isPublished   Boolean    @default(false)
-
-  // Optional: for listing/search
-  tags Json?
-
-  // Language -> starter code map, e.g. {"javascript":"...","python":"..."}
-  starterCode Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  patterns  ProblemPattern[]
-  hints     Hint[]
-  testCases TestCase[]
+  id               String             @id @default(cuid())
+  slug             String             @unique
+  title            String
+  statementMd      String
+  constraintsMd    String?
+  difficulty       Difficulty         @default(EASY)
+  isPublished      Boolean            @default(false)
+  orderInPattern   Int?
+  isFree           Boolean            @default(false)
+  expectedTimeMin  Int?
+  tags             Json?
+  starterCode      Json?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  hints            Hint[]
+  patterns         ProblemPattern[]
+  testCases        TestCase[]
+  UserProblemStats UserProblemStats[]
 }
 
 model ProblemPattern {
   problemId String
   patternId String
-
-  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
-  pattern Pattern @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  pattern   Pattern @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 
   @@id([problemId, patternId])
 }
 
 model Hint {
-  id        String @id @default(cuid())
-  problemId String
-  order     Int
-  textMd    String
-
-  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  id              String  @id @default(cuid())
+  problemId       String
+  order           Int
+  textMd          String
+  hintType        String  @default("constraint")
+  escalationLevel Int     @default(1)
+  problem         Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 
   @@unique([problemId, order])
 }
@@ -210,8 +195,7 @@ model TestCase {
   input     String
   expected  String
   isHidden  Boolean @default(false)
-
-  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 
   @@unique([problemId, order, isHidden])
   @@index([problemId])
@@ -229,74 +213,67 @@ model MentorInteractionLog {
   @@index([problemId, createdAt])
 }
 
-// Raw conversation transcript per user+problem.
-// This is temporary: archived into MentorConversationSummary on solve or manual finish.
 model MentorConversationMessage {
   id        String   @id @default(cuid())
   userId    String
   problemId String
-  role      String   // 'user' | 'assistant' | 'system'
+  role      String
   content   String
-  metadata  Json?    // Stores { rung, stage, tone } for tracking progression
+  metadata  Json?
   createdAt DateTime @default(now())
 
   @@index([userId, problemId, createdAt])
   @@index([problemId, createdAt])
 }
 
-// Archived learning summary after solve/finish.
 model MentorConversationSummary {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   userId          String
   problemId       String
-  status          String   // 'SOLVED' | 'FINISHED' | 'ONGOING'
+  status          String
   solvedAt        DateTime?
   summaryMd       String
   approachNotesMd String?
   pitfallsMd      String?
   keyInsightsMd   String?
-  messageCount    Int      @default(0)
-  lastRung        Int      @default(1)
-  breakthroughs   String[] // patterns the student has mastered
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  messageCount    Int       @default(0)
+  lastRung        Int       @default(1)
+  breakthroughs   String[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@unique([userId, problemId])
   @@index([problemId, updatedAt])
 }
 
-// Social Feed Posts
 model Post {
-  id          String   @id @default(cuid())
-  userId      String
-  content     String
-  codeSnippet String?
-  language    String?  // programming language if code snippet exists
-  imageUrl    String?
-  tags        String[] // hashtags
-  likeCount   Int      @default(0)
-  commentCount Int     @default(0)
-  shareCount  Int      @default(0)
-  featured    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  likes       PostLike[]
-  comments    Comment[]
+  id           String     @id @default(cuid())
+  userId       String
+  content      String
+  codeSnippet  String?
+  language     String?
+  imageUrl     String?
+  tags         String[]
+  likeCount    Int        @default(0)
+  commentCount Int        @default(0)
+  shareCount   Int        @default(0)
+  featured     Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  comments     Comment[]
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes        PostLike[]
 
   @@index([userId, createdAt])
   @@index([featured, createdAt])
   @@index([createdAt])
 }
 
-// Post Likes
 model PostLike {
   id        String   @id @default(cuid())
   postId    String
   userId    String
   createdAt DateTime @default(now())
-
   post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -304,7 +281,6 @@ model PostLike {
   @@index([userId])
 }
 
-// Comments on Posts
 model Comment {
   id        String   @id @default(cuid())
   postId    String
@@ -313,7 +289,6 @@ model Comment {
   likeCount Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -321,13 +296,11 @@ model Comment {
   @@index([userId])
 }
 
-// User Following System
 model Follow {
   id          String   @id @default(cuid())
-  followerId  String   // user who is following
-  followingId String   // user being followed
+  followerId  String
+  followingId String
   createdAt   DateTime @default(now())
-
   follower    User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
   following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
 
@@ -336,13 +309,11 @@ model Follow {
   @@index([followingId])
 }
 
-// Channel Following
 model ChannelFollow {
   id        String   @id @default(cuid())
   userId    String
-  channelId String   // channel name/identifier (e.g., "vscode", "react")
+  channelId String
   createdAt DateTime @default(now())
-
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, channelId])
@@ -350,7 +321,6 @@ model ChannelFollow {
   @@index([channelId])
 }
 
-// Trending Topics Tracking
 model TrendingTopic {
   id        String   @id @default(cuid())
   tag       String   @unique
@@ -360,4 +330,97 @@ model TrendingTopic {
 
   @@index([postCount])
   @@index([weekCount])
+}
+
+model PatternPrerequisite {
+  patternId                                           String
+  prerequisiteId                                      String
+  Pattern_PatternPrerequisite_patternIdToPattern      Pattern @relation("PatternPrerequisite_patternIdToPattern", fields: [patternId], references: [id])
+  Pattern_PatternPrerequisite_prerequisiteIdToPattern Pattern @relation("PatternPrerequisite_prerequisiteIdToPattern", fields: [prerequisiteId], references: [id])
+
+  @@id([patternId, prerequisiteId])
+}
+
+model StudentProfile {
+  id                String    @id
+  userId            String    @unique
+  learningStyle     String?
+  peakHour          Int?
+  avgTimePerProblem Int       @default(0)
+  giveUpRate        Float     @default(0)
+  hintDependency    Float     @default(0)
+  weakPatterns      Json?
+  strongPatterns    Json?
+  targetCompany     String?
+  placementGoalDate DateTime?
+  hasBeenPlaced     Boolean   @default(false)
+  placedAt          String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime
+  User              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id                 String    @id
+  userId             String    @unique
+  plan               String    @default("free")
+  status             String    @default("active")
+  razorpaySubId      String?
+  razorpayCustomerId String?
+  currentPeriodEnd   DateTime?
+  cancelAtPeriodEnd  Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime
+  User               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CacheEntry {
+  id           String    @id @default(cuid())
+  problemId    String
+  questionMd5  String
+  embedding    Json
+  response     String
+  stage        String
+  rung         Int
+  usedCount    Int       @default(0)
+  similarity   Float?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([problemId, questionMd5])
+  @@index([problemId])
+  @@index([usedCount])
+}
+
+model MentorSession {
+  id             String          @id @default(cuid())
+  userId         String
+  problemId      String
+  stage          String          @default("EXPLORE")
+  currentRung    Int             @default(1)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  messages       MentorMessage[]
+
+  @@unique([userId, problemId])
+  @@index([userId])
+  @@index([updatedAt])
+}
+
+model MentorMessage {
+  id          String         @id @default(cuid())
+  sessionId   String
+  role        String
+  content     String
+  stage       String
+  createdAt   DateTime       @default(now())
+  session     MentorSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
 }

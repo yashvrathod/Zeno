@@ -65,7 +65,7 @@ export function Markdown({ md }: { md: string }) {
         continue;
       }
 
-      out.push(`<p class=\"text-sm text-gray-200 leading-relaxed\">${escapeHtml(line)}</p>`);
+      out.push(`<p class=\"text-sm text-gray-100 leading-relaxed\">${escapeHtml(line)}</p>`);
     }
 
     return out.join('\n');

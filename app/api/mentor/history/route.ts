@@ -26,40 +26,46 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Fetch complete conversation history and summary metadata
-    const [messages, summary] = await Promise.all([
-      prisma.mentorConversationMessage.findMany({
-        where: {
+    // Fetch the Stage Engine session and its messages
+    const sessionRecord = await prisma.mentorSession.findUnique({
+      where: {
+        userId_problemId: {
           userId: session.user.id,
           problemId,
         },
-        orderBy: { createdAt: "asc" },
-        select: {
-          role: true,
-          content: true,
-          metadata: true,
-          createdAt: true,
-        },
-      }),
-      prisma.mentorConversationSummary.findUnique({
-        where: {
-          userId_problemId: {
-            userId: session.user.id,
-            problemId,
+      },
+      include: {
+        messages: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            role: true,
+            content: true,
+            stage: true,
+            createdAt: true,
           },
         },
-        select: {
-          summaryMd: true,
-          messageCount: true,
-          lastRung: true,
-          breakthroughs: true,
-          status: true,
-        },
-      }),
-    ]);
+      },
+    });
 
-    // Transform messages to frontend format
-    const history = messages
+    // Fetch summary metadata (still useful for message count and lastRung)
+    const summary = await prisma.mentorConversationSummary.findUnique({
+      where: {
+        userId_problemId: {
+          userId: session.user.id,
+          problemId,
+        },
+      },
+      select: {
+        summaryMd: true,
+        messageCount: true,
+        lastRung: true,
+        breakthroughs: true,
+        status: true,
+      },
+    });
+
+    // Transform messages to frontend format — FILTER OUT SYSTEM MESSAGES
+    const history = (sessionRecord?.messages ?? [])
       .filter((m) => m.role === "user" || m.role === "assistant")
       .map((m) => ({
         role: m.role as "user" | "assistant",

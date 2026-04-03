@@ -12,1426 +12,271 @@ import {
   FileCode,
   Zap,
   Lightbulb,
+  LayoutGrid,
+  MessageCircle,
+  Sparkles,
+  ArrowUpRight,
+  Activity,
+  Code,
 } from 'lucide-react';
-import { use } from 'react';
-import Editor from '@monaco-editor/react';
-import type * as Monaco from 'monaco-editor';
-import type { editor as MonacoEditor } from 'monaco-editor';
+import Navbar from '@/components/Navbar';
+import Sidebar from '@/components/Sidebar';
 import Link from 'next/link';
-import MentorChat from '@/components/MentorChat';
-import { Markdown } from '@/components/Markdown';
-async function safeReadJson(
-  res: Response,
-): Promise<{ ok: true; data: unknown } | { ok: false; errorText: string }> {
-  try {
-    const text = await res.text();
-    if (!text) return { ok: false, errorText: '' };
-    return { ok: true, data: JSON.parse(text) };
-  } catch (e) {
-    return { ok: false, errorText: e instanceof Error ? e.message : 'Invalid JSON response' };
-  }
-}
+import {Markdown} from '@/components/Markdown';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value);
-}
-
-function getString(obj: Record<string, unknown>, key: string): string | undefined {
-  const v = obj[key];
-  return typeof v === 'string' ? v : undefined;
-}
-
-function getErrorFromUnknown(data: unknown): string | undefined {
-  if (!isRecord(data)) return undefined;
-  return getString(data, 'error');
-}
+type Problem = {
+  id: string;
+  title: string;
+  slug: string;
+  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  statementMd: string;
+  constraintsMd: string | null;
+  hints: string[];
+};
 
 export default function ProblemDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
-  const [language, setLanguage] = useState<'javascript' | 'python' | 'java' | 'cpp'>('javascript');
-  const [timeElapsed, setTimeElapsed] = useState(0);
-  const [isRunning, setIsRunning] = useState(false);
-  const [level] = useState(12);
-  const [xp, setXp] = useState(450);
-  const [streak, setStreak] = useState(7);
-  const [consoleOutput, setConsoleOutput] = useState('');
-  const [activeSection, setActiveSection] = useState('description');
-  const [typingSounds, setTypingSounds] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [isRunningTests, setIsRunningTests] = useState(false);
-  type TestResult = {
-    passed: boolean;
-    input: string;
-    expected: string;
-    actual: string;
-    error?: string;
-    time?: string;
-    memory?: string;
-  };
-
-  const [testResults, setTestResults] = useState<TestResult[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submissionResult, setSubmissionResult] = useState<{success: boolean, message: string} | null>(null);
-
-  const [showLeftSidebar, setShowLeftSidebar] = useState(true);
-  const [showRightSidebar, setShowRightSidebar] = useState(true);
-
-  // Track mobile viewport so we can avoid fixed pixel widths overriding `w-full`.
-  const [isMobile, setIsMobile] = useState(false);
-
-  // Mobile section navigation (Question -> Editor -> Console -> Tests)
-  type MobileSection = 'question' | 'editor' | 'console' | 'tests';
-  const [mobileSection, setMobileSection] = useState<MobileSection>('editor');
-  const questionRef = useRef<HTMLDivElement | null>(null);
-  const editorSectionRef = useRef<HTMLDivElement | null>(null);
-  const consoleSectionRef = useRef<HTMLDivElement | null>(null);
-  const testsRef = useRef<HTMLDivElement | null>(null);
-
-  // Mobile uses a stacked layout (Question -> Editor -> Console -> Tests),
-  // so we allow all panels to be visible at the same time.
-
-  // Resizable layout (LeetCode-style) - desktop only.
-  const [leftPanelWidth, setLeftPanelWidth] = useState<number>(350);
-  const [rightPanelWidth, setRightPanelWidth] = useState<number>(300);
-  const [consoleHeight, setConsoleHeight] = useState<number>(160);
-  const dragStateRef = useRef<
-    | null
-    | {
-        kind: 'left' | 'right' | 'console';
-        startX: number;
-        startY: number;
-        startLeft: number;
-        startRight: number;
-        startConsole: number;
-      }
-  >(null);
-
-  const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-
-  // Load real problem data from backend
-  const [dbProblem, setDbProblem] = useState<null | {  
-    id: string;
-    slug: string;
-    title: string;
-    statementMd: string;
-    constraintsMd: string | null;
-    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-    hints: string[];
-    publicTestCases: Array<{ order: number; input: string; expected: string }>;
-    starterCode: Record<string, string>;
-  }>(null);
-
-  // Store code for each language separately
-  const [codeByLanguage, setCodeByLanguage] = useState<Record<string, string>>({
-    javascript: '',
-    python: '',
-    java: '',
-    cpp: '',
-  });
-
-  const [code, setCode] = useState('');
-
-  // Realtime syntax/compile feedback (debounced)
-  const [syntaxStatus, setSyntaxStatus] = useState<'idle' | 'checking' | 'ok' | 'error'>('idle');
-  const [syntaxError, setSyntaxError] = useState<string>('');
-  const syntaxTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const syntaxReqIdRef = useRef(0);
-  const monacoRef = useRef<typeof Monaco | null>(null);
-
-  // Lightweight local metrics / behavior tracking
-  const lastActivityAtRef = useRef<number>(Date.now());
-  const consecutiveSubmitFailsRef = useRef<number>(0);
-  const [runCount, setRunCount] = useState(0);
-  const [submitCount, setSubmitCount] = useState(0);
-  const [lastResult, setLastResult] = useState<'pass' | 'fail' | null>(null);
+  const { id: problemId } = React.use(params);
+  const [dbProblem, setDbProblem] = useState<Problem | null>(null);
+  const [activeTab, setActiveTab] = useState('description');
+  const [isMentorOpen, setIsMentorOpen] = useState(true);
+  const [mentorInput, setMentorInput] = useState('');
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  const [isMentorLoading, setIsMentorLoading] = useState(false);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await fetch(`/api/problems/${id}`, { cache: 'no-store' });
-        const rawUnknown = (await res.json().catch(() => null)) as unknown;
-        if (!res.ok) {
-          const err = getErrorFromUnknown(rawUnknown);
-          throw new Error(err || 'Failed to load problem');
-        }
+    fetch(`/api/problems/${problemId}`)
+      .then((res) => res.json())
+      .then((data) => setDbProblem(data.problem))
+      .catch((err) => console.error('Failed to fetch problem:', err));
+  }, [problemId]);
 
-        if (!isRecord(rawUnknown)) throw new Error('Invalid problem response');
-        const pUnknown = rawUnknown['problem'];
-        if (!isRecord(pUnknown)) throw new Error('Invalid problem response');
-
-        const starterCodeUnknown = pUnknown['starterCode'];
-        const starter: Record<string, string> = isRecord(starterCodeUnknown)
-          ? Object.fromEntries(
-              Object.entries(starterCodeUnknown).filter(
-                (kv): kv is [string, string] => typeof kv[0] === 'string' && typeof kv[1] === 'string',
-              ),
-            )
-          : {};
-
-        const idVal = getString(pUnknown, 'id') ?? '';
-        const slugVal = getString(pUnknown, 'slug') ?? '';
-        const titleVal = getString(pUnknown, 'title') ?? '';
-        const statementMdVal = getString(pUnknown, 'statementMd') ?? '';
-        const constraintsMdVal = ((): string | null => {
-          const v = pUnknown['constraintsMd'];
-          return v === null || typeof v === 'string' ? (v as string | null) : null;
-        })();
-        const difficultyVal = ((): 'EASY' | 'MEDIUM' | 'HARD' => {
-          const v = getString(pUnknown, 'difficulty');
-          return v === 'EASY' || v === 'MEDIUM' || v === 'HARD' ? v : 'EASY';
-        })();
-        const hintsVal = Array.isArray(pUnknown['hints'])
-          ? (pUnknown['hints'].filter((x) => typeof x === 'string') as string[])
-          : [];
-        const publicTestCasesVal = Array.isArray(pUnknown['publicTestCases'])
-          ? (pUnknown['publicTestCases'].filter(isRecord).map((tc) => ({
-              order: typeof tc.order === 'number' ? tc.order : 0,
-              input: typeof tc.input === 'string' ? tc.input : '',
-              expected: typeof tc.expected === 'string' ? tc.expected : '',
-            })) as Array<{ order: number; input: string; expected: string }>)
-          : [];
-
-        const normalized = {
-          id: idVal,
-          slug: slugVal,
-          title: titleVal,
-          statementMd: statementMdVal,
-          constraintsMd: constraintsMdVal,
-          difficulty: difficultyVal,
-          hints: hintsVal,
-          publicTestCases: publicTestCasesVal,
-          starterCode: starter,
-        };
-
-        if (!normalized.slug) throw new Error('Problem slug missing');
-
-        if (!mounted) return;
-        setDbProblem(normalized);
-
-        // Mentor: PROBLEM_OPENED is emitted by a separate effect after `dbProblem` is set.
-
-        const initialByLang = {
-          javascript: starter.javascript ?? '',
-          python: starter.python ?? '',
-          java: starter.java ?? '',
-          cpp: starter.cpp ?? '',
-        };
-        setCodeByLanguage(initialByLang);
-        // code is set by a separate effect that reacts to `language` and `dbProblem`.
-
-      } catch (e) {
-        if (!mounted) return;
-        setConsoleOutput(e instanceof Error ? e.message : 'Failed to load problem');
-      }
-    })();
-
-    return () => {
-      mounted = false;
-    };
-  }, [id]);
-
-  // Initialize Audio Context for typing sounds + respect reduced motion
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const w = window as Window &
-        typeof globalThis & { webkitAudioContext?: typeof AudioContext };
-      const AC = w.AudioContext ?? w.webkitAudioContext;
-      audioContextRef.current = AC ? new AC() : null;
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
+  }, [messages, isMentorLoading]);
 
-    return () => {
-      try {
-        audioContextRef.current?.close();
-      } catch {
-        // ignore
-      } finally {
-        audioContextRef.current = null;
-      }
-    };
-  }, []);
+  const sendMentorMessage = async (content: string) => {
+    if (!content.trim()) return;
+    const newMessages = [...messages, { role: 'user', content } as const];
+    setMessages(newMessages);
+    setMentorInput('');
+    setIsMentorLoading(true);
 
-  // Keep a simple mobile flag in sync with viewport width.
-  // When entering mobile mode, default to the editor view (hide side panels).
-  const prevMobileRef = useRef(false);
-  useEffect(() => {
-    const compute = () => {
-      const nextMobile = window.innerWidth < 768;
-      setIsMobile((prev) => (prev === nextMobile ? prev : nextMobile));
-
-      // Only run the reset when *entering* mobile.
-      // On mobile we want a stacked view, so show everything.
-      if (nextMobile && !prevMobileRef.current) {
-        setShowLeftSidebar(true);
-        setShowRightSidebar(true);
-        setMobileSection('editor');
-      }
-      prevMobileRef.current = nextMobile;
-    };
-
-    compute();
-    window.addEventListener('resize', compute);
-    return () => window.removeEventListener('resize', compute);
-  }, []);
-
-  const scrollToMobileSection = (section: MobileSection) => {
-    if (!isMobile) return;
-
-    // Ensure stacked sections are visible
-    if (section === 'question') setShowLeftSidebar(true);
-    if (section === 'tests') setShowRightSidebar(true);
-
-    const el =
-      section === 'question'
-        ? questionRef.current
-        : section === 'editor'
-          ? editorSectionRef.current
-          : section === 'console'
-            ? consoleSectionRef.current
-            : testsRef.current;
-
-    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    setMobileSection(section);
-  };
-
-  // Track the active section while scrolling on mobile
-  useEffect(() => {
-    if (!isMobile) return;
-
-    const targets: Array<[MobileSection, HTMLDivElement | null]> = [
-      ['question', questionRef.current],
-      ['editor', editorSectionRef.current],
-      ['console', consoleSectionRef.current],
-      ['tests', testsRef.current],
-    ];
-
-    const els = targets.map(([, el]) => el).filter(Boolean) as HTMLDivElement[];
-    if (els.length === 0) return;
-
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => (b.intersectionRatio ?? 0) - (a.intersectionRatio ?? 0))[0];
-        if (!visible?.target) return;
-
-        const found = targets.find(([, el]) => el === visible.target);
-        if (found) setMobileSection(found[0]);
-      },
-      {
-        // Prefer whichever section is closest to the top and meaningfully visible.
-        root: null,
-        threshold: [0.2, 0.35, 0.5],
-      }
-    );
-
-    els.forEach((el) => obs.observe(el));
-    return () => obs.disconnect();
-  }, [isMobile]);
-
-  // Typing sound effect function
-  const playTypingSound = () => {
-    if (!typingSounds || !audioContextRef.current) return;
-
-    const ctx = audioContextRef.current;
-    const oscillator = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
-
-    // Mechanical keyboard sound simulation
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(800 + Math.random() * 200, ctx.currentTime);
-
-    gainNode.gain.setValueAtTime(0.05, ctx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05);
-
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + 0.05);
-  };
-
-  
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      const drag = dragStateRef.current;
-      if (!drag) return;
-
-      if (drag.kind === 'left') {
-        const dx = e.clientX - drag.startX;
-        const next = Math.min(560, Math.max(260, drag.startLeft + dx));
-        setLeftPanelWidth(next);
-      } else if (drag.kind === 'right') {
-        const dx = e.clientX - drag.startX;
-        const next = Math.min(520, Math.max(240, drag.startRight - dx));
-        setRightPanelWidth(next);
-      } else {
-        const dy = e.clientY - drag.startY;
-        // Dragging down should increase height.
-        const next = Math.min(320, Math.max(100, drag.startConsole + dy));
-        setConsoleHeight(next);
-      }
-    };
-
-    const onUp = () => {
-      dragStateRef.current = null;
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, []);
-
-  const startDrag = (kind: 'left' | 'right' | 'console') => (e: React.MouseEvent) => {
-    // Don’t allow resizing on mobile (use the existing toggles instead)
-    if (window.innerWidth < 768) return;
-
-    dragStateRef.current = {
-      kind,
-      startX: e.clientX,
-      startY: e.clientY,
-      startLeft: leftPanelWidth,
-      startRight: rightPanelWidth,
-      startConsole: consoleHeight,
-    };
-
-    document.body.style.cursor = kind === 'console' ? 'row-resize' : 'col-resize';
-    document.body.style.userSelect = 'none';
-  };
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isRunning) {
-      interval = setInterval(() => setTimeElapsed((prev) => prev + 1), 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isRunning]);
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  };
-
-  // Handle language switching with code persistence
-  const handleLanguageChange = (newLanguage: 'javascript' | 'python' | 'java' | 'cpp') => {
-    // Save current code before switching
-    setCodeByLanguage((prev) => ({
-      ...prev,
-      [language]: code,
-    }));
-
-    // Switch to new language (actual code value will be set by the effect below)
-    setLanguage(newLanguage);
-  };
-
-  // When language changes, load the saved code or starter code for that language.
-  useEffect(() => {
-    if (!dbProblem) return;
-    setCode((prev) => {
-      const next = codeByLanguage[language] ?? dbProblem.starterCode?.[language] ?? '';
-      return next === prev ? prev : next;
-    });
-
-    // Trigger syntax check when switching languages.
-    const next = codeByLanguage[language] ?? dbProblem.starterCode?.[language] ?? '';
-    scheduleSyntaxCheck(next, language);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language, dbProblem, codeByLanguage]);
-
-  // Update code when it changes
-  const scheduleSyntaxCheck = (nextCode: string, nextLanguage: typeof language) => {
-    // Clear any existing timer
-    if (syntaxTimerRef.current) clearTimeout(syntaxTimerRef.current);
-
-    // If empty, clear markers/status
-    if (!nextCode.trim()) {
-      setSyntaxStatus('idle');
-      setSyntaxError('');
-      const monaco = monacoRef.current;
-      const editor = editorRef.current;
-      const model = editor?.getModel();
-      if (monaco?.editor && model) monaco.editor.setModelMarkers(model, 'syntax-check', []);
-      return;
-    }
-
-    setSyntaxStatus('checking');
-
-    syntaxTimerRef.current = setTimeout(async () => {
-      const reqId = ++syntaxReqIdRef.current;
-      try {
-        const res = await fetch('/api/syntax-check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ language: nextLanguage, code: nextCode }),
-        });
-        const data = (await res.json().catch(() => null)) as unknown;
-
-        // Ignore outdated responses
-        if (reqId !== syntaxReqIdRef.current) return;
-
-        const editor = editorRef.current;
-        const monaco = monacoRef.current;
-        const model = editor?.getModel();
-
-        if (!res.ok) {
-          setSyntaxStatus('error');
-          const msg = String((isRecord(data) && typeof data.error === 'string' ? data.error : undefined) || 'Syntax check failed');
-          setSyntaxError(msg);
-          if (monaco?.editor && model) {
-            monaco.editor.setModelMarkers(model, 'syntax-check', [
-              {
-                severity: monaco.MarkerSeverity.Error,
-                message: msg,
-                startLineNumber: 1,
-                startColumn: 1,
-                endLineNumber: 1,
-                endColumn: 1,
-              },
-            ]);
-          }
-          return;
-        }
-
-        if (isRecord(data) && data.ok === false && typeof data.error === 'string') {
-          const msg = String(data.error);
-          setSyntaxStatus('error');
-          setSyntaxError(msg);
-          if (monaco?.editor && model) {
-            // Best-effort parse for "line X" patterns (js/python/cpp)
-            let line = 1;
-            const m = msg.match(/line\s+(\d+)/i);
-            if (m?.[1]) line = Math.max(1, Number(m[1]) || 1);
-
-            monaco.editor.setModelMarkers(model, 'syntax-check', [
-              {
-                severity: monaco.MarkerSeverity.Error,
-                message: msg,
-                startLineNumber: line,
-                startColumn: 1,
-                endLineNumber: line,
-                endColumn: 1,
-              },
-            ]);
-          }
-          return;
-        }
-
-        setSyntaxStatus('ok');
-        setSyntaxError('');
-        if (monaco?.editor && model) monaco.editor.setModelMarkers(model, 'syntax-check', []);
-      } catch (e) {
-        if (reqId !== syntaxReqIdRef.current) return;
-        setSyntaxStatus('error');
-        const msg = e instanceof Error ? e.message : 'Syntax check failed';
-        setSyntaxError(msg);
-      }
-    }, 600);
-  };
-
-  const handleCodeChange = (value: string | undefined) => {
-    lastActivityAtRef.current = Date.now();
-    const newCode = value || '';
-    setCode(newCode);
-    setCodeByLanguage((prev) => ({
-      ...prev,
-      [language]: newCode,
-    }));
-    playTypingSound();
-
-    scheduleSyntaxCheck(newCode, language);
-  };
-
-  // Public test cases are loaded from the backend (problem.publicTestCases).
-  const publicTestCases = dbProblem?.publicTestCases ?? [];
-
-  // Run tests function with Judge0 API
-  const runTests = async () => {
-    lastActivityAtRef.current = Date.now();
-    setIsRunningTests(true);
-    setConsoleOutput('| Compiling and running tests...\n');
-    setSubmissionResult(null);
-    setRunCount((c) => c + 1);
-    
     try {
-      if (!dbProblem?.slug) throw new Error('Problem not loaded');
-
-      // Run only public test cases (like LeetCode "Run")
-      const response = await fetch(`/api/problems/${dbProblem.slug}/run`, {
+      const res = await fetch('/api/mentor', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          code,
-          language,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          messages: newMessages,
+          context: { problemId, problemTitle: dbProblem?.title } 
         }),
       });
-
-      const parsed = await safeReadJson(response);
-      const data = parsed.ok ? parsed.data : {};
-
-      if (!response.ok) {
-        const err = getErrorFromUnknown(data) || (parsed.ok ? '' : parsed.errorText) || (await response.text().catch(() => ''));
-        setConsoleOutput(`❌ Error: ${err || 'Failed to execute code'}`);
-
-        setIsRunningTests(false);
-        return;
-      }
-
-      if (!parsed.ok) {
-        throw new Error('Invalid response from server');
-      }
-
-      // Piston API always works (no API key needed!)
-      // No need for fallback checks
-
-      // Map /run API results (public tests only) into existing UI shape
-      const results = (
-        data.results as Array<{ order: number; passed: boolean; output: string; expected: string }>
-      ).map((r) => ({
-        passed: r.passed,
-        input: publicTestCases.find((t) => t.order === r.order)?.input ?? `Test #${r.order}`,
-        expected: r.expected,
-        actual: r.output,
-      }));
-
-      setTestResults(results);
-      
-      // Generate console output
-      let output = '=== Test Results ===\n\n';
-      results.forEach((result, index: number) => {
-        output += `Test ${index + 1}: ${result.passed ? '✅ PASSED' : '❌ FAILED'}\n`;
-        output += `  Input: ${result.input}\n`;
-        output += `  Expected: ${result.expected}\n`;
-        output += `  Got: ${result.actual}\n`;
-
-        output += '\n';
-      });
-      
-      const passedCount = results.filter((r) => r.passed).length;
-      const allPassed = passedCount === results.length;
-      output += `\nResult: ${passedCount}/${results.length} tests passed`;
-      setLastResult(allPassed ? 'pass' : 'fail');
-
-      
-      if (allPassed) {
-        output += ' 🎉';
-      }
-      
-      setConsoleOutput(output);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      setConsoleOutput(`❌ Network Error: ${message}\n\nPlease check your connection or API configuration.`);
+      const data = await res.json();
+      setMessages([...newMessages, { role: 'assistant', content: data.reply }]);
+    } catch (err) {
+      console.error(err);
     } finally {
-      setIsRunningTests(false);
+      setIsMentorLoading(false);
     }
   };
 
-  // Submit solution function with Judge0
-  const handleSubmit = async () => {
-    lastActivityAtRef.current = Date.now();
-    setIsSubmitting(true);
-    setConsoleOutput('| Submitting solution and running all tests...\n');
-    setSubmissionResult(null);
-    setSubmitCount((c) => c + 1);
-    
-    try {
-      if (!dbProblem?.slug) throw new Error('Problem not loaded');
-
-      // Submit runs ALL tests (public + hidden) on the server.
-      const response = await fetch(`/api/problems/${dbProblem.slug}/submit`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          code,
-          language,
-        }),
-      });
-
-      const parsed = await safeReadJson(response);
-      const data = parsed.ok ? parsed.data : {};
-
-      if (!response.ok) {
-        const err = getErrorFromUnknown(data) || (parsed.ok ? '' : parsed.errorText) || (await response.text().catch(() => ''));
-        setSubmissionResult({
-          success: false,
-          message: `Error: ${err || 'Failed to execute code'}`
-        });
-        setConsoleOutput(`❌ Submission Error: ${err || 'Failed to execute code'}`);
-
-  
-        setIsSubmitting(false);
-        return;
-      }
-
-      if (!parsed.ok) {
-        throw new Error('Invalid response from server');
-      }
-
-      // Piston API always works (no API key needed!)
-      // No need for fallback checks
-
-      // Map /submit API results (public + hidden) into existing UI shape.
-      // Backend does not return hidden inputs/expected.
-      const results = (
-        data.details as Array<{ order: number; isHidden: boolean; passed: boolean; output?: string }>
-      ).map((r) => ({
-        passed: r.passed,
-        input: r.isHidden
-          ? `Hidden Test #${r.order}`
-          : (publicTestCases.find((t) => t.order === r.order)?.input ?? `Test #${r.order}`),
-        expected: r.isHidden
-          ? '(hidden)'
-          : (publicTestCases.find((t) => t.order === r.order)?.expected ?? ''),
-        // Show actual program output for public tests; keep hidden tests opaque.
-        actual: r.isHidden ? (r.passed ? 'Passed' : 'Failed') : (r.output ?? ''),
-      }));
-
-      setTestResults(results);
-      
-      // Generate console output
-      let output = '=== Submission Results ===\n\n';
-      results.forEach((result, index: number) => {
-        output += `Test ${index + 1}: ${result.passed ? '✅ PASSED' : '❌ FAILED'}\n`;
-        output += `  Input: ${result.input}\n`;
-        output += `  Expected: ${result.expected}\n`;
-        output += `  Got: ${result.actual}\n`;
-        
-        if (result.error) {
-          output += `  ❌ Error: ${result.error}\n`;
-        }
-        
-        if (result.time) {
-          output += `  ⏱ Time: ${result.time}s\n`;
-        }
-        
-        if (result.memory) {
-          output += `  💾 Memory: ${result.memory} KB\n`;
-        }
-        
-        output += '\n';
-      });
-      
-      const passedCount = results.filter((r) => r.passed).length;
-      const allPassed = passedCount === results.length;
-      setLastResult(allPassed ? 'pass' : 'fail');
-      
-      if (allPassed) {
-        consecutiveSubmitFailsRef.current = 0;
-        setSubmissionResult({
-          success: true,
-          message: '✅ Accepted! Your solution passed all test cases. 🎉'
-        });
-        output += '\n✅ ACCEPTED\nYour solution has been submitted successfully!\n\n🎉 Congratulations! Problem solved!';
-
-        
-        // Update XP and streak
-        setXp(prev => prev + 50);
-        setStreak(prev => prev + 1);
-      } else {
-        consecutiveSubmitFailsRef.current += 1;
-        setSubmissionResult({
-          success: false,
-          message: `❌ Wrong Answer. ${passedCount}/${results.length} tests passed.`
-        });
-        output += `\n❌ WRONG ANSWER\n${passedCount}/${results.length} tests passed.\nPlease review the failed tests and try again.`;
-      }
-      
-      setConsoleOutput(output);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      setSubmissionResult({
-        success: false,
-        message: `Error: ${message}`
-      });
-      setConsoleOutput(`❌ Network Error: ${message}\n\nPlease check your connection or API configuration.`);
-    } finally {
-      setIsSubmitting(false);
+  const getDifficultyColor = (diff: string) => {
+    switch (diff) {
+      case 'EASY': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+      case 'MEDIUM': return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+      case 'HARD': return 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+      default: return 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20';
     }
-  };
-
-
-  type ExampleVm = { input: string; output: string; explanation?: string };
-
-  // View model used by the existing UI. (Keeps markup unchanged.)
-  const problem: {
-    id: string;
-    title: string;
-    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-    pattern: string;
-    description: string;
-    examples: ExampleVm[];
-    constraints: string[];
-    hints: string[];
-  } = {
-    // UI previously expected a numeric id; we use slug for now.
-    id: dbProblem?.slug ?? '',
-    title: dbProblem?.title ?? 'Loading…',
-    difficulty: dbProblem?.difficulty ?? 'EASY',
-    pattern: '',
-    description: dbProblem?.statementMd ?? '',
-    // DB doesn’t have a dedicated examples field yet; derive from first public tests.
-    examples: (dbProblem?.publicTestCases ?? []).slice(0, 2).map((tc) => ({
-      input: tc.input,
-      output: tc.expected,
-    })),
-    constraints: dbProblem?.constraintsMd ? dbProblem.constraintsMd.split('\n').filter(Boolean) : [],
-    hints: dbProblem?.hints ?? [],
   };
 
   return (
-    <div className="h-screen bg-gradient-to-br from-[#1e1e2e] via-[#1a1a28] to-[#16161f] text-gray-100 flex flex-col relative overflow-hidden" style={{ fontFamily: 'var(--font-jetbrains-mono)' }}>
-      {/* Subtle Background Gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-black via-transparent to-black pointer-events-none"></div>
-      <div className="absolute inset-0 pointer-events-none opacity-20">
-        <div className="absolute top-0 right-0 w-[800px] h-[800px] bg-white/5 rounded-full blur-[180px]"></div>
-        <div className="absolute bottom-0 left-0 w-[600px] h-[600px] bg-white/5 rounded-full blur-[160px]"></div>
-      </div>
+    <div className="flex flex-col h-screen bg-[#020204] text-zinc-400 font-sans overflow-hidden">
+      <Navbar />
 
-      {/* Top Header - VS Code Style */}
-      <header className="relative z-10 bg-[#0a0a0f] border-b border-white/10 px-2 md:px-4 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-2 md:gap-4">
-          <Link href="/problems" className="text-gray-400 hover:text-white transition-colors">
-            <ChevronLeft className="w-4 h-4 md:w-5 md:h-5" />
-          </Link>
-          <div className="flex items-center gap-1 md:gap-2 text-xs md:text-sm">
-            <span className="text-gray-500 hidden sm:inline">Problems</span>
-            <ChevronRight className="w-3 h-3 md:w-4 md:h-4 text-gray-600 hidden sm:inline" />
-            <span className="text-white truncate max-w-[180px] md:max-w-none">{problem.id ? `${problem.id} • ` : ''}{problem.title}</span>
-          </div>
-        </div>
+      <div className="flex flex-1 overflow-hidden relative">
+        <Sidebar />
 
-        <div className="flex items-center gap-2 md:gap-4">
-          <div className="flex items-center gap-1 md:gap-3 text-[10px] md:text-xs">
-            <div className="flex items-center gap-1 px-1.5 md:px-2 py-0.5 md:py-1 bg-[#3e3e3e] rounded">
-              <div className="w-4 h-4 md:w-6 md:h-6 bg-gradient-to-br from-gray-700 to-gray-900 rounded flex items-center justify-center text-[10px] md:text-xs font-bold">{level}</div>
-            </div>
-            <div className="hidden sm:flex items-center gap-1 px-1.5 md:px-2 py-0.5 md:py-1 bg-[#3e3e3e] rounded">
-              <Zap className="w-2.5 h-2.5 md:w-3 md:h-3 text-yellow-400" />
-              <span className="text-yellow-400 font-semibold">{xp}</span>
-            </div>
-            <div className="hidden lg:flex items-center gap-1 px-1.5 md:px-2 py-0.5 md:py-1 bg-[#3e3e3e] rounded">
-              <span>🔥</span>
-              <span className="text-orange-400 font-semibold">{streak}</span>
-            </div>
-          </div>
+        {/* Main Integrated Workspace */}
+        <main className="flex-1 flex overflow-hidden border-l border-white/10">
           
-          <div className="flex items-center gap-1 md:gap-2 px-2 md:px-3 py-0.5 md:py-1 bg-[#3e3e3e] rounded text-xs md:text-sm">
-            <Clock className="w-3 h-3 md:w-4 md:h-4 text-blue-400" />
-            <span className="font-mono">{formatTime(timeElapsed)}</span>
-          </div>
-          
-          {!isRunning && (
-            <button onClick={() => setIsRunning(true)} className="px-2 md:px-3 py-0.5 md:py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs md:text-sm transition-colors">
-              Start
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* Main Layout - 3 Column on desktop, stacked on mobile */}
-      <div className="relative z-10 flex-1 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden">
-        {/* Mobile section tabs */}
-        <div className="md:hidden sticky top-0 z-20 bg-[#0a0a0f]/95 backdrop-blur border-b border-white/10">
-          <div className="flex items-center gap-2 px-2 py-2 overflow-x-auto">
-            {([
-              ['question', 'Question'],
-              ['editor', 'Editor'],
-              ['console', 'Console'],
-              ['tests', 'Tests'],
-            ] as Array<[MobileSection, string]>).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => scrollToMobileSection(key)}
-                className={`px-3 py-1.5 rounded-md text-xs border transition-colors whitespace-nowrap ${
-                  mobileSection === key
-                    ? 'bg-white/10 border-white/20 text-white'
-                    : 'bg-transparent border-white/10 text-gray-400'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-        
-        {/* Left Sidebar - VS Code Explorer Style */}
-        <div
-          ref={questionRef}
-          className={`
-          ${showLeftSidebar ? 'flex' : 'hidden'}
-          bg-[#0a0a0f] border-r border-white/10 flex flex-col transition-all duration-300 w-full md:w-auto scroll-mt-16
-          ${showLeftSidebar ? 'md:flex' : 'md:hidden'}
-        `}
-          style={{ width: !isMobile && showLeftSidebar ? leftPanelWidth : undefined }}
-        >
-          {/* Problem Title */}
-          <div className="p-4 border-b border-white/10">
-            <h1 className="text-2xl font-bold mb-2">{problem.title}</h1>
-            <div className="flex items-center gap-2 text-sm">
-              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                problem.difficulty === 'EASY' ? 'bg-green-500/20 text-green-400' :
-                problem.difficulty === 'MEDIUM' ? 'bg-orange-500/20 text-orange-400' :
-                'bg-red-500/20 text-red-400'
-              }`}>
-                {problem.difficulty}
-              </span>
-              <span className="text-gray-500">•</span>
-              <span className="text-gray-400">{problem.pattern}</span>
-            </div>
-          </div>
-
-          {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-6 text-sm">
-            <div>
-              <h3 className="text-gray-400 uppercase text-xs font-semibold mb-2">Description</h3>
-              <div className="text-gray-300 leading-relaxed">
-                <Markdown md={problem.description} />
+          {/* Problem Content Section */}
+          <div className="flex-1 overflow-y-auto bg-[#020204] relative">
+            <div className="max-w-4xl mx-auto px-12 py-16">
+              
+              {/* Contextual Header */}
+              <div className="flex items-center justify-between mb-12">
+                <Link href="/problems" className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-600 hover:text-white transition-colors group">
+                  <ChevronLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+                  <span>Curriculum</span>
+                </Link>
+                <div className="flex items-center gap-4">
+                   <div className="flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                     <Clock size={12} />
+                     <span>45m Est</span>
+                   </div>
+                   <button className="p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+                     <Settings size={16} className="text-zinc-500" />
+                   </button>
+                </div>
               </div>
-            </div>
 
-            <div>
-              <h3 className="text-gray-400 uppercase text-xs font-semibold mb-3">Examples</h3>
-              <div className="space-y-3">
-                {problem.examples.map((ex, idx) => (
-                  <div key={idx} className="bg-[#16161f] border border-white/10 rounded-lg p-3">
-                    <div className="text-xs text-gray-500 mb-2">Example {idx + 1}</div>
-                    <div className="space-y-1 font-mono text-xs">
-                      <div><span className="text-gray-500">Input:</span> <span className="text-blue-400">{ex.input}</span></div>
-                      <div><span className="text-gray-500">Output:</span> <span className="text-green-400">{ex.output}</span></div>
-                      {ex.explanation && <div className="text-gray-400 text-xs mt-1">{ex.explanation}</div>}
-                    </div>
+              {/* Core Content */}
+              <div className="space-y-12">
+                <div className="flex items-center gap-4">
+                  <Badge className={`px-4 py-1 rounded-lg border font-bold text-[10px] tracking-widest uppercase shadow-lg ${getDifficultyColor(dbProblem?.difficulty || 'EASY')}`}>
+                    {dbProblem?.difficulty || 'EASY'}
+                  </Badge>
+                  <div className="h-px w-8 bg-white/10" />
+                  <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest font-mono">MOD_742_LINKED_LIST</span>
+                </div>
+
+                <h1 className="text-4xl font-bold text-white tracking-tight leading-tight">
+                  {dbProblem?.title || "Initializing Workspace..."}
+                </h1>
+
+                <div className="prose prose-invert max-w-none">
+                  <div className="text-[17px] text-zinc-300 leading-relaxed font-light">
+                    {dbProblem ? <Markdown md={dbProblem.statementMd} /> : (
+                      <div className="space-y-4 animate-pulse">
+                        <div className="h-4 bg-white/5 rounded w-3/4" />
+                        <div className="h-4 bg-white/5 rounded w-full" />
+                        <div className="h-4 bg-white/5 rounded w-5/6" />
+                      </div>
+                    )}
                   </div>
-                ))}
+
+                  {dbProblem?.constraintsMd && (
+                    <div className="mt-16 pt-12 border-t border-white/10">
+                      <h3 className="text-[11px] font-bold text-white uppercase tracking-[0.3em] mb-8">EXECUTION CONSTRAINTS</h3>
+                      <div className="bg-[#08080a] border border-white/10 rounded-2xl p-8 font-mono text-sm text-zinc-400 shadow-inner">
+                        <Markdown md={dbProblem.constraintsMd} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Tactical Hints */}
+                <div className="mt-16 space-y-8">
+                   <h3 className="text-[11px] font-bold text-zinc-600 uppercase tracking-[0.3em]">STRATEGIC PHASES</h3>
+                   <div className="grid grid-cols-1 gap-4">
+                     {dbProblem?.hints.map((hint, idx) => (
+                       <details key={idx} className="group bg-[#08080a] border border-white/10 rounded-2xl overflow-hidden transition-all hover:border-white/20">
+                         <summary className="flex items-center justify-between p-6 cursor-pointer list-none">
+                           <div className="flex items-center gap-4">
+                             <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center border border-amber-500/20">
+                               <Lightbulb size={14} className="text-amber-400" />
+                             </div>
+                             <span className="text-[11px] font-bold text-zinc-200 uppercase tracking-widest">Phase {idx + 1} Data</span>
+                           </div>
+                           <ChevronDown size={16} className="text-zinc-700 group-open:rotate-180 transition-transform" />
+                         </summary>
+                         <div className="px-10 pb-8 text-zinc-400 text-sm leading-relaxed border-t border-white/5 pt-6 font-normal">
+                           <Markdown md={hint} />
+                         </div>
+                       </details>
+                     ))}
+                   </div>
+                </div>
               </div>
             </div>
+          </div>
 
-            <div>
-              <h3 className="text-gray-400 uppercase text-xs font-semibold mb-2">Constraints</h3>
-              <ul className="space-y-1">
-                {problem.constraints.map((c, idx) => (
-                  <li key={idx} className="text-gray-400 text-xs">• {c}</li>
-                ))}
-              </ul>
+          {/* Neural Mentor Side-Drawer (Google Suggestion) */}
+          <aside className={`w-[450px] bg-[#08080a] border-l border-white/15 flex flex-col transition-all duration-500 ${isMentorOpen ? 'translate-x-0' : 'translate-x-full absolute right-0 inset-y-0'}`}>
+            
+            {/* Mentor Header */}
+            <div className="p-6 border-b border-white/10 flex items-center justify-between bg-black/20">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center border border-purple-500/20">
+                  <Sparkles size={14} className="text-purple-400" />
+                </div>
+                <div>
+                  <h4 className="text-[11px] font-bold text-white uppercase tracking-widest">NEURAL_ASSISTANT</h4>
+                  <span className="text-[8px] text-emerald-500 font-bold uppercase tracking-widest">SYNC_ACTIVE</span>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsMentorOpen(false)}
+                className="p-2 hover:bg-white/5 rounded-lg transition-colors text-zinc-600"
+              >
+                <ChevronRight size={18} />
+              </button>
             </div>
 
-            <div>
-              <button 
-                onClick={() => setActiveSection(activeSection === 'hints' ? 'description' : 'hints')}
-                className="text-gray-400 uppercase text-xs font-semibold mb-2 hover:text-white flex items-center gap-2"
-              >
-                <Lightbulb className="w-4 h-4" />
-                Hints
-                <ChevronDown className={`w-3 h-3 transition-transform ${activeSection === 'hints' ? 'rotate-180' : ''}`} />
-              </button>
-              {activeSection === 'hints' && (
-                <div className="space-y-2 mt-2">
-                  {problem.hints.map((hint, idx) => (
-                    <div key={idx} className="text-gray-400 text-xs bg-yellow-500/10 border border-yellow-500/30 rounded p-2">
-                      {idx + 1}. {hint}
-                    </div>
-                  ))}
+            {/* Chat History */}
+            <div 
+              ref={chatContainerRef}
+              className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar bg-gradient-to-b from-transparent to-purple-500/[0.01]"
+            >
+              {messages.length === 0 && (
+                <div className="h-full flex flex-col items-center justify-center text-center opacity-30">
+                  <div className="w-16 h-16 rounded-[2rem] border border-white/10 flex items-center justify-center mb-6">
+                    <MessageCircle size={32} />
+                  </div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.3em]">Session initialized</p>
+                </div>
+              )}
+              {messages.map((msg, idx) => (
+                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-500`}>
+                  <div className={`max-w-[90%] p-5 rounded-2xl text-[14px] leading-relaxed transition-all shadow-lg ${
+                    msg.role === 'user' 
+                      ? 'bg-white/5 border border-white/10 text-white' 
+                      : 'bg-[#020204] border border-white/10 text-zinc-300'
+                  }`}>
+                    <Markdown md={msg.content} />
+                  </div>
+                </div>
+              ))}
+              {isMentorLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-3 flex gap-1.5">
+                    <div className="w-1 h-1 bg-purple-500 rounded-full animate-bounce" />
+                    <div className="w-1 h-1 bg-purple-500 rounded-full animate-bounce delay-100" />
+                    <div className="w-1 h-1 bg-purple-500 rounded-full animate-bounce delay-200" />
+                  </div>
                 </div>
               )}
             </div>
-          </div>
-        </div>
 
-        {/* Splitter: Left | Editor */}
-        <div
-          className="hidden md:block w-[6px] cursor-col-resize bg-transparent hover:bg-white/10 transition-colors"
-          onMouseDown={startDrag('left')}
-          title="Drag to resize"
-        />
-
-        {/* Middle - Code Editor */}
-        <div ref={editorSectionRef} className="flex-1 flex flex-col bg-[#0a0a0f] border border-white/10 min-w-0 w-full scroll-mt-16 md:h-auto">
-          {/* Editor Toolbar - VS Code Tabs Style */}
-          <div className="bg-[#0a0a0f] border-b border-white/10 px-2 md:px-4 py-2 flex items-center justify-between flex-wrap gap-2">
-            {/* Mobile section shortcuts */}
-            <div className="flex items-center gap-2 md:hidden">
-              <button
-                onClick={() => scrollToMobileSection('question')}
-                className="p-1.5 hover:bg-white/10 rounded transition-colors"
-                title="Go to Question"
-              >
-                <FileCode className="w-4 h-4 text-gray-400" />
-              </button>
-              <button
-                onClick={() => scrollToMobileSection('tests')}
-                className="p-1.5 hover:bg-white/10 rounded transition-colors"
-                title="Go to Tests"
-              >
-                <CheckCircle2 className="w-4 h-4 text-gray-400" />
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <FileCode className="w-4 h-4 text-gray-400 hidden md:block" />
-              <select 
-                value={language}
-                onChange={(e) => handleLanguageChange(e.target.value as 'javascript' | 'python' | 'java' | 'cpp')}
-                className="bg-white/10 backdrop-blur-sm border border-white/10 text-gray-300 rounded px-2 py-1 text-xs md:text-sm focus:outline-none focus:border-blue-500/50 hover:bg-white/15 transition-all"
-              >
-                <option value="javascript">JavaScript</option>
-                <option value="python">Python</option>
-                <option value="java">Java</option>
-                <option value="cpp">C++</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-2 md:gap-3">
-              {/* LeetCode-like stats */}
-              <div className="hidden lg:flex items-center gap-2 text-[11px] text-gray-400 border border-white/10 rounded px-2 py-1 bg-white/5">
-                <span className="font-mono">Runs:</span>
-                <span className="text-gray-200 font-mono">{runCount}</span>
-                <span className="text-gray-600">•</span>
-                <span className="font-mono">Submits:</span>
-                <span className="text-gray-200 font-mono">{submitCount}</span>
-                <span className="text-gray-600">•</span>
-                <span className="font-mono">Last:</span>
-                <span
-                  className={
-                    lastResult === 'pass' ? 'text-green-400 font-mono' : lastResult === 'fail' ? 'text-red-400 font-mono' : 'text-gray-500 font-mono'
-                  }
+            {/* Message Input */}
+            <div className="p-6 bg-black/40 border-t border-white/10">
+              <div className="relative group">
+                <input 
+                  className="w-full bg-[#020204] border border-white/15 rounded-xl py-4 px-6 text-sm text-white placeholder:text-zinc-700 outline-none focus:border-purple-500/40 transition-all pr-14"
+                  placeholder="Inquire architectural guidance..."
+                  value={mentorInput}
+                  onChange={(e) => setMentorInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && mentorInput.trim()) {
+                      void sendMentorMessage(mentorInput);
+                    }
+                  }}
+                />
+                <button 
+                  onClick={() => void sendMentorMessage(mentorInput)}
+                  disabled={isMentorLoading || !mentorInput.trim()}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-white text-black rounded-lg flex items-center justify-center hover:bg-purple-500 hover:text-white transition-all shadow-xl active:scale-95 disabled:opacity-20"
                 >
-                  {lastResult === 'pass' ? 'Accepted' : lastResult === 'fail' ? 'Failed' : '—'}
-                </span>
-              </div>
-
-              {/* Syntax status */}
-              <div className="hidden sm:flex items-center gap-2 text-[11px] text-gray-400 border border-white/10 rounded px-2 py-1 bg-white/5">
-                <span className="font-mono">Syntax:</span>
-                <span
-                  className={
-                    syntaxStatus === 'ok'
-                      ? 'text-green-400'
-                      : syntaxStatus === 'error'
-                        ? 'text-red-400'
-                        : syntaxStatus === 'checking'
-                          ? 'text-blue-300'
-                          : 'text-gray-500'
-                  }
-                  title={syntaxError || undefined}
-                >
-                  {syntaxStatus === 'ok'
-                    ? 'OK'
-                    : syntaxStatus === 'error'
-                      ? 'Error'
-                      : syntaxStatus === 'checking'
-                        ? 'Checking…'
-                        : 'Idle'}
-                </span>
-              </div>
-
-              {/* Settings Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowSettings(!showSettings)}
-                  className="p-1.5 hover:bg-white/10 rounded transition-colors"
-                  title="Editor Settings"
-                >
-                  <Settings className="w-4 h-4 text-gray-400" />
+                  <ArrowUpRight size={18} />
                 </button>
-
-                {showSettings && (
-                  <div className="absolute top-full right-0 mt-2 bg-black/90 backdrop-blur-xl border border-white/20 rounded-lg shadow-xl p-3 min-w-[200px] z-50">
-                    <div className="text-xs font-semibold text-gray-400 mb-2">Editor Settings</div>
-                    <label className="flex items-center justify-between gap-2 cursor-pointer hover:bg-white/5 p-2 rounded transition-colors">
-                      <span className="text-sm text-gray-300">Typing Sounds</span>
-                      <input
-                        type="checkbox"
-                        checked={typingSounds}
-                        onChange={(e) => setTypingSounds(e.target.checked)}
-                        className="w-4 h-4 accent-blue-500"
-                      />
-                    </label>
-                  </div>
-                )}
               </div>
-
-              <button
-                onClick={runTests}
-                disabled={isRunningTests || !dbProblem}
-                className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 bg-[#0e639c] hover:bg-[#1177bb] disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded text-xs md:text-sm transition-colors"
-              >
-                <Play className="w-3 h-3 md:w-4 md:h-4" />
-                <span className="hidden sm:inline">{isRunningTests ? 'Running...' : 'Run Tests'}</span>
-                <span className="sm:hidden">Run</span>
-              </button>
-
-              <button
-                onClick={handleSubmit}
-                disabled={isSubmitting || !dbProblem}
-                className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded text-xs md:text-sm transition-colors"
-              >
-                <CheckCircle2 className="w-3 h-3 md:w-4 md:h-4" />
-                <span className="hidden sm:inline">{isSubmitting ? 'Submitting...' : 'Submit'}</span>
-                <span className="sm:hidden">Submit</span>
-              </button>
             </div>
-          </div>
+          </aside>
 
-          {/* Editor */}
-          <div className="flex-1 relative min-h-[60vh] md:min-h-0">
-            <Editor
-              height="100%"
-              language={language}
-              value={code}
-              onChange={handleCodeChange}
-              onMount={(editor, monaco) => {
-                editorRef.current = editor;
-                monacoRef.current = monaco;
-                
-                // Custom Black Theme
-                monaco.editor.defineTheme('vscode-black', {
-                  base: 'vs-dark',
-                  inherit: true,
-                  rules: [
-                    { token: 'keyword', foreground: 'ffffff', fontStyle: 'bold' },
-                    { token: 'string', foreground: 'A5E844' },
-                    { token: 'number', foreground: '4FC3F7' },
-                    { token: 'comment', foreground: '666666', fontStyle: 'italic' },
-                    { token: 'function', foreground: '82AAFF' },
-                    { token: 'variable', foreground: 'E0E0E0' },
-                    { token: 'type', foreground: 'FFB86C' },
-                    { token: 'constant', foreground: 'F8F8F2' },
-                  ],
-                  colors: {
-                    'editor.background': '#0a0a0f',
-                    'editor.foreground': '#E0E0E0',
-                    'editor.lineHighlightBackground': '#16161f',
-                    'editor.selectionBackground': '#2a2a3f',
-                    'editorCursor.foreground': '#ffffff',
-                    'editorLineNumber.foreground': '#666666',
-                    'editorLineNumber.activeForeground': '#ffffff',
-                  },
-                });
-                monaco.editor.setTheme('vscode-black');
-                
-                // Add Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
-                editor.addAction({
-                  id: 'open-command-palette',
-                  label: 'Open Command Palette',
-                  keybindings: [
-                    monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyP,
-                  ],
-                  run: () => {
-                    editor.trigger('', 'editor.action.quickCommand', '');
-                  },
-                });
-                
-                // Add Format Document (Shift+Alt+F)
-                editor.addAction({
-                  id: 'format-document',
-                  label: 'Format Document',
-                  keybindings: [
-                    monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF,
-                  ],
-                  run: () => {
-                    editor.getAction('editor.action.formatDocument')?.run();
-                  },
-                });
-                
-                // Add Toggle Minimap (Ctrl+M)
-                editor.addAction({
-                  id: 'toggle-minimap',
-                  label: 'Toggle Minimap',
-                  keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyM],
-                  run: () => {
-                    const currentValue = editor.getOption(monaco.editor.EditorOption.minimap).enabled;
-                    editor.updateOptions({ minimap: { enabled: !currentValue } });
-                  },
-                });
-                
-                // Enhanced bracket matching animations
-                editor.onDidChangeCursorPosition(() => {
-                  // This triggers bracket highlighting
-                  editor.deltaDecorations([], []);
-                });
-              }}
-              theme="vscode-black"
-              options={{
-                // Font & Typography
-                fontSize: 14,
-                fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
-                fontLigatures: true,
-                lineHeight: 22,
-                letterSpacing: 0.5,
-                
-                // Visual Enhancements - Smooth Animations
-                cursorBlinking: 'smooth',
-                cursorSmoothCaretAnimation: 'on',
-                cursorWidth: 2,
-                smoothScrolling: true,
-                
-                // Minimap - VS Code Style
-                minimap: { 
-                  enabled: true, 
-                  scale: 1,
-                  showSlider: 'mouseover',
-                  renderCharacters: true,
-                  maxColumn: 120,
-                  side: 'right',
-                },
-                
-                // Scrollbar - Custom Premium Style
-                scrollbar: {
-                  vertical: 'auto',
-                  horizontal: 'auto',
-                  verticalScrollbarSize: 10,
-                  horizontalScrollbarSize: 10,
-                  useShadows: true,
-                  scrollByPage: false,
-                },
-                
-                // Line Numbers & Highlights
-                lineNumbers: 'on',
-                lineNumbersMinChars: 4,
-                renderLineHighlight: 'all',
-                renderLineHighlightOnlyWhenFocus: false,
-                
-                // Bracket Features - Rainbow Brackets
-                bracketPairColorization: { 
-                  enabled: true,
-                  independentColorPoolPerBracketType: true,
-                },
-                guides: {
-                  bracketPairs: true,
-                  bracketPairsHorizontal: 'active',
-                  highlightActiveBracketPair: true,
-                  indentation: true,
-                  highlightActiveIndentation: true,
-                },
-                
-                // Code Folding
-                folding: true,
-                foldingStrategy: 'indentation',
-                showFoldingControls: 'mouseover',
-                foldingHighlight: true,
-                unfoldOnClickAfterEndOfLine: true,
-                foldingImportsByDefault: false,
-                
-                // Multi-cursor Support (Alt+Click)
-                multiCursorModifier: 'alt',
-                multiCursorMergeOverlapping: true,
-                multiCursorPaste: 'spread',
-                
-                // Autocomplete & Suggestions
-                quickSuggestions: {
-                  other: 'on',
-                  comments: 'on',
-                  strings: 'on',
-                },
-                suggestOnTriggerCharacters: true,
-                acceptSuggestionOnCommitCharacter: true,
-                acceptSuggestionOnEnter: 'on',
-                tabCompletion: 'on',
-                wordBasedSuggestions: 'allDocuments',
-                suggestSelection: 'first',
-                suggestFontSize: 13,
-                suggestLineHeight: 20,
-                
-                // Parameter Hints
-                parameterHints: { 
-                  enabled: true, 
-                  cycle: true,
-                },
-                
-                // Hover Tooltips
-                hover: { 
-                  enabled: true, 
-                  delay: 300, 
-                  sticky: true,
-                  above: true,
-                },
-                
-                // Code Lens - Inline Hints
-                codeLens: true,
-                codeLensFontFamily: '"JetBrains Mono", monospace',
-                codeLensFontSize: 12,
-                
-                // Sticky Scroll - Function Names Stay at Top
-                stickyScroll: { 
-                  enabled: true,
-                  maxLineCount: 5,
-                },
-                
-                // Auto Formatting
-                formatOnPaste: true,
-                formatOnType: true,
-                autoClosingBrackets: 'always',
-                autoClosingQuotes: 'always',
-                autoSurround: 'languageDefined',
-                
-                // Indent Guides (renderIndentGuides deprecated - now 'guides' object)
-                renderWhitespace: 'selection',
-                
-                // Selection & Occurrence Highlighting
-                selectionHighlight: true,
-                
-                // Layout & Spacing
-                padding: { top: 16, bottom: 16 },
-                automaticLayout: true,
-                tabSize: 2,
-                wordWrap: 'on',
-                wrappingIndent: 'indent',
-                scrollBeyondLastLine: false,
-                
-                // Glyph Margin - For Breakpoints/Bookmarks
-                glyphMargin: true,
-                
-                // Performance & Responsiveness
-                fastScrollSensitivity: 5,
-                mouseWheelScrollSensitivity: 1,
-                
-                // Find & Replace
-                find: {
-                  addExtraSpaceOnTop: true,
-                  autoFindInSelection: 'never',
-                  seedSearchStringFromSelection: 'always',
-                },
-              }}
-            />
-          </div>
-
-          {/* Splitter: Editor | Console */}
-          <div
-            className="hidden md:block h-[6px] cursor-row-resize bg-transparent hover:bg-white/10 transition-colors"
-            onMouseDown={startDrag('console')}
-            title="Drag to resize"
-          />
-
-          {/* Console Output - VS Code Terminal Style */}
-          <div
-            ref={consoleSectionRef}
-            className="bg-[#0a0a0f] border-t border-white/10 flex flex-col scroll-mt-16"
-            style={{ height: isMobile ? 180 : consoleHeight }}
-          >
-            <div className="flex items-center gap-4 px-2 md:px-4 py-1.5 md:py-2 border-b border-white/10 bg-[#0a0a0f]">
-              <span className="text-xs md:text-sm font-semibold">Console</span>
-            </div>
-            <div className="flex-1 p-2 md:p-4 font-mono text-[10px] md:text-sm text-gray-300 overflow-auto">
-              {consoleOutput || 'Click "Run Tests" to see output...'}
-            </div>
-          </div>
-        </div>
-
-        {/* Splitter: Editor | Right */}
-        <div
-          className="hidden md:block w-[6px] cursor-col-resize bg-transparent hover:bg-white/10 transition-colors"
-          onMouseDown={startDrag('right')}
-          title="Drag to resize"
-        />
-
-        {/* Right Sidebar - Test Cases & Submit */}
-        <div
-          ref={testsRef}
-          className={`
-          ${showRightSidebar ? 'flex' : 'hidden'}
-          bg-[#0a0a0f] border-l border-white/10 flex flex-col min-h-0 transition-all duration-300 w-full md:w-auto scroll-mt-16
-          ${showRightSidebar ? 'md:flex' : 'md:hidden'}
-        `}
-          style={{ width: !isMobile && showRightSidebar ? rightPanelWidth : undefined }}
-        >
-          <div className="p-4 border-b border-white/10">
-            <h3 className="font-semibold mb-4">Test Cases</h3>
-            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-              {testResults.length > 0 ? (
-                testResults.map((result, index: number) => (
-                  <div 
-                    key={index}
-                    className={`bg-[#16161f] border rounded-lg p-3 ${
-                      result.passed 
-                        ? 'border-green-500/30' 
-                        : 'border-red-500/30'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      {result.passed ? (
-                        <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      ) : (
-                        <div className="w-4 h-4 rounded-full bg-red-500/20 flex items-center justify-center">
-                          <span className="text-red-500 text-xs">✕</span>
-                        </div>
-                      )}
-                      <span className="text-sm font-medium">Test {index + 1}</span>
-                      {result.time && (
-                        <span className="text-[10px] text-gray-500 ml-auto">{result.time}s</span>
-                      )}
-                    </div>
-                    <div className="text-xs text-gray-400 font-mono space-y-1">
-                      <div>{result.input}</div>
-                      {!result.passed && (
-                        <>
-                          <div className="text-red-400">Expected: {result.expected}</div>
-                          <div className="text-orange-400">Got: {result.actual}</div>
-                          {result.error && (
-                            <div className="text-red-400 bg-red-500/10 p-2 rounded mt-1">
-                              Error: {result.error}
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                publicTestCases.map((testCase, index) => (
-                  <div key={index} className="bg-[#16161f] border border-white/10 rounded-lg p-3">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-4 h-4 border-2 border-gray-600 rounded-full" />
-                      <span className="text-sm font-medium">Test {index + 1}</span>
-                    </div>
-                    <div className="text-xs text-gray-400 font-mono whitespace-pre-wrap">
-                      {testCase.input}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="flex-1 min-h-0 p-4 flex flex-col gap-3">
-            <MentorChat
-              problemId={id}
-              problemTitle={dbProblem?.title}
-              problemStatementMd={dbProblem?.statementMd}
-              problemConstraintsMd={dbProblem?.constraintsMd ?? undefined}
-              publicTestCases={dbProblem?.publicTestCases ?? []}
-              language={language}
-              userCode={code}
-            />
-
-            {submissionResult && (
-              <div className={`p-3 rounded-lg text-sm ${
-                submissionResult.success 
-                  ? 'bg-green-500/20 border border-green-500/30 text-green-400' 
-                  : 'bg-red-500/20 border border-red-500/30 text-red-400'
-              }`}>
-                {submissionResult.message}
-              </div>
-            )}
-            
+          {/* Toggle Tab for Mentor if Closed */}
+          {!isMentorOpen && (
             <button 
-              onClick={handleSubmit}
-              disabled={isSubmitting || isRunningTests}
-              className="w-full py-3 bg-green-600/90 backdrop-blur-sm hover:bg-green-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-all flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(22,163,74,0.3)] hover:shadow-[0_6px_20px_rgba(22,163,74,0.4)]"
+              onClick={() => setIsMentorOpen(true)}
+              className="absolute right-8 bottom-8 w-14 h-14 bg-purple-600 text-white rounded-2xl shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-20 group"
             >
-              <CheckCircle2 className="w-5 h-5" />
-              {isSubmitting ? 'Submitting...' : 'Submit Solution'}
+              <Sparkles size={24} className="group-hover:rotate-12 transition-transform" />
             </button>
-          </div>
-        </div>
+          )}
+        </main>
       </div>
     </div>
   );

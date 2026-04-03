@@ -1,20 +1,31 @@
 /**
  * DSA Mentor API — Socratic Teaching Engine
  *
+ * Architecture (4-layer defense against rate limits):
+ * 1. Per-user rate limiting — prevent one user from consuming all quota
+ * 2. Global cache — reuse answers across ALL users
+ * 3. Request coalescing — deduplicate concurrent identical requests
+ * 4. API key pool — round-robin rotation with per-key cooldown
+ *
  * Philosophy: The AI is a TOUR GUIDE through problem-solving, not a solution vending machine.
  * Every response should move the user ONE step forward in their OWN thinking.
- *
- * Teaching Stages:
- *   EXPLORE  → Help user understand the problem deeply (examples, edge cases, constraints)
- *   STRATEGIZE → Guide them to discover the right algorithm/pattern themselves
- *   IMPLEMENT → Help them translate thinking into code, one piece at a time
- *   DEBUG    → Ask diagnostic questions, never fix code directly
- *   REFLECT  → After success, deepen understanding (complexity, alternatives, patterns)
  */
 
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import {
+  getOrCreateSession,
+  saveMessage,
+  tryAdvanceStage,
+  type TransitionContext,
+  canTransition,
+} from "@/lib/mentor/stageEngine";
+import {
+  routeInteraction,
+  saveToCache,
+  type RouteDecision,
+} from "@/lib/mentor/interactionRouter";
 import {
   inferVerbosityFromText,
   verbosityToModelMaxTokens,
@@ -34,6 +45,32 @@ import {
   selectGuideQuestion,
   extractProblemContext,
 } from "@/lib/mentorQuestions";
+import { getKeyFromPool, reportKeyFailure } from "@/lib/api-key-pool";
+import { checkRateLimit } from "@/lib/rateLimit";
+import crypto from "crypto";
+
+// ─────────────────────────────────────────────
+// DEBUG LOG — POST to /api/debug/mentor-log
+// ─────────────────────────────────────────────
+async function logInteraction(data: {
+  userId: string;
+  problemId: string;
+  userMessage: string;
+  decisionType: "STATIC" | "CACHE_HIT" | "AI_NEEDED";
+  responseData: string;
+  stage: string;
+  rung: number;
+  aiCalled?: boolean;
+  cacheHitData?: { similarity: string; cacheEntryId: string };
+  error?: string;
+}) {
+  // Fire and forget — don't block the response
+  fetch(new URL("/api/debug/mentor-log", process.env.NEXTAUTH_URL || "http://localhost:3000"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  }).catch(() => {});
+}
 
 export const runtime = "nodejs";
 
@@ -66,42 +103,161 @@ type UserStats = {
   lastError: string | null;
 } | null;
 
-// TeachingStage and ConversationTone now imported from mentorContext
+/**
+ * Result from resolveApiConfig with rate-limit retry built in.
+ */
+type ApiConfig = {
+  apiKey: string;
+  apiBaseUrl: string;
+  model: string;
+  provider: string; // actual provider used for this call
+  isServerKey: boolean; // true if using server pool (so we report failures)
+};
 
-// ─────────────────────────────────────────────
-// STAGE DETECTION
-// ─────────────────────────────────────────────
+/**
+ * Resolve API config with key pool support.
+ * Priority: user key > server key pool (Groq round-robin → OpenRouter pool)
+ *
+ * The retry loop is inside this function so that if one Groq key returns 429,
+ * it automatically tries the next key in the pool.
+ */
+async function resolveApiConfig(
+  userAiSettings: {
+    apiProvider?: string | null;
+    groqApiKey?: string | null;
+    openaiApiKey?: string | null;
+    googleApiKey?: string | null;
+    openrouterApiKey?: string | null;
+    ollamaBaseUrl?: string | null;
+    ollamaModel?: string | null;
+    preferredFreeModel?: string | null;
+  } | null
+): Promise<ApiConfig> {
+  const provider = userAiSettings?.apiProvider || "server";
 
-function detectTeachingStage(
-  history: HistoryMsg[],
-  stats: UserStats,
-  userMessage: string,
-): TeachingStage {
-  const msg = userMessage.toLowerCase();
-  const hasCode = !!stats && (stats.runCount > 0 || stats.submitCount > 0);
-  const isAccepted = !!stats && stats.acceptedCount > 0;
-  const isStuck =
-    !!stats &&
-    stats.submitCount >= 4 &&
-    stats.acceptedCount === 0 &&
-    history.length >= 6;
-  const hasErrors =
-    !!stats && (stats.wrongAnswerCount > 2 || stats.runtimeErrorCount > 1);
-  const hasError = !!stats?.lastError;
-
-  if (isAccepted) return "REFLECT";
-  if (isStuck) return "STUCK";
-  if (hasErrors || hasError || /error|wrong|fail|crash|exception/i.test(msg))
-    return "DEBUG";
-  if (hasCode || /my code|my approach|i tried|i wrote|i think we/i.test(msg))
-    return "IMPLEMENT";
+  // ── USER'S KEY (BYOK) — always takes priority ──
+  if (provider === "openrouter" && userAiSettings?.openrouterApiKey) {
+    return {
+      apiKey: userAiSettings.openrouterApiKey!,
+      apiBaseUrl: "https://openrouter.ai/api/v1",
+      model: userAiSettings.preferredFreeModel || "nvidia/nemotron-3-nano-30b-a3b:free",
+      provider: "openrouter",
+      isServerKey: false,
+    };
+  }
+  if (provider === "groq" && userAiSettings?.groqApiKey) {
+    return {
+      apiKey: userAiSettings.groqApiKey!,
+      apiBaseUrl: "https://api.groq.com/openai/v1",
+      model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+      provider: "groq",
+      isServerKey: false,
+    };
+  }
+  if (provider === "openai" && userAiSettings?.openaiApiKey) {
+    return {
+      apiKey: userAiSettings.openaiApiKey!,
+      apiBaseUrl: "https://api.openai.com/v1",
+      model: "gpt-4o-mini",
+      provider: "openai",
+      isServerKey: false,
+    };
+  }
+  if (provider === "google" && userAiSettings?.googleApiKey) {
+    return {
+      apiKey: userAiSettings.googleApiKey!,
+      apiBaseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+      model: "gemini-1.5-flash",
+      provider: "google",
+      isServerKey: false,
+    };
+  }
   if (
-    history.length >= 2 ||
-    /approach|algorithm|idea|think|solve|strategy|how to/i.test(msg)
-  )
-    return "STRATEGIZE";
-  return "EXPLORE";
+    provider === "ollama" &&
+    userAiSettings?.ollamaBaseUrl &&
+    userAiSettings?.ollamaModel
+  ) {
+    return {
+      apiKey: "ollama",
+      apiBaseUrl: userAiSettings.ollamaBaseUrl!.replace(/\/+$/, "") + "/v1",
+      model: userAiSettings.ollamaModel!,
+      provider: "ollama",
+      isServerKey: false,
+    };
+  }
+
+  // ── SERVER KEY POOL with round-robin + retry ──
+  // Try Groq pool first (with automatic key rotation on 429), then OpenRouter
+  const maxKeyRetries = 3;
+
+  for (let attempt = 0; attempt < maxKeyRetries; attempt++) {
+    // Try Groq pool
+    let groqKey: string | null = null;
+    if (process.env.GROQ_API_KEY || process.env.GROQ_API_KEY_1) {
+      groqKey = getKeyFromPool("groq");
+    }
+
+    // Then OpenRouter pool
+    let orKey: string | null = null;
+    if (process.env.OPENROUTER || process.env.OPENROUTER_API_KEY || process.env.OPENROUTER_API_KEY_1) {
+      orKey = getKeyFromPool("openrouter");
+    }
+
+    if (groqKey) {
+      return {
+        apiKey: groqKey,
+        apiBaseUrl: process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1",
+        model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+        provider: "groq",
+        isServerKey: true,
+      };
+    }
+
+    if (orKey) {
+      return {
+        apiKey: orKey,
+        apiBaseUrl: "https://openrouter.ai/api/v1",
+        model: "nvidia/nemotron-3-nano-30b-a3b:free",
+        provider: "openrouter",
+        isServerKey: true,
+      };
+    }
+
+    // No keys available yet — wait briefly for cooldown recovery
+    if (attempt < maxKeyRetries - 1) {
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+  }
+
+  // Absolute last resort — try single env var (legacy)
+  if (process.env.OPENROUTER || process.env.OPENROUTER_API_KEY) {
+    return {
+      apiKey: process.env.OPENROUTER || process.env.OPENROUTER_API_KEY!,
+      apiBaseUrl: "https://openrouter.ai/api/v1",
+      model: "nvidia/nemotron-3-nano-30b-a3b:free",
+      provider: "openrouter",
+      isServerKey: true,
+    };
+  }
+
+  if (process.env.GROQ_API_KEY) {
+    return {
+      apiKey: process.env.GROQ_API_KEY!,
+      apiBaseUrl: process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1",
+      model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+      provider: "groq",
+      isServerKey: true,
+    };
+  }
+
+  throw new Error("No AI provider available. Configure GROQ_API_KEY_1-N or OPENROUTER_API_KEY_1-N.");
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// SOLUTION REQUEST DETECTION (Strict) → uses existing patterns
+// ─────────────────────────────────────────────────────────────────────────
+
+// TeachingStage and ConversationTone now imported from mentorContext
 
 function detectTone(
   history: HistoryMsg[],
@@ -123,9 +279,9 @@ function detectTone(
   return "encouraging";
 }
 
-// ─────────────────────────────────────────────
-// SOLUTION REQUEST DETECTION (Strict)
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
+// SOLUTION REQUEST DETECTION
+// ─────────────────────────────────────────────────────────────────────────
 
 const EXPLICIT_SOLUTION_PHRASES = [
   "give me the solution",
@@ -166,9 +322,9 @@ function isExplicitSolutionRequest(userMessage: string): boolean {
   return EXPLICIT_SOLUTION_PHRASES.some((phrase) => msg.includes(phrase));
 }
 
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
 // OUTPUT GUARDRAILS
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
 
 function countCodeLines(text: string): number {
   const blocks = text.match(/```[\s\S]*?```/g) ?? [];
@@ -227,9 +383,9 @@ function sanitizeAssistantResponse(
   return { text: sanitized, wasViolation: false };
 }
 
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
 // FALLBACK RESPONSES (stage-aware)
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
 
 function buildSolutionRequestResponse(stage: TeachingStage): string {
   const responses: Record<TeachingStage, string> = {
@@ -249,9 +405,9 @@ function buildSolutionRequestResponse(stage: TeachingStage): string {
   return responses[stage];
 }
 
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
 // SYSTEM PROMPT BUILDER
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
 
 function buildMentorSystemPrompt(
   stage: TeachingStage,
@@ -268,201 +424,52 @@ function buildMentorSystemPrompt(
   loopAlert: string,
 ): string {
   const stageInstructions: Record<TeachingStage, string> = {
-    EXPLORE: `
-## CURRENT STAGE: EXPLORE
-The user hasn't deeply understood the problem yet. Your job:
-- Ask them to restate the problem in their own words
-- Ask them to trace through 1-2 examples by hand
-- Help them notice patterns in the examples
-- Ask: "What changes between test cases? What stays the same?"
-- DO NOT discuss algorithms or code yet — understanding the problem IS the first step
-- Ask ONE good question per response, not three`,
-
-    STRATEGIZE: `
-## CURRENT STAGE: STRATEGIZE
-The user understands the problem and is figuring out approach. Your job:
-- Ask them what patterns they notice (sorted? nested? repeated subproblems?)
-- Ask: "Have you seen a problem with a similar structure before?"
-- Guide them toward the right category (two pointer? sliding window? DP? graph?) through questions
-- If they name a wrong approach, ask them to trace it on an example and discover the flaw themselves
-- NEVER name the right algorithm — let them arrive at it
-- Small Socratic nudges: "What if the array were sorted? What would change?"`,
-
-    IMPLEMENT: `
-## CURRENT STAGE: IMPLEMENT
-The user has an approach and is coding. Your job:
-- Help them translate their thinking into code ONE piece at a time
-- If stuck on syntax, give a 1-2 line illustrative snippet for the concept only
-- Ask: "What should happen to your pointer/counter/map at each step?"
-- Ask: "What's your loop invariant?" or "What does this variable represent?"
-- If they have partial code, ask them to explain what each part does
-- NEVER write the full function — ask "what should this function return?" instead`,
-
-    DEBUG: `
-## CURRENT STAGE: DEBUG
-The user has an error or wrong output. Your job:
-- Ask them to trace the failing test case through their code manually
-- Ask: "What does line X do when input is Y?"
-- Ask: "What value do you expect here vs what you get?"
-- Ask: "What's the edge case this test is checking?"
-- Point to the CATEGORY of bug (off-by-one? not handling empty? wrong condition?) but NOT the fix
-- Never modify their code — ask questions until they see the bug themselves`,
-
-    STUCK: `
-## CURRENT STAGE: STUCK
-The user is genuinely stuck and possibly frustrated. Your job:
-- Show empathy FIRST — acknowledge this is hard
-- Completely change the angle: use a real-world analogy
-- Strip the problem to a tiny 3-element example and work through it together
-- Ask ONE very small, answerable question to rebuild momentum
-- It's OK to give a slightly bigger hint here — but make them fill in the last piece
-- Never show frustration or impatience — every good programmer gets stuck`,
-
-    REFLECT: `
-## CURRENT STAGE: REFLECT
-The user solved the problem. Your job:
-- Celebrate the win genuinely but briefly
-- Ask: "What was the key insight that unlocked this?"
-- Ask: "What's the time and space complexity?"
-- Ask: "Can you think of a case where this approach would fail?"
-- Suggest a related problem or pattern to explore next
-- Help them NAME the pattern so they recognize it in future problems
-- Make this knowledge stick through active recall, not passive reading`,
+    EXPLORE: "Ask the user to restate the problem in their own words. Trace examples by hand. Don't discuss code yet.",
+    STRATEGIZE: "Guide the user toward the right pattern through questions. Never name the algorithm directly.",
+    IMPLEMENT: "Help them translate their approach into code one piece at a time. Max 3 lines of example code.",
+    DEBUG: "Ask them to trace the failing test case through their code line by line.",
+    STUCK: "Show empathy. Use a real-world analogy. Ask one small question to rebuild momentum.",
+    REFLECT: "Ask why the solution works. Check time/space complexity understanding. Name the pattern.",
   };
 
   const toneInstructions: Record<ConversationTone, string> = {
-    encouraging: `Tone: Warm, enthusiastic, celebrate effort. Say things like "Good instinct!", "You're closer than you think", "That's exactly the right question to ask."`,
-    analytical: `Tone: Precise, methodical, Sherlock-Holmes style. Walk through logic step by step. "Let's trace this. Input is X. Step 1 does Y. What does that produce?"`,
-    challenging: `Tone: Respectful but stretching. Push them further. "Good — but can you do better? What if n was 10^9?" Make them think harder.`,
-    empathetic: `Tone: Warm and grounding. Start by acknowledging the struggle. "This one is genuinely tricky." Rebuild confidence before rebuilding logic.`,
+    encouraging: "Warm and enthusiastic. Say 'Good instinct!', 'You're close!'",
+    analytical: "Precise and methodical. Trace through logic step by step.",
+    challenging: "Respectful but stretching. Push them harder.",
+    empathetic: "Warm and grounding. Acknowledge the struggle first.",
   };
 
-  return `${getMentorSystemPrompt()}
+  return `You are a Socratic DSA mentor. Turn users into problem solvers — don't solve for them.
 
-═══════════════════════════════════════════
-CURRENT SESSION CONTEXT
-═══════════════════════════════════════════
-**Student's Learning Rung:** ${rung}/6
-**Teaching Stage:** ${stage}
-**Conversation Tone:** ${tone}
+RULES:
+1. Max 3 lines of code per response
+2. Never give a full function/solution
+3. One response = one insight or one question
+4. End with a question when possible
+
+STAGE: ${stage} — ${stageInstructions[stage]}
+TONE: ${toneInstructions[tone]}
+LEARNING RUNG: ${rung}/6
+VERBOSITY: ${verbosity} (${stylePrompt})
 
 ${loopAlert}
 
-═══════════════════════════════════════════
-SUGGESTED GUIDE QUESTION
-═══════════════════════════════════════════
-If you don't have a better question, consider asking:
-"${guideQuestion}"
-
-Only use this if it fits naturally. Generate your own question if you have a better one.
-
-═══════════════════════════════════════════
-MENTOR IDENTITY
-═══════════════════════════════════════════
-You are a world-class DSA mentor. Your singular mission is to turn users into
-great problem solvers — not to solve problems for them.
-
-Think of yourself as a TOUR GUIDE through the problem-solving process:
-- You know the destination (the solution) but you don't carry the user there
-- You point out landmarks (key insights) and let them walk
-- You ask questions more than you give answers
-- You celebrate every step forward, no matter how small
-
-You make users TOURIST in problem solving — they explore, discover, and OWN the journey.
-
-═══════════════════════════════════════════
-ABSOLUTE RULES — NEVER BREAK THESE
-═══════════════════════════════════════════
-1. NEVER write more than 3 lines of code in a single response
-2. NEVER write a complete function, class, or algorithm implementation
-3. NEVER give the algorithm name without letting them discover it first
-4. NEVER answer "how do I solve this?" directly — redirect to a question
-5. NEVER fix their code — point toward the bug category, not the fix
-6. NEVER write code just because they asked nicely or seem frustrated
-7. One response = ONE key insight OR one good question. Not both. Not three.
-
-═══════════════════════════════════════════
-WHAT GREAT MENTORING LOOKS LIKE
-═══════════════════════════════════════════
-
-❌ BAD: User asks "how do I use two pointers here?"
-   You: "Use left=0, right=n-1, then while left < right, check if arr[left]+arr[right]==target..."
-
-✅ GOOD: User asks "how do I use two pointers here?"
-   You: "Good instinct! Before writing code — what are the two values you want to compare at each step? And what condition tells you to move the left pointer vs the right one?"
-
-❌ BAD: User is stuck on a loop
-   You: "Here's the fixed loop: for(int i=0; i<n-1; i++) { ... }"
-
-✅ GOOD: User is stuck on a loop
-   You: "Let's trace it together. If your array is [1,2,3], what does your loop do on the first iteration? What value does i have? What gets compared?"
-
-❌ BAD: User solved it
-   You: "Great! Here's an optimized version: [full code]"
-
-✅ GOOD: User solved it
-   You: "You got it! Now — can you tell me WHY moving the smaller pointer is correct? What breaks if you always move the left one?"
-
-═══════════════════════════════════════════
-RESPONSE FORMAT
-═══════════════════════════════════════════
-- Keep it SHORT: 2-5 sentences maximum (unless stage is REFLECT or user is STUCK)
-- End with ONE question whenever possible
-- Use simple language — no jargon unless they've used it first
-- Markdown is OK for emphasis, not for walls of text
-- Never use numbered lists of hints — pick the BEST one hint only
-
-═══════════════════════════════════════════
-VERBOSITY & STYLE
-═══════════════════════════════════════════
-Verbosity level: ${verbosity}
-Style: ${stylePrompt}
-
-═══════════════════════════════════════════
-STAGE-SPECIFIC BEHAVIOR
-═══════════════════════════════════════════
-${stageInstructions[stage]}
-
-═══════════════════════════════════════════
-TONE
-═══════════════════════════════════════════
-${toneInstructions[tone]}
-
-═══════════════════════════════════════════
-ADAPTIVE CONTEXT
-═══════════════════════════════════════════
-${contextualGuidance}
-
-═══════════════════════════════════════════
-PROBLEM CONTEXT
-═══════════════════════════════════════════
 ${problemContext}
 
 ${codeContext}
 
 ${statsContext}
 
-═══════════════════════════════════════════
-CONVERSATION HISTORY
-═══════════════════════════════════════════
+${contextualGuidance}
+
 ${conversationHistory}
 
-═══════════════════════════════════════════
-FINAL REMINDER
-═══════════════════════════════════════════
-Before you respond, ask yourself:
-  "Does this response make the USER think, or does it think FOR them?"
-
-If you're about to write code — write a question instead.
-If you're about to explain an algorithm — ask them to guess it first.
-If you're about to give a hint — give half of it and ask them to complete it.
-
-Your success metric: the user closes this chat feeling CAPABLE, not dependent.`;
+GUIDE QUESTION: "${guideQuestion}" — use if it fits naturally.`;
 }
 
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
 // CONTEXT BUILDERS
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
 
 function clampText(input: string | undefined, max: number): string {
   if (!input) return "";
@@ -476,14 +483,12 @@ function sleep(ms: number): Promise<void> {
 }
 
 function parseRetryAfterMs(response: Response, rawBody: string): number | null {
-  // 1) Standard Retry-After header (seconds)
   const retryAfterHeader = response.headers.get("retry-after");
   if (retryAfterHeader) {
     const seconds = Number(retryAfterHeader);
     if (Number.isFinite(seconds) && seconds > 0) return seconds * 1000;
   }
 
-  // 2) Groq error message often contains: "Please try again in 10.82s"
   const match = rawBody.match(/try again in\s+(\d+(?:\.\d+)?)s/i);
   if (match?.[1]) {
     const seconds = Number(match[1]);
@@ -494,12 +499,14 @@ function parseRetryAfterMs(response: Response, rawBody: string): number | null {
   return null;
 }
 
-async function groqFetchWithRetry(
+async function llmFetchWithRetry(
   url: string,
   init: RequestInit,
   opts?: {
     maxRetries?: number;
     baseDelayMs?: number;
+    apiKey?: string;
+    apiProvider?: string;
   },
 ): Promise<{ response: Response; raw: string }> {
   const maxRetries = opts?.maxRetries ?? 3;
@@ -515,9 +522,12 @@ async function groqFetchWithRetry(
 
     const shouldRetry = response.status === 429 || response.status >= 500;
     if (!shouldRetry || attempt === maxRetries) {
-      // Include body for easier debugging (but avoid leaking secrets)
+      // Report failure to key pool if using server keys
+      if (opts?.apiKey && opts?.apiProvider) {
+        reportKeyFailure(opts.apiProvider, response.status, opts.apiKey);
+      }
       throw new Error(
-        `Groq API error: ${response.status}${raw ? ` :: ${raw}` : ""}`,
+        `LLM API error: ${response.status}${raw ? ` :: ${raw}` : ""}`,
       );
     }
 
@@ -528,12 +538,12 @@ async function groqFetchWithRetry(
     const waitMs = Math.max(serverSuggested ?? 0, expBackoff + jitter);
 
     lastError = new Error(
-      `Groq API retryable error: ${response.status}; waiting ${waitMs}ms`,
+      `LLM API retryable error: ${response.status}; waiting ${waitMs}ms`,
     );
     await sleep(waitMs);
   }
 
-  throw lastError ?? new Error("Groq API error: retries exhausted");
+  throw lastError ?? new Error("LLM API error: retries exhausted");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -648,10 +658,6 @@ function buildStatsContext(
   return context;
 }
 
-/**
- * Sanitize assistant history before re-feeding it.
- * Strips large code blocks so the model doesn't anchor on prior generated code.
- */
 function sanitizeHistoryForContext(history: HistoryMsg[]): HistoryMsg[] {
   return history.map((msg) => {
     if (msg.role !== "assistant") return msg;
@@ -699,22 +705,19 @@ function extractAssistantContent(payload: unknown): string {
   if (!isRecord(first)) return "";
   const message = first.message;
   if (!isRecord(message)) return "";
-  
+
   let content = typeof message.content === "string" ? message.content.trim() : "";
-  
-  // DeepSeek R1 models output reasoning in <think>...</think> tags
-  // We need to strip these out to get only the final answer
+
   if (content.includes("<think>") || content.includes("</think>")) {
-    // Remove everything between <think> and </think> tags (including the tags)
     content = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
   }
-  
+
   return content;
 }
 
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
 // ROLLING SUMMARY
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
 
 async function rewriteRollingSummary(params: {
   apiKey: string;
@@ -752,22 +755,19 @@ New exchange:
 
 [MENTOR]\n${clampText(params.assistantMessage, 1000)}`;
 
-  // Build headers (Ollama doesn't need auth)
   const headers: HeadersInit = {
     "Content-Type": "application/json",
   };
 
-  // Only add Authorization for non-Ollama providers
   if (params.apiKey !== "ollama") {
     headers.Authorization = `Bearer ${params.apiKey}`;
   }
 
-  // For Ollama, apiBaseUrl already includes /v1, so just append the endpoint
   const summaryUrl = params.apiBaseUrl
     ? `${params.apiBaseUrl}/chat/completions`
     : "https://api.groq.com/openai/v1/chat/completions";
 
-  const { raw } = await groqFetchWithRetry(
+  const { raw } = await llmFetchWithRetry(
     summaryUrl,
     {
       method: "POST",
@@ -780,19 +780,105 @@ New exchange:
         ],
         temperature: 0.2,
         max_tokens: 350,
-        stream: false, // Explicitly disable streaming
+        stream: false,
       }),
     },
-    { maxRetries: 2, baseDelayMs: 1500 }, // Increased delay for summary API call
+    { maxRetries: 2, baseDelayMs: 1500 },
   );
 
   const data = raw ? (JSON.parse(raw) as unknown) : null;
   return extractAssistantContent(data);
 }
 
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
+// AI CALL HELPER — uses key pool with automatic retry on wrong key
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Make the actual LLM call. If the key returns 429, try the next key
+ * from the pool automatically.
+ */
+async function callAIWithKeyRotation(
+  messages: Array<{ role: string; content: string }>,
+  temperature: number,
+  maxTokens: number,
+  apiConfig: ApiConfig,
+): Promise<string> {
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+  };
+
+  if (apiConfig.provider !== "ollama") {
+    headers.Authorization = `Bearer ${apiConfig.apiKey}`;
+  }
+
+  const requestBody: Record<string, unknown> = {
+    model: apiConfig.model,
+    messages,
+    temperature,
+    max_tokens: maxTokens,
+    stream: false,
+  };
+
+  if (apiConfig.provider === "groq" || apiConfig.provider === "openai") {
+    requestBody.top_p = 0.95;
+    requestBody.frequency_penalty = 0.4;
+    requestBody.presence_penalty = 0.3;
+  }
+
+  // Try current key first
+  try {
+    const { raw } = await llmFetchWithRetry(
+      `${apiConfig.apiBaseUrl}/chat/completions`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(requestBody),
+      },
+      {
+        maxRetries: 4,
+        baseDelayMs: 2000,
+        apiKey: apiConfig.apiKey,
+        apiProvider: apiConfig.isServerKey ? apiConfig.provider : undefined,
+      },
+    );
+    const data = raw ? (JSON.parse(raw) as unknown) : null;
+    return extractAssistantContent(data);
+  } catch (e) {
+    // If using server key pool and got 429, try next key
+    if (!apiConfig.isServerKey) throw e;
+
+    const nextKey = getKeyFromPool(apiConfig.provider);
+    if (!nextKey) throw e;
+
+    console.warn(`[KEY_POOL] Switching to next key after 429`);
+    const nextConfig = { ...apiConfig, apiKey: nextKey };
+
+    const { raw } = await llmFetchWithRetry(
+      `${nextConfig.apiBaseUrl}/chat/completions`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${nextConfig.apiKey}`,
+        },
+        body: JSON.stringify(requestBody),
+      },
+      {
+        maxRetries: 4,
+        baseDelayMs: 2000,
+        apiKey: nextConfig.apiKey,
+        apiProvider: apiConfig.provider,
+      },
+    );
+    const data = raw ? (JSON.parse(raw) as unknown) : null;
+    return extractAssistantContent(data);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // MAIN HANDLER
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
@@ -814,8 +900,48 @@ export async function POST(req: NextRequest) {
     const userId = session.user.id;
     const problemId = body.problemId;
 
-    // ── Parallel fetch: Load settings, stats, summary, and persisted messages ──
-    const [userAiSettings, stats, existingSummary, persistedMessages] =
+    // ── 1. RATE LIMIT CHECK (before any expensive operations) ──
+    const rateLimit = await checkRateLimit(userId);
+    if (!rateLimit.allowed) {
+      return Response.json(
+        { error: rateLimit.message },
+        { status: 429 },
+      );
+    }
+
+    // ── 2. INITIALIZE STAGE ENGINE SESSION ──
+    const mentorSession = await getOrCreateSession(userId, problemId);
+
+    // Save user message to session
+    await saveMessage(mentorSession.id, "user", body.userMessage, mentorSession.stage as TeachingStage);
+
+    // ── 3. FETCH PROBLEM METADATA ──
+    const problemRecord = await prisma.problem.findUnique({
+      where: { id: problemId },
+      include: {
+        patterns: { include: { pattern: true } },
+      },
+    });
+
+    if (!problemRecord) {
+      return Response.json({ error: "Problem not found" }, { status: 404 });
+    }
+
+    const problemForRouter = {
+      id: problemRecord.id,
+      slug: problemRecord.slug,
+      title: problemRecord.title,
+      statementMd: problemRecord.statementMd,
+      constraintsMd: problemRecord.constraintsMd || undefined,
+      meta: {
+        difficulty: problemRecord.difficulty,
+        tags: (problemRecord.tags as string[]) || [],
+        patterns: problemRecord.patterns.map((p) => p.pattern.name),
+      },
+    };
+
+    // ── 4. Parallel fetch: settings, stats, summary ──
+    const [userAiSettings, stats, existingSummary] =
       await Promise.all([
         prisma.userAiSettings.findUnique({
           where: { userId },
@@ -847,119 +973,102 @@ export async function POST(req: NextRequest) {
           where: { userId_problemId: { userId, problemId } },
           select: { summaryMd: true, messageCount: true, lastRung: true },
         }),
-        prisma.mentorConversationMessage.findMany({
-          where: {
-            userId,
-            problemId,
-          },
-          orderBy: { createdAt: "asc" },
-          select: {
-            role: true,
-            content: true,
-            metadata: true,
-            createdAt: true,
-          },
-        }),
       ]);
 
-    const provider = userAiSettings?.apiProvider || "server";
+    const history = mentorSession.messages.map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
 
-    console.log("[DEBUG] Provider selected:", provider);
-    console.log("[DEBUG] User settings:", {
-      hasGroqKey: !!userAiSettings?.groqApiKey,
-      hasOpenAIKey: !!userAiSettings?.openaiApiKey,
-      hasGoogleKey: !!userAiSettings?.googleApiKey,
-      hasOpenRouterKey: !!userAiSettings?.openrouterApiKey,
-      hasOllamaConfig: !!(userAiSettings?.ollamaBaseUrl && userAiSettings?.ollamaModel),
-    });
-    console.log("[DEBUG] Server env:", {
-      hasGroqKey: !!process.env.GROQ_API_KEY,
-      hasOpenRouterKey: !!(process.env.OPENROUTER || process.env.OPENROUTER_API_KEY),
-    });
+    // ── 5. ROUTE INTERACTION (Static Rules + Global Cache) ──
+    const decision = await routeInteraction(
+      body.userMessage,
+      mentorSession,
+      problemForRouter
+    );
 
-    // Determine which API key to use (user's key takes priority)
-    let apiKey: string | undefined;
-    let apiBaseUrl: string;
-    let model: string;
+    if (decision.type === "STATIC") {
+      let message = "I'm here to help you learn. Let's focus on the current step.";
+      if (decision.handler === "breakdown") {
+        message = `Let's break down "${problemRecord.title}" together. What part of the problem statement is most confusing to you right now?`;
+      } else if (decision.handler === "stage_gate") {
+        message = buildSolutionRequestResponse(mentorSession.stage as TeachingStage);
+      }
 
-    if (provider === "openrouter" && userAiSettings?.openrouterApiKey) {
-      // User's OpenRouter key with their preferred free model
-      apiKey = userAiSettings.openrouterApiKey;
-      apiBaseUrl = "https://openrouter.ai/api/v1";
-      model = userAiSettings.preferredFreeModel || "nvidia/nemotron-3-nano-30b-a3b:free";
-    } else if (provider === "groq" && userAiSettings?.groqApiKey) {
-      // User's Groq key
-      apiKey = userAiSettings.groqApiKey;
-      apiBaseUrl = "https://api.groq.com/openai/v1";
-      model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
-    } else if (provider === "openai" && userAiSettings?.openaiApiKey) {
-      // User's OpenAI key
-      apiKey = userAiSettings.openaiApiKey;
-      apiBaseUrl = "https://api.openai.com/v1";
-      model = "gpt-4o-mini";
-    } else if (provider === "google" && userAiSettings?.googleApiKey) {
-      // User's Google AI key
-      apiKey = userAiSettings.googleApiKey;
-      apiBaseUrl = "https://generativelanguage.googleapis.com/v1beta/openai";
-      model = "gemini-1.5-flash";
-    } else if (
-      provider === "ollama" &&
-      userAiSettings?.ollamaBaseUrl &&
-      userAiSettings?.ollamaModel
-    ) {
-      // User's local Ollama instance (no API key needed)
-      apiKey = "ollama"; // Dummy key, Ollama doesn't need auth
-      // Ollama uses /v1 as the base, not /openai/v1
-      apiBaseUrl = userAiSettings.ollamaBaseUrl.replace(/\/+$/, "") + "/v1";
-      model = userAiSettings.ollamaModel;
-    } else if (provider === "server" && (process.env.OPENROUTER || process.env.OPENROUTER_API_KEY)) {
-      // PRIORITY: Server's OpenRouter key with free models (unlimited usage!)
-      apiKey = process.env.OPENROUTER || process.env.OPENROUTER_API_KEY;
-      apiBaseUrl = "https://openrouter.ai/api/v1";
-      model = userAiSettings?.preferredFreeModel || "nvidia/nemotron-3-nano-30b-a3b:free";
-    } else if (process.env.OPENROUTER || process.env.OPENROUTER_API_KEY) {
-      // FALLBACK: OpenRouter free models for unlimited usage (no rate limits!)
-      apiKey = process.env.OPENROUTER || process.env.OPENROUTER_API_KEY;
-      apiBaseUrl = "https://openrouter.ai/api/v1";
-      model = "nvidia/nemotron-3-nano-30b-a3b:free";
-    } else if (process.env.GROQ_API_KEY) {
-      // Last resort: Groq (has rate limits)
-      apiKey = process.env.GROQ_API_KEY;
-      apiBaseUrl = process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1";
-      model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
-    } else {
-      // No API keys available
-      apiKey = undefined;
-      apiBaseUrl = "";
-      model = "";
+      await saveMessage(mentorSession.id, "assistant", message, mentorSession.stage as TeachingStage);
+
+      // Debug log
+      logInteraction({
+        userId,
+        problemId,
+        userMessage: body.userMessage,
+        decisionType: "STATIC",
+        responseData: message,
+        stage: mentorSession.stage as string,
+        rung: 1,
+      });
+
+      return Response.json({
+        ok: true,
+        message,
+        metadata: { stage: mentorSession.stage, type: "static", handler: decision.handler },
+      });
     }
 
-    console.log("[DEBUG] Selected API:", {
-      provider,
-      apiBaseUrl,
-      model,
-      hasApiKey: !!apiKey,
-      apiKeyPrefix: apiKey?.substring(0, 10) + "...",
-    });
+    if (decision.type === "CACHE_HIT") {
+      await saveMessage(mentorSession.id, "user", body.userMessage, mentorSession.stage as TeachingStage);
+      await saveMessage(mentorSession.id, "assistant", decision.entry.response, mentorSession.stage as TeachingStage);
 
-    if (!apiKey) {
-      return Response.json(
-        {
-          error:
-            "No API key configured. Please add your API key in Settings or contact support.",
+      // Increment usedCount
+      prisma.cacheEntry.update({
+        where: { id: decision.entry.id },
+        data: { usedCount: { increment: 1 } },
+      }).catch(console.warn);
+
+      // Debug log
+      logInteraction({
+        userId,
+        problemId,
+        userMessage: body.userMessage,
+        decisionType: "CACHE_HIT",
+        responseData: decision.entry.response,
+        stage: mentorSession.stage as string,
+        rung: 1,
+        cacheHitData: {
+          similarity: decision.similarity?.toFixed(4) ?? "0",
+          cacheEntryId: decision.entry.id,
         },
-        { status: 500 },
+      });
+
+      return Response.json({
+        ok: true,
+        message: decision.entry.response,
+        metadata: {
+          stage: mentorSession.stage,
+          type: "cache_hit",
+          similarity: decision.similarity,
+        },
+      });
+    }
+
+    // ── 6. AI_NEEDED — Resolve API config & make call ──
+    let apiConfig: ApiConfig;
+    try {
+      apiConfig = await resolveApiConfig(userAiSettings);
+    } catch (e) {
+      return Response.json(
+        { error: "No AI provider available. Please configure your API key in Settings or contact support." },
+        { status: 503 },
       );
     }
 
-    // ── Handle verbosity inference and update ──
+    // ── Handle verbosity ──
     const inferred = inferVerbosityFromText(body.userMessage);
     let verbosity: Verbosity =
       (userAiSettings?.verbosity as Verbosity) || "normal";
 
     if (inferred && inferred !== verbosity) {
       verbosity = inferred;
-      // Non-blocking update
       prisma.userAiSettings
         .upsert({
           where: { userId },
@@ -972,23 +1081,9 @@ export async function POST(req: NextRequest) {
     const rollingSummaryMd = existingSummary?.summaryMd ?? null;
     const currentMessageCount = existingSummary?.messageCount ?? 0;
 
-    // ── Merge frontend history with persisted history ──
-    // Use persisted messages as the source of truth, supplement with frontend history if needed
-    const persistedHistory = persistedMessages.map((m) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    }));
-
-    // If frontend sent history that's newer than persisted, merge them
-    const frontendHistory = Array.isArray(body.history) ? body.history : [];
-    const history =
-      persistedHistory.length > 0 ? persistedHistory : frontendHistory;
-
-    // ── Detect stage, tone, and learning rung (using persistent data) ──
-    const stage = detectTeachingStage(history, stats, body.userMessage);
+    const stage = mentorSession.stage as TeachingStage;
     const tone = detectTone(history, body.userMessage, stage);
 
-    // Use lastRung from database as starting point, then detect current rung
     const previousRung = existingSummary?.lastRung ?? 1;
     const rung = detectLearningRung(
       history,
@@ -998,7 +1093,7 @@ export async function POST(req: NextRequest) {
       previousRung,
     );
 
-    // ── Loop detection: Check if student is asking semantically similar questions ──
+    // ── Loop detection ──
     let loopDetected = false;
     if (history.length >= 6) {
       const recentUserMessages = history
@@ -1007,7 +1102,6 @@ export async function POST(req: NextRequest) {
         .map((h) => h.content.toLowerCase());
 
       if (recentUserMessages.length === 3) {
-        // Simple keyword overlap detection
         const [msg1, msg2, msg3] = recentUserMessages;
         const words1 = new Set(msg1.split(/\s+/).filter((w) => w.length > 3));
         const words2 = new Set(msg2.split(/\s+/).filter((w) => w.length > 3));
@@ -1027,7 +1121,6 @@ export async function POST(req: NextRequest) {
     // ── GATE: Explicit solution request ──
     const allowFullSolution = isExplicitSolutionRequest(body.userMessage);
     if (!allowFullSolution && stage !== "REFLECT") {
-      // Check if user is trying to get solution indirectly via rephrasing
       const isSuspiciousRequest =
         /just show|just tell|skip|shortcut|cheat|i give up|forget it|just|directly/i.test(
           body.userMessage,
@@ -1037,7 +1130,7 @@ export async function POST(req: NextRequest) {
         return Response.json({
           ok: true,
           message: buildSolutionRequestResponse(stage),
-          metadata: { verbosity, stage, tone, model, wasGated: true },
+          metadata: { verbosity, stage, tone, wasGated: true },
         });
       }
     }
@@ -1053,14 +1146,12 @@ export async function POST(req: NextRequest) {
     const codeContext = buildUserCodeContext(body);
     const statsContext = buildStatsContext(stats, body.userMessage, stage);
 
-    // ── Extract problem context and select guide question ──
     const probContext = extractProblemContext(
       body.userCode,
       body.problemStatementMd,
     );
     const guideQuestion = selectGuideQuestion(rung, stage, probContext);
 
-    // ── Build loop alert if detected ──
     let loopAlert = "";
     if (loopDetected) {
       loopAlert = `
@@ -1073,7 +1164,6 @@ Change your approach completely. Try:
 `;
     }
 
-    // ── Build system prompt ──
     const systemMessage = buildMentorSystemPrompt(
       stage,
       rung,
@@ -1089,13 +1179,11 @@ Change your approach completely. Try:
       loopAlert,
     );
 
-    // ── Build messages array ──
     const messages: Array<{
       role: "system" | "user" | "assistant";
       content: string;
     }> = [{ role: "system", content: systemMessage }];
 
-    // Add sanitized recent history (last 3 exchanges = 6 msgs)
     const recentTurns = sanitizeHistoryForContext(history).slice(-6);
     for (const msg of recentTurns) {
       messages.push({
@@ -1104,77 +1192,35 @@ Change your approach completely. Try:
       });
     }
 
-    // Current user message
     messages.push({ role: "user", content: body.userMessage });
 
     const temperature = getAdaptiveTemperature(body, stats);
     const maxTokens = verbosityToModelMaxTokens(verbosity);
 
-    // ── Call AI Provider ──
-    let raw: string;
+    // ── 7. CALL AI (with key rotation on 429) ──
+    let assistantMessage: string;
     try {
-      // Build headers based on provider (Ollama doesn't need auth)
-      const headers: HeadersInit = {
-        "Content-Type": "application/json",
-      };
-
-      if (provider !== "ollama") {
-        headers.Authorization = `Bearer ${apiKey}`;
-      }
-
-      // Build request body based on provider
-      const requestBody: Record<string, unknown> = {
-        model,
+      assistantMessage = await callAIWithKeyRotation(
         messages,
         temperature,
-        max_tokens: maxTokens,
-        stream: false, // Explicitly disable streaming for all providers
-      };
-
-      // Add OpenAI-specific parameters only for compatible providers
-      if (provider === "groq" || provider === "openai") {
-        requestBody.top_p = 0.95;
-        requestBody.frequency_penalty = 0.4;
-        requestBody.presence_penalty = 0.3;
-      }
-
-      ({ raw } = await groqFetchWithRetry(
-        `${apiBaseUrl}/chat/completions`,
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify(requestBody),
-        },
-        { maxRetries: 4, baseDelayMs: 2000 }, // Increased delay for rate limits
-      ));
+        maxTokens,
+        apiConfig,
+      );
     } catch (e) {
       console.error("AI API error:", e);
 
-      // Provide more helpful error messages based on provider
       let errorMessage =
         "AI service is temporarily unavailable. Please try again in a few seconds.";
 
-      if (provider === "ollama") {
-        errorMessage =
-          "Cannot connect to Ollama. Please ensure:\n1. Ollama is installed and running\n2. The server URL is correct (default: http://localhost:11434)\n3. The model is downloaded (run: ollama pull " +
-          model +
-          ")";
-      } else if (e instanceof Error && e.message.includes("401")) {
-        errorMessage =
-          "Invalid API key. Please check your API key in Settings.";
+      if (e instanceof Error && e.message.includes("401")) {
+        errorMessage = "Invalid API key. Please check your API key in Settings.";
       } else if (e instanceof Error && e.message.includes("429")) {
         errorMessage =
-          "Rate limit exceeded. Please wait a moment or use your own API key in Settings.";
+          "Rate limit exceeded. All API keys are currently busy — please wait a moment or add your own API key in Settings.";
       }
 
-      return Response.json(
-        { error: errorMessage },
-        { status: provider === "ollama" ? 503 : 429 },
-      );
+      return Response.json({ error: errorMessage }, { status: 503 });
     }
-
-    const data = raw ? (JSON.parse(raw) as unknown) : null;
-    let assistantMessage = extractAssistantContent(data);
 
     if (!assistantMessage) {
       return Response.json(
@@ -1183,26 +1229,64 @@ Change your approach completely. Try:
       );
     }
 
-    // ── Output guardrails (3-layer defense) ──
+    // ── 8. Output guardrails ──
     const { text: sanitized, wasViolation } = sanitizeAssistantResponse(
       assistantMessage,
       allowFullSolution,
     );
     assistantMessage = sanitized;
 
-    // If model still generated a full solution despite the prompt, use stage-aware fallback
     if (wasViolation && !allowFullSolution) {
       assistantMessage = buildSolutionRequestResponse(stage);
     }
 
-    // ── Persist conversation messages to database (non-blocking) ──
-    const conversationMetadata = {
-      rung,
-      stage,
-      tone,
+    // ── 9. STAGE ENGINE PERSISTENCE ──
+    await saveMessage(mentorSession.id, "assistant", assistantMessage, mentorSession.stage as TeachingStage);
+
+    // ── 10. SAVE TO GLOBAL CACHE (reliable, not awaited) ──
+    // We don't await this to avoid blocking the response.
+    // Cache is looked up via the cache lookup path on next similar question.
+    const questionToCache = body.userMessage;
+    const responseToCache = assistantMessage;
+    const stageToCache = mentorSession.stage as TeachingStage;
+    const problemIdToCache = problemId;
+    const rungToCache = rung;
+
+    saveToCache({
+      problemId: problemIdToCache,
+      question: questionToCache,
+      response: responseToCache,
+      stage: stageToCache,
+      rung: rungToCache,
+    }).then(() => {
+      console.log(`[CACHE] Saved Q&A for reuse: "${questionToCache.slice(0, 50)}..."`);
+    }).catch(e => console.warn("[CACHE] Failed to save:", e));
+
+    // ── 11. STAGE ADVANCEMENT ──
+    const lowerResponse = assistantMessage.toLowerCase();
+    const transitionCtx: TransitionContext = {
+      approachCorrect: lowerResponse.includes("approach is correct") || lowerResponse.includes("great strategy") || (stage === "STRATEGIZE" && lowerResponse.includes("exactly")),
+      codeCorrect: lowerResponse.includes("code looks good") || lowerResponse.includes("solved it") || (stage === "IMPLEMENT" && stats?.acceptedCount && stats.acceptedCount > 0),
+      isOptimal: lowerResponse.includes("optimal") || lowerResponse.includes("most efficient"),
+      hasErrors: !!body.syntaxError || (stats?.wrongAnswerCount && stats.wrongAnswerCount > 0),
+      isFrustrated: /frustrat|give up|don't understand/i.test(body.userMessage.toLowerCase())
     };
 
-    // Save user message
+    if (mentorSession.stage === "EXPLORE") {
+      await tryAdvanceStage(mentorSession.id, "STRATEGIZE", transitionCtx);
+    } else if (mentorSession.stage === "STRATEGIZE" && transitionCtx.approachCorrect) {
+      await tryAdvanceStage(mentorSession.id, "IMPLEMENT", transitionCtx);
+    } else if (mentorSession.stage === "IMPLEMENT" && transitionCtx.codeCorrect) {
+      await tryAdvanceStage(mentorSession.id, "REFLECT", transitionCtx);
+    } else if (mentorSession.stage === "IMPLEMENT" && transitionCtx.hasErrors) {
+      await tryAdvanceStage(mentorSession.id, "DEBUG", transitionCtx);
+    } else if (mentorSession.stage === "DEBUG" && !transitionCtx.hasErrors) {
+      await tryAdvanceStage(mentorSession.id, "IMPLEMENT", transitionCtx);
+    }
+
+    // ── 12. Legacy Persistence (background, for compatibility) ──
+    const conversationMetadata = { rung, stage, tone };
+
     prisma.mentorConversationMessage
       .create({
         data: {
@@ -1215,7 +1299,6 @@ Change your approach completely. Try:
       })
       .catch((e) => console.warn("Failed to save user message:", e));
 
-    // Save assistant message
     prisma.mentorConversationMessage
       .create({
         data: {
@@ -1228,16 +1311,15 @@ Change your approach completely. Try:
       })
       .catch((e) => console.warn("Failed to save assistant message:", e));
 
-    // ── Update rolling summary (non-blocking, server-side message count) ──
-    // Update summary every 4 messages based on server-side counter
-    const newMessageCount = currentMessageCount + 2; // +2 because we save both user and assistant messages
+    // ── 13. Update rolling summary ──
+    const newMessageCount = currentMessageCount + 2;
     const shouldUpdateSummary = newMessageCount % 4 === 0;
 
     if (shouldUpdateSummary) {
       rewriteRollingSummary({
-        apiKey,
-        apiBaseUrl,
-        model,
+        apiKey: apiConfig.apiKey,
+        apiBaseUrl: apiConfig.apiBaseUrl,
+        model: apiConfig.model,
         previousSummaryMd: rollingSummaryMd,
         userMessage: body.userMessage,
         assistantMessage,
@@ -1264,7 +1346,6 @@ Change your approach completely. Try:
         )
         .catch((e) => console.warn("Failed to update summary:", e));
     } else {
-      // Still update message count and rung even if not rewriting summary
       prisma.mentorConversationSummary
         .upsert({
           where: { userId_problemId: { userId, problemId } },
@@ -1290,7 +1371,7 @@ Change your approach completely. Try:
       metadata: {
         verbosity,
         temperature,
-        model,
+        model: apiConfig.model,
         stage,
         rung,
         tone,

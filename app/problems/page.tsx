@@ -1,16 +1,24 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
 import {
-  Users,
   ChevronDown,
   CheckCircle2,
   Circle,
   Clock,
-  TrendingUp,
+  Search,
+  LayoutGrid,
+  List,
+  ArrowRight,
+  Layers,
+  Sparkles,
+  Activity,
+  Target,
+  BarChart3,
 } from 'lucide-react';
+import Link from 'next/link';
 
 type ApiPattern = {
   id: string;
@@ -41,34 +49,24 @@ async function fetchPatterns(): Promise<ApiPattern[]> {
 export default function ProblemsPage() {
   const [expandedPattern, setExpandedPattern] = useState<string | null>(null);
   const [apiPatterns, setApiPatterns] = useState<ApiPattern[] | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   useEffect(() => {
     let mounted = true;
-    fetchPatterns()
-      .then((p) => {
-        if (mounted) setApiPatterns(p);
-      })
-      .catch(() => {
-        // fallback to empty; keep UI intact
-        if (mounted) setApiPatterns([]);
-      });
-    return () => {
-      mounted = false;
-    };
+    fetchPatterns().then((p) => { if (mounted) setApiPatterns(p); }).catch(() => { if (mounted) setApiPatterns([]); });
+    return () => { mounted = false; };
   }, []);
 
   const patterns: UiPattern[] = useMemo(() => {
-    // Map backend patterns into the exact UI structure expected by current markup.
-    // We keep existing fields like icon/completed/status as placeholders for now.
     if (apiPatterns) {
       return apiPatterns.map((p, idx) => {
         const iconPool = ['👆', '🪟', '🐇🐢', '📊', '🔍', '🏆', '🌳', '🌲', '🧠', '🔗'];
-        const icon = iconPool[idx % iconPool.length];
         return {
           id: p.id,
           name: p.name,
           description: p.description ?? '',
-          icon,
+          icon: iconPool[idx % iconPool.length],
           problemCount: p.problemCount,
           completed: 0,
           difficulty: 'Mixed',
@@ -76,254 +74,228 @@ export default function ProblemsPage() {
             id: pr.id,
             title: pr.title,
             difficulty: pr.difficulty === 'EASY' ? 'Easy' : pr.difficulty === 'MEDIUM' ? 'Medium' : 'Hard',
-            // keep navigation working without changing UI: previously used leetcodeId
             leetcodeId: pr.slug,
             status: 'unsolved',
           })),
         };
       });
     }
-
-    // Initial render fallback (while loading)
     return [];
   }, [apiPatterns]);
 
-  // Patterns are now fetched from the backend (/api/patterns) and mapped into the same UI shape.
-  // The old hardcoded seed data was removed.
+  const filteredPatterns = useMemo(() => {
+    if (!searchQuery) return patterns;
+    return patterns.filter(p => 
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      p.description.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [patterns, searchQuery]);
 
   const getDifficultyColor = (difficulty: string) => {
     switch(difficulty) {
-      case 'Easy': return 'text-green-500';
-      case 'Medium': return 'text-orange-500';
-      case 'Hard': return 'text-red-500';
-      default: return 'text-gray-400';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch(status) {
-      case 'solved': return <CheckCircle2 className="w-4 h-4 text-green-500" />;
-      case 'attempted': return <Clock className="w-4 h-4 text-orange-500" />;
-      default: return <Circle className="w-4 h-4 text-gray-600" />;
+      case 'Easy': return 'text-emerald-400';
+      case 'Medium': return 'text-amber-400';
+      case 'Hard': return 'text-rose-400';
+      default: return 'text-zinc-500';
     }
   };
 
   return (
-    <div
-      className="flex flex-col h-screen bg-[#0a0a0a] text-gray-100 overflow-hidden"
-      style={{ fontFamily: 'var(--font-jetbrains-mono)' }}
-    >
+    <div className="flex flex-col h-screen bg-[#020204] text-zinc-400 font-sans overflow-hidden">
       <Navbar />
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
 
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto bg-[#0a0a0a]">
-          <div className="max-w-7xl mx-auto p-6">
-            {/* Header - Minimal */}
-            <div className="mb-6">
-              <h1 className="text-2xl font-bold text-white mb-1">Problems</h1>
-              <p className="text-sm text-gray-500">Organized by patterns • 241 problems</p>
-            </div>
+        <main className="flex-1 overflow-y-auto border-l border-white/10 bg-[#020204] selection:bg-purple-500/30">
+          <div className="flex justify-center">
+            <div className="w-full max-w-5xl px-8 py-12 flex gap-12">
+              
+              {/* Content Column */}
+              <div className="flex-1 min-w-0">
+                {/* Elegant Header */}
+                <div className="flex flex-col gap-6 mb-16">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 px-3 py-1 bg-purple-500/10 border border-purple-500/20 rounded-full">
+                      <Sparkles size={12} className="text-purple-400" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-purple-400">Curriculum v2.0</span>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/5 rounded-full">
+                      <Activity size={12} className="text-white/40" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">241 Problems</span>
+                    </div>
+                  </div>
+                  <div>
+                    <h1 className="text-4xl font-bold text-white tracking-tight mb-3">Pattern Library</h1>
+                    <p className="text-sm text-white/40 max-w-xl leading-relaxed font-light">
+                      Master the core foundations through curated algorithmic patterns. Each module is designed to bridge the gap between theory and implementation.
+                    </p>
+                  </div>
+                </div>
 
-            {/* Tabs for View Selection */}
-            <div className="flex items-center gap-6 border-b border-zinc-800 mb-6">
-              <button className="pb-3 border-b-2 border-orange-500 text-orange-500 font-medium text-sm">
-                By Patterns
-              </button>
-              <button className="pb-3 text-gray-400 hover:text-white text-sm transition-colors">
-                All Problems
-              </button>
-              <button className="pb-3 text-gray-400 hover:text-white text-sm transition-colors">
-                Difficulty
-              </button>
-            </div>
+                {/* Clean Controls */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12 pb-8 border-b border-white/10">
+                  <div className="relative flex-1 max-w-md group">
+                    <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-white/10 group-focus-within:text-purple-500 transition-colors" size={18} />
+                    <input 
+                      type="text"
+                      placeholder="Search patterns..."
+                      className="w-full bg-transparent py-3 pl-8 text-sm text-white placeholder:text-zinc-800 outline-none transition-all"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="flex items-center gap-4 bg-[#08080a] p-1 rounded-xl border border-white/10">
+                    <button 
+                      onClick={() => setViewMode('grid')}
+                      className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white/10 text-white shadow-lg' : 'text-zinc-600 hover:text-zinc-400'}`}
+                    >
+                      <LayoutGrid size={16} />
+                    </button>
+                    <button 
+                      onClick={() => setViewMode('list')}
+                      className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white/10 text-white shadow-lg' : 'text-zinc-600 hover:text-zinc-400'}`}
+                    >
+                      <List size={16} />
+                    </button>
+                  </div>
+                </div>
 
-            {/* Professional Table Layout */}
-            <div className="bg-[#0f0f0f] border border-zinc-800 rounded-lg overflow-hidden">
-              {/* Table */}
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-zinc-800">
-                    <th className="text-left px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Pattern
-                    </th>
-                    <th className="text-left px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Progress
-                    </th>
-                    <th className="text-center px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
-                      Total
-                    </th>
-                    <th className="text-center px-6 py-4 text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
-                      Solved
-                    </th>
-                    <th className="px-6 py-4 w-32"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {patterns.map((pattern, idx) => (
-                    <React.Fragment key={pattern.id}>
-                      <tr 
-                        className="border-b border-zinc-800 hover:bg-zinc-900/30 transition-colors cursor-pointer"
-                        onClick={() => setExpandedPattern(expandedPattern === pattern.name ? null : pattern.name)}
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <span className="text-2xl">{pattern.icon}</span>
-                            <div>
-                              <div className="text-white font-medium">{pattern.name}</div>
-                              <div className="text-xs text-gray-500">{pattern.description}</div>
-                            </div>
+                {/* Grid Layout with Surface Elevation */}
+                {viewMode === 'grid' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {filteredPatterns.map((pattern) => (
+                      <div key={pattern.id} className="group relative bg-[#08080a] border border-white/15 rounded-2xl p-8 transition-all hover:bg-[#0c0c0e] hover:border-white/25 shadow-lg">
+                        <div className="flex items-start justify-between mb-8">
+                          <div className="w-14 h-14 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center text-2xl group-hover:border-purple-500/30 transition-all">
+                            <span className="grayscale group-hover:grayscale-0 transition-all opacity-40 group-hover:opacity-100">{pattern.icon}</span>
                           </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="w-full max-w-xs">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-xs text-gray-500">
-                                {Math.round((pattern.completed / pattern.problemCount) * 100)}%
-                              </span>
+                          <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest font-mono">MOD_{pattern.id.slice(-2)}</span>
+                        </div>
+                        
+                        <h3 className="text-lg font-bold text-white mb-3 group-hover:text-purple-400 transition-colors tracking-tight">{pattern.name}</h3>
+                        <p className="text-sm text-zinc-500 leading-relaxed mb-8 line-clamp-2 font-light">
+                          {pattern.description}
+                        </p>
+
+                        <div className="mt-auto space-y-6">
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest font-mono">
+                              <span className="text-zinc-600">COMPLETION</span>
+                              <span className="text-purple-400">{Math.round((pattern.completed / pattern.problemCount) * 100)}%</span>
                             </div>
-                            <div className="w-full bg-zinc-800 rounded-full h-1.5">
+                            <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
                               <div 
-                                className="bg-orange-500 h-1.5 rounded-full"
-                                style={{width: `${(pattern.completed / pattern.problemCount) * 100}%`}}
-                              ></div>
+                                className="h-full bg-purple-500 transition-all duration-1000 ease-out"
+                                style={{ width: `${(pattern.completed / pattern.problemCount) * 100}%` }}
+                              />
                             </div>
                           </div>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <span className="text-white font-medium">{pattern.problemCount}</span>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <span className="text-orange-500 font-medium">{pattern.completed}</span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center justify-end gap-2">
-                            <ChevronDown 
-                              className={`w-4 h-4 text-gray-500 transition-transform ${
-                                expandedPattern === pattern.name ? 'rotate-180' : ''
-                              }`}
-                            />
+                          
+                          <button 
+                            onClick={() => setExpandedPattern(expandedPattern === pattern.name ? null : pattern.name)}
+                            className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500 group-hover:text-white transition-all"
+                          >
+                            {expandedPattern === pattern.name ? 'COLLAPSE' : 'EXPAND MODULE'}
+                            <ArrowRight size={12} className={`transition-transform duration-300 ${expandedPattern === pattern.name ? '-rotate-90' : 'group-hover:translate-x-1'}`} />
+                          </button>
+                        </div>
+
+                        {/* Expandable Problem List */}
+                        <div className={`mt-6 space-y-1 transition-all duration-500 overflow-hidden ${expandedPattern === pattern.name ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                          <div className="pt-6 border-t border-white/5 grid grid-cols-1 gap-1">
+                            {pattern.problems.map((problem) => (
+                              <Link 
+                                key={problem.id}
+                                href={`/problems/${problem.leetcodeId}`}
+                                className="flex items-center justify-between p-2.5 rounded-lg hover:bg-white/5 transition-all group/item"
+                              >
+                                <span className="text-xs text-zinc-400 group-hover/item:text-white transition-colors">{problem.title}</span>
+                                <span className={`text-[9px] font-bold uppercase tracking-widest ${getDifficultyColor(problem.difficulty)}`}>
+                                  {problem.difficulty}
+                                </span>
+                              </Link>
+                            ))}
                           </div>
-                        </td>
-                      </tr>
-                      
-                      {/* Expanded Problems */}
-                      {expandedPattern === pattern.name && (
-                        <tr>
-                          <td colSpan={5} className="px-0 py-0">
-                            <div className="bg-black border-t border-zinc-800">
-                              <table className="w-full">
-                                <thead>
-                                  <tr className="border-b border-zinc-800">
-                                    <th className="text-left px-10 py-3 text-xs font-medium text-gray-600 uppercase w-16">Status</th>
-                                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-600 uppercase w-20">ID</th>
-                                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-600 uppercase">Title</th>
-                                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-600 uppercase w-32">Difficulty</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {pattern.problems.map((problem) => (
-                                    <tr 
-                                      key={problem.id}
-                                      className="border-b border-zinc-800/50 hover:bg-zinc-900/30 transition-colors cursor-pointer"
-                                      onClick={() => window.location.href = `/problems/${problem.leetcodeId}`}
-                                    >
-                                      <td className="px-10 py-3">
-                                        {getStatusIcon(problem.status)}
-                                      </td>
-                                      <td className="px-4 py-3">
-                                        <span className="text-gray-500 text-sm">{problem.leetcodeId}</span>
-                                      </td>
-                                      <td className="px-4 py-3">
-                                        <span className="text-white hover:text-orange-400 transition-colors">
-                                          {problem.title}
-                                        </span>
-                                      </td>
-                                      <td className="px-4 py-3">
-                                        <span className={`text-sm font-medium ${getDifficultyColor(problem.difficulty)}`}>
-                                          {problem.difficulty}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                              <div className="px-6 py-4 text-center border-t border-zinc-800">
-                                <button className="text-sm text-orange-400 hover:text-orange-300 font-medium">
-                                  View all {pattern.problemCount} problems ΓåÆ
-                                </button>
-                              </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-[#08080a] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
+                    {filteredPatterns.map((pattern) => (
+                      <div key={pattern.id} className="group border-b border-white/5 last:border-0">
+                        <div 
+                          className="flex items-center justify-between px-8 py-6 cursor-pointer hover:bg-white/[0.02] transition-all"
+                          onClick={() => setExpandedPattern(expandedPattern === pattern.name ? null : pattern.name)}
+                        >
+                          <div className="flex items-center gap-8">
+                            <span className="text-xl grayscale opacity-20 group-hover:opacity-100 transition-opacity w-8 text-center">{pattern.icon}</span>
+                            <h3 className="text-white font-semibold group-hover:text-purple-400 transition-colors tracking-tight">{pattern.name}</h3>
+                          </div>
+                          <ChevronDown size={16} className={`text-zinc-700 transition-transform duration-300 ${expandedPattern === pattern.name ? 'rotate-180 text-purple-400' : ''}`} />
+                        </div>
+                        {expandedPattern === pattern.name && (
+                          <div className="bg-black/20 px-12 py-8 animate-in fade-in slide-in-from-top-4 duration-500">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-4">
+                              {pattern.problems.map((problem) => (
+                                <Link 
+                                  key={problem.id}
+                                  href={`/problems/${problem.leetcodeId}`}
+                                  className="flex items-center justify-between py-1 group/link"
+                                >
+                                  <span className="text-xs text-zinc-500 group-hover/link:text-white transition-colors">{problem.title}</span>
+                                  <span className={`text-[8px] font-bold uppercase tracking-widest ${getDifficultyColor(problem.difficulty)}`}>
+                                    {problem.difficulty}
+                                  </span>
+                                </Link>
+                              ))}
                             </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Module Navigator Rail */}
+              <div className="hidden lg:block w-64 shrink-0 h-fit sticky top-12">
+                <div className="space-y-10">
+                  <section>
+                    <h4 className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-6 flex items-center gap-2">
+                      <Target size={12} />
+                      <span>MASTER PROGRESS</span>
+                    </h4>
+                    <div className="space-y-6">
+                      {[
+                        { label: 'Analytical', val: 78, color: 'bg-emerald-500' },
+                        { label: 'Syntax', val: 45, color: 'bg-amber-500' },
+                        { label: 'Efficiency', val: 62, color: 'bg-purple-500' },
+                      ].map((stat) => (
+                        <div key={stat.label} className="space-y-2">
+                          <div className="flex justify-between text-[9px] uppercase tracking-widest font-mono">
+                            <span className="text-zinc-600">{stat.label}</span>
+                            <span className="text-zinc-400">{stat.val}%</span>
+                          </div>
+                          <div className="h-[1px] w-full bg-white/5">
+                            <div className={`h-full ${stat.color}`} style={{ width: `${stat.val}%` }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <button className="w-full py-4 bg-white text-black rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-purple-500 hover:text-white transition-all shadow-xl">
+                    RESUME CURRICULUM
+                  </button>
+                </div>
+              </div>
+
             </div>
           </div>
         </main>
-
-        {/* Right Sidebar - Stats & Info */}
-        <aside className="w-80 bg-[#0f0f0f] border-l border-zinc-800 p-4 hidden xl:block overflow-y-auto">
-          {/* Daily Challenge */}
-          <div className="bg-gradient-to-br from-orange-600 to-orange-700 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="w-5 h-5 text-white" />
-              <h3 className="text-white font-bold">Daily Challenge</h3>
-            </div>
-            <p className="text-sm text-orange-100 mb-3">
-              Complete today&apos;s challenge and earn bonus points!
-            </p>
-            <button className="w-full bg-white text-orange-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-orange-50 transition-colors">
-              Start Challenge
-            </button>
-          </div>
-
-          {/* Study Plan */}
-          <div className="mb-6">
-            <h3 className="text-white font-bold mb-4">Study Plans</h3>
-            <div className="space-y-3">
-              <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-lg hover:border-zinc-700 cursor-pointer transition-colors">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-white font-medium">LeetCode 75</span>
-                  <span className="text-xs text-gray-400">12/75</span>
-                </div>
-                <div className="w-full bg-zinc-800 rounded-full h-1.5">
-                  <div className="bg-green-500 h-1.5 rounded-full" style={{width: '16%'}}></div>
-                </div>
-              </div>
-              
-              <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-lg hover:border-zinc-700 cursor-pointer transition-colors">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-white font-medium">Top Interview 150</span>
-                  <span className="text-xs text-gray-400">5/150</span>
-                </div>
-                <div className="w-full bg-zinc-800 rounded-full h-1.5">
-                  <div className="bg-orange-500 h-1.5 rounded-full" style={{width: '3%'}}></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Popular Topics */}
-          <div>
-            <h3 className="text-white font-bold mb-4">Popular Topics</h3>
-            <div className="flex flex-wrap gap-2">
-              <span className="px-3 py-1 bg-zinc-900 text-gray-300 rounded-full text-sm hover:bg-zinc-800 cursor-pointer">Array</span>
-              <span className="px-3 py-1 bg-zinc-900 text-gray-300 rounded-full text-sm hover:bg-zinc-800 cursor-pointer">String</span>
-              <span className="px-3 py-1 bg-zinc-900 text-gray-300 rounded-full text-sm hover:bg-zinc-800 cursor-pointer">Dynamic Programming</span>
-              <span className="px-3 py-1 bg-zinc-900 text-gray-300 rounded-full text-sm hover:bg-zinc-800 cursor-pointer">Tree</span>
-              <span className="px-3 py-1 bg-zinc-900 text-gray-300 rounded-full text-sm hover:bg-zinc-800 cursor-pointer">Graph</span>
-              <span className="px-3 py-1 bg-zinc-900 text-gray-300 rounded-full text-sm hover:bg-zinc-800 cursor-pointer">Binary Search</span>
-              <span className="px-3 py-1 bg-zinc-900 text-gray-300 rounded-full text-sm hover:bg-zinc-800 cursor-pointer">Hash Table</span>
-              <span className="px-3 py-1 bg-zinc-900 text-gray-300 rounded-full text-sm hover:bg-zinc-800 cursor-pointer">Linked List</span>
-            </div>
-          </div>
-        </aside>
       </div>
     </div>
   );

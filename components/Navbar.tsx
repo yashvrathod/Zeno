@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { signIn, signOut, useSession } from 'next-auth/react';
-import { Search, Code, User, Menu, Settings } from 'lucide-react';
+import { Search, Code, User, Menu, Settings, Bell, Zap, Sparkles } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,130 +16,113 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 export default function Navbar() {
   const { data: session, status } = useSession();
   const user = session?.user;
-
-  // While NextAuth is hydrating the session on the client, avoid rendering the wrong auth CTA.
   const isLoading = status === 'loading';
 
   return (
-    <header className="bg-[#0f0f0f] border-b border-zinc-800 px-4 py-3 flex items-center justify-between">
-      <div className="flex items-center gap-6">
-        <Link href="/" className="flex items-center gap-2">
-          <Code className="w-6 h-6 text-white" />
-          <span className="text-white font-semibold text-lg">code.zone</span>
+    <header className="bg-[#050507] border-b border-white/5 h-16 flex items-center justify-between px-8 sticky top-0 z-50 backdrop-blur-md bg-opacity-80" style={{ fontFamily: 'var(--font-jetbrains-mono)' }}>
+      <div className="flex items-center gap-12">
+        <Link href="/" className="flex items-center gap-2 group">
+          <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center group-hover:rotate-12 transition-transform shadow-lg shadow-purple-900/20">
+            <Code className="w-5 h-5 text-white" />
+          </div>
+          <span className="text-white font-bold text-xl tracking-tight group-hover:text-purple-400 transition-colors">code.zone</span>
         </Link>
         
-        <div className="hidden md:flex items-center bg-[#1a1a1a] rounded-lg px-4 py-2 w-64 lg:w-96">
-          <Search className="w-4 h-4 text-gray-500 mr-2" />
-          <input 
-            type="text" 
-            placeholder="Search"
-            className="bg-transparent border-none outline-none text-sm text-gray-300 w-full"
-          />
-        </div>
+        <nav className="hidden lg:flex items-center gap-8 text-[10px] font-bold tracking-[0.2em] text-white/40 uppercase">
+          <Link href="/problems" className="hover:text-white transition-colors">Problems</Link>
+          <Link href="/leaderboard" className="hover:text-white transition-colors">Leaderboard</Link>
+          <Link href="/discussions" className="hover:text-white transition-colors">Discussions</Link>
+          <Link href="/explore" className="hover:text-white transition-colors flex items-center gap-1.5">
+            <Sparkles size={10} className="text-purple-400" />
+            Explore
+          </Link>
+        </nav>
       </div>
 
-      <div className="flex items-center gap-4">
-        {/* Mobile menu */}
-        <div className="lg:hidden">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label="Open menu"
-                className="p-2 rounded-md hover:bg-zinc-900 text-gray-300"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem asChild>
-                <Link href="/problems">Problems</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/leaderboard">Leaderboard</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/profile">Profile</Link>
-              </DropdownMenuItem>
-              {user && (
-                <DropdownMenuItem asChild>
-                  <Link href="/settings">Settings</Link>
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              {user ? (
-                <DropdownMenuItem onSelect={() => signOut({ callbackUrl: '/' })}>
-                  Sign out
-                </DropdownMenuItem>
-              ) : (
-                <>
-                  <DropdownMenuItem onSelect={() => signIn(undefined, { callbackUrl: '/' })}>
-                    Sign in
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/auth/register">Sign up</Link>
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+      <div className="flex items-center gap-6">
+        <div className="hidden md:flex items-center bg-white/[0.03] border border-white/5 rounded-2xl px-4 py-2 w-64 lg:w-96 focus-within:border-purple-500/30 transition-all group">
+          <Search className="w-4 h-4 text-white/20 group-focus-within:text-purple-400 transition-colors mr-2" />
+          <input 
+            type="text" 
+            placeholder="Search problems..."
+            className="bg-transparent border-none outline-none text-xs text-white placeholder:text-white/20 w-full font-medium"
+          />
         </div>
-        <Link href="/problems" className="text-gray-400 hover:text-white text-sm hidden lg:block">Problems</Link>
-        <Link href="/leaderboard" className="text-gray-400 hover:text-white text-sm hidden lg:block">Leaderboard</Link>
-        <button className="text-gray-400 hover:text-white text-sm hidden lg:block">Discuss</button>
-        <button className="text-gray-400 hover:text-white text-sm hidden lg:block">Discover</button>
-        <button className="text-gray-400 hover:text-white text-sm hidden lg:block">Hackathons</button>
-        
-        {isLoading ? (
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-20 rounded-md bg-zinc-800 animate-pulse" />
-          </div>
-        ) : user ? (
-          <div className="flex items-center gap-3">
+
+        <div className="flex items-center gap-4">
+          {user && (
+            <div className="hidden sm:flex items-center gap-3 px-3 py-1.5 bg-white/[0.03] border border-white/5 rounded-full">
+              <Zap size={12} className="text-orange-400" />
+              <span className="text-[10px] font-bold text-orange-400">450 XP</span>
+            </div>
+          )}
+
+          {isLoading ? (
+            <div className="h-8 w-8 rounded-full bg-white/5 animate-pulse" />
+          ) : user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2">
-                  <Avatar className="w-8 h-8 cursor-pointer hover:opacity-80 transition-opacity">
+                <button className="flex items-center outline-none">
+                  <Avatar className="w-9 h-9 border border-white/10 hover:border-purple-500/40 transition-colors cursor-pointer">
                     <AvatarImage src={user.image ?? undefined} />
-                    <AvatarFallback>
-                      <User className="w-4 h-4" />
+                    <AvatarFallback className="bg-white/5 text-white/40 text-xs">
+                      {user.name?.charAt(0) ?? <User className="w-4 h-4" />}
                     </AvatarFallback>
                   </Avatar>
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem asChild>
-                  <Link href="/profile">Profile</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/settings" className="flex items-center gap-2">
-                    <Settings className="w-4 h-4" />
-                    API Settings
+              <DropdownMenuContent align="end" className="w-56 bg-[#0a0a0f] border-white/10 text-white shadow-2xl">
+                <div className="px-2 py-3 flex items-center gap-3">
+                  <Avatar className="w-10 h-10 border border-white/10">
+                    <AvatarImage src={user.image ?? undefined} />
+                    <AvatarFallback className="bg-white/5 text-white/40">
+                      {user.name?.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col min-w-0">
+                    <p className="text-sm font-bold truncate">{user.name}</p>
+                    <p className="text-[10px] text-white/40 truncate">@{user.username || 'user'}</p>
+                  </div>
+                </div>
+                <DropdownMenuSeparator className="bg-white/5" />
+                <DropdownMenuItem asChild className="focus:bg-white/5 focus:text-purple-400 cursor-pointer py-3">
+                  <Link href="/profile" className="flex items-center gap-3">
+                    <User size={16} />
+                    Profile Overview
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => signOut({ callbackUrl: '/' })}>
-                  Sign out
+                <DropdownMenuItem asChild className="focus:bg-white/5 focus:text-purple-400 cursor-pointer py-3">
+                  <Link href="/settings" className="flex items-center gap-3">
+                    <Settings size={16} />
+                    Preferences
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-white/5" />
+                <DropdownMenuItem 
+                  onSelect={() => signOut({ callbackUrl: '/' })}
+                  className="focus:bg-rose-500/10 focus:text-rose-400 text-rose-400/80 cursor-pointer py-3"
+                >
+                  Sign Out of Account
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <button
-              className="text-gray-300 hover:text-white text-sm"
-              onClick={() => signIn(undefined, { callbackUrl: '/' })}
-            >
-              Sign in
-            </button>
-            <Link
-              href="/auth/register"
-              className="text-sm bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-md"
-            >
-              Sign up
-            </Link>
-          </div>
-        )}
+          ) : (
+            <div className="flex items-center gap-4">
+              <button
+                className="text-white/40 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-colors"
+                onClick={() => signIn(undefined, { callbackUrl: '/' })}
+              >
+                Sign In
+              </button>
+              <Link
+                href="/auth/register"
+                className="text-[10px] font-bold uppercase tracking-widest bg-purple-500 hover:bg-purple-600 text-white px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-purple-900/20 active:scale-95"
+              >
+                Join Now
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

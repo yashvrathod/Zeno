@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono } from "next/font/google";
+import { JetBrains_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
@@ -10,12 +10,18 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "code.zone",
   description: "Developer community platform",
 };
 
-// Ensure correct scaling on mobile devices.
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
@@ -28,7 +34,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${jetbrainsMono.variable} antialiased`} style={{ fontFamily: 'var(--font-jetbrains-mono)' }}>
+      <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-[#020204] text-zinc-400 font-sans`}>
         <Providers>
           {children}
         </Providers>
