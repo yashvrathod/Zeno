@@ -80,15 +80,27 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
       const res = await fetch('/api/mentor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          messages: newMessages,
-          context: { problemId, problemTitle: dbProblem?.title } 
+        body: JSON.stringify({
+          problemId,
+          language: 'typescript',
+          userMessage: content,
+          history: newMessages,
+          problemTitle: dbProblem?.title,
+          problemStatementMd: dbProblem?.statementMd,
+          problemConstraintsMd: dbProblem?.constraintsMd,
         }),
       });
+      if (!res.ok) {
+        const errData = await res.json();
+        console.error('Mentor API error:', errData);
+        setMessages([...newMessages, { role: 'assistant', content: errData.error ?? 'Something went wrong. Please try again.' }]);
+        return;
+      }
       const data = await res.json();
-      setMessages([...newMessages, { role: 'assistant', content: data.message ?? data.reply ?? (typeof data === 'string' ? data : 'AI response unavailable') }]);
+      setMessages([...newMessages, { role: 'assistant', content: data.message ?? 'AI response unavailable' }]);
     } catch (err) {
       console.error(err);
+      setMessages([...newMessages, { role: 'assistant', content: 'Network error. Please try again.' }]);
     } finally {
       setIsMentorLoading(false);
     }
