@@ -35,7 +35,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
   const [mentorInput, setMentorInput] = useState('');
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [isMentorLoading, setIsMentorLoading] = useState(false);
-  const [activeLeftTab, setActiveLeftTab] = useState<'problem' | 'ai'>('problem');
+  const [activeLeftTab, setActiveLeftTab] = useState<'problem' | 'ai'>('ai');
   const [code, setCode] = useState('// Initializing workspace...\n\nimport { AetherAuth } from \'@aether/core\';\n\nexport class SecurityArchitect {\n  private vault: ZkProofSystem;\n\n  constructor() {\n    this.vault = new ZkProofSystem({ entropy: \'quantum-void\' });\n  }\n\n  // Initialize the zero-knowledge handshake\n  async initiateHandshake(userId: string) {\n    const challenge = await this.vault.generateChallenge();\n\n    return new Promise((resolve) => {\n      AetherAuth.dispatch({\n        type: \'AUTH_PROTOCOL_V4\',\n        payload: { userId, challenge }\n      });\n    });\n  }\n}');
   
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -86,7 +86,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
         }),
       });
       const data = await res.json();
-      setMessages([...newMessages, { role: 'assistant', content: data.reply }]);
+      setMessages([...newMessages, { role: 'assistant', content: data.message ?? data.reply ?? (typeof data === 'string' ? data : 'AI response unavailable') }]);
     } catch (err) {
       console.error(err);
     } finally {
