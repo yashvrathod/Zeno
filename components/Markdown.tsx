@@ -22,8 +22,9 @@ function escapeHtml(s: string) {
 }
 
 // Minimal markdown renderer (headings + paragraphs + code fences) without external deps.
-export function Markdown({ md }: { md: string }) {
+export function Markdown({ md }: { md: string | null | undefined }) {
   const html = React.useMemo(() => {
+    if (!md) return '';
     const lines = md.split(/\r?\n/);
     const out: string[] = [];
     let inCode = false;
