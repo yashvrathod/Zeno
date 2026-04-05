@@ -18,11 +18,11 @@ export async function GET(req: NextRequest) {
       where: { userId: session.user.id },
       create: {
         userId: session.user.id,
-        preferredFreeModel: 'nvidia/nemotron-3-nano-30b-a3b:free',
+        preferredFreeModel: 'deepseek/deepseek-chat-v3-0324:free',
         apiProvider: 'server',
       },
       update: {
-        preferredFreeModel: 'nvidia/nemotron-3-nano-30b-a3b:free',
+        preferredFreeModel: 'deepseek/deepseek-chat-v3-0324:free',
       },
     });
 

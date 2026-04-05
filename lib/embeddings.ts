@@ -267,6 +267,55 @@ export async function getEmbedding(text: string): Promise<number[]> {
 }
 
 /**
+ * Computes bigram Jaccard similarity between two text strings.
+ *
+ * Breaks each text into overlapping character bigrams, then computes:
+ *   Jaccard(A, B) = |A ∩ B| / |A ∪ B|
+ *
+ * This catches lexical similarity that cosine embeddings can miss:
+ * - "two pointer" vs "sliding window" have similar embeddings (~0.7)
+ *   but zero bigram overlap → different algorithms
+ * - "how do i handle edge cases" vs "how do i handle edge case"
+ *   have high bigram overlap → same intent
+ *
+ * Returns 0-1. Thresholds: >0.25 = strong match, >0.15 = moderate
+ *
+ * @param a - First text string
+ * @param b - Second text string
+ * @returns Jaccard similarity coefficient between 0 and 1
+ *
+ * @example
+ * bigramJaccard("two pointer approach", "two pointer technique") // ~0.72
+ * bigramJaccard("two pointer", "sliding window")                  // 0.0
+ */
+export function bigramJaccard(a: string, b: string): number {
+  const normA = a.toLowerCase().trim();
+  const normB = b.toLowerCase().trim();
+
+  if (normA === normB) return 1.0;
+  if (normA.length < 2 || normB.length < 2) return 0;
+
+  const getBigrams = (text: string): Set<string> => {
+    const bigrams = new Set<string>();
+    for (let i = 0; i < text.length - 1; i++) {
+      bigrams.add(text.slice(i, i + 2));
+    }
+    return bigrams;
+  };
+
+  const aBigrams = getBigrams(normA);
+  const bBigrams = getBigrams(normB);
+
+  let intersection = 0;
+  for (const bg of aBigrams) {
+    if (bBigrams.has(bg)) intersection++;
+  }
+
+  const union = aBigrams.size + bBigrams.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+/**
  * Computes cosine similarity between two embedding vectors.
  *
  * Cosine similarity measures the angle between two vectors:

@@ -52,7 +52,7 @@ model UserAiSettings {
   // 🔥 Core settings
   apiProvider            String?  @default("server")
   verbosity              String   @default("normal")
-  preferredFreeModel     String?  @default("nvidia/nemotron-3-nano-30b-a3b:free")
+  preferredFreeModel     String?  @default("deepseek/deepseek-chat-v3-0324:free")
 
   // 🔑 API Keys (BYOK)
   groqApiKey             String?
@@ -378,6 +378,7 @@ model CacheEntry {
   id           String    @id @default(cuid())
   problemId    String
   questionMd5  String
+  questionText String    @default("")
   embedding    Json
   response     String
   stage        String

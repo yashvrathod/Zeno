@@ -269,7 +269,7 @@ export async function POST(req: NextRequest) {
     if (provider === "openrouter" && userAiSettings?.openrouterApiKey) {
       apiKey = userAiSettings.openrouterApiKey;
       apiBaseUrl = "https://openrouter.ai/api/v1";
-      model = userAiSettings.preferredFreeModel || "nvidia/nemotron-3-nano-30b-a3b:free";
+      model = userAiSettings.preferredFreeModel || "deepseek/deepseek-chat-v3-0324:free";
     } else if (provider === "groq" && userAiSettings?.groqApiKey) {
       apiKey = userAiSettings.groqApiKey;
       apiBaseUrl = "https://api.groq.com/openai/v1";
@@ -277,7 +277,7 @@ export async function POST(req: NextRequest) {
     } else if (process.env.OPENROUTER || process.env.OPENROUTER_API_KEY) {
       apiKey = process.env.OPENROUTER || process.env.OPENROUTER_API_KEY;
       apiBaseUrl = "https://openrouter.ai/api/v1";
-      model = "nvidia/nemotron-3-nano-30b-a3b:free";
+      model = "deepseek/deepseek-chat-v3-0324:free";
     } else if (process.env.GROQ_API_KEY) {
       apiKey = process.env.GROQ_API_KEY;
       apiBaseUrl = process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1";

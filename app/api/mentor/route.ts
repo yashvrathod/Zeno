@@ -140,7 +140,7 @@ async function resolveApiConfig(
     return {
       apiKey: userAiSettings.openrouterApiKey!,
       apiBaseUrl: "https://openrouter.ai/api/v1",
-      model: userAiSettings.preferredFreeModel || "nvidia/nemotron-3-nano-30b-a3b:free",
+      model: userAiSettings.preferredFreeModel || "deepseek/deepseek-chat-v3-0324:free",
       provider: "openrouter",
       isServerKey: false,
     };
@@ -217,7 +217,7 @@ async function resolveApiConfig(
       return {
         apiKey: orKey,
         apiBaseUrl: "https://openrouter.ai/api/v1",
-        model: "nvidia/nemotron-3-nano-30b-a3b:free",
+        model: "deepseek/deepseek-chat-v3-0324:free",
         provider: "openrouter",
         isServerKey: true,
       };
@@ -234,7 +234,7 @@ async function resolveApiConfig(
     return {
       apiKey: process.env.OPENROUTER || process.env.OPENROUTER_API_KEY!,
       apiBaseUrl: "https://openrouter.ai/api/v1",
-      model: "nvidia/nemotron-3-nano-30b-a3b:free",
+      model: "deepseek/deepseek-chat-v3-0324:free",
       provider: "openrouter",
       isServerKey: true,
     };
@@ -422,49 +422,51 @@ function buildMentorSystemPrompt(
   conversationHistory: string,
   guideQuestion: string,
   loopAlert: string,
+  existingMemory: string | null,
 ): string {
   const stageInstructions: Record<TeachingStage, string> = {
-    EXPLORE: "Ask the user to restate the problem in their own words. Trace examples by hand. Don't discuss code yet.",
-    STRATEGIZE: "Guide the user toward the right pattern through questions. Never name the algorithm directly.",
-    IMPLEMENT: "Help them translate their approach into code one piece at a time. Max 3 lines of example code.",
-    DEBUG: "Ask them to trace the failing test case through their code line by line.",
-    STUCK: "Show empathy. Use a real-world analogy. Ask one small question to rebuild momentum.",
-    REFLECT: "Ask why the solution works. Check time/space complexity understanding. Name the pattern.",
+    EXPLORE: "Ask user to restate the problem, trace examples by hand. No code yet.",
+    STRATEGIZE: "Guide toward the right pattern through questions. Don't name the algorithm.",
+    IMPLEMENT: "Translate approach to code one piece at a time. Max 3 lines of example code.",
+    DEBUG: "Ask them to trace the failing test case through their code.",
+    STUCK: "Show empathy. Shrink to a 2-3 element concrete example from the problem itself. Ask one small, answerable question to rebuild momentum.",
+    REFLECT: "Ask why it works. Check complexity understanding. Name the pattern.",
   };
 
   const toneInstructions: Record<ConversationTone, string> = {
-    encouraging: "Warm and enthusiastic. Say 'Good instinct!', 'You're close!'",
-    analytical: "Precise and methodical. Trace through logic step by step.",
-    challenging: "Respectful but stretching. Push them harder.",
-    empathetic: "Warm and grounding. Acknowledge the struggle first.",
+    encouraging: "Warm and enthusiastic — 'Good instinct!', 'You're close!'",
+    analytical: "Precise and methodical — trace logic step by step.",
+    challenging: "Respectful but stretching — push harder.",
+    empathetic: "Warm and grounding — acknowledge the struggle first.",
   };
 
-  return `You are a Socratic DSA mentor. Turn users into problem solvers — don't solve for them.
+  const basePrompt = getMentorSystemPrompt();
 
-RULES:
-1. Max 3 lines of code per response
-2. Never give a full function/solution
-3. One response = one insight or one question
-4. End with a question when possible
+  const memoryLine = existingMemory
+    ? `PREVIOUS MEMORY (build on this, update as needed): ${existingMemory}\n\n`
+    : "";
 
-STAGE: ${stage} — ${stageInstructions[stage]}
-TONE: ${toneInstructions[tone]}
-LEARNING RUNG: ${rung}/6
-VERBOSITY: ${verbosity} (${stylePrompt})
+  return `${basePrompt}
+
+CURRENT SESSION:
+Stage: ${stage} — ${stageInstructions[stage]}
+Tone: ${toneInstructions[tone]}
+Rung: ${rung}/6
+Response style: ${verbosity} (${stylePrompt})
 
 ${loopAlert}
 
-${problemContext}
+${contextualGuidance}
+
+${memoryLine}${problemContext}
 
 ${codeContext}
 
 ${statsContext}
 
-${contextualGuidance}
-
 ${conversationHistory}
 
-GUIDE QUESTION: "${guideQuestion}" — use if it fits naturally.`;
+If a natural question fits, use this fallback: "${guideQuestion}"`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -586,10 +588,10 @@ function buildAdaptiveProblemContext(
   if (isEarlyStage) {
     return `<problem_context>
 <problem id="${body.problemId}">
-${body.problemTitle ? `**${body.problemTitle}**\n\n` : ""}${clampText(body.problemStatementMd, 8000)}
+${body.problemTitle ? `**${body.problemTitle}**\n\n` : ""}${clampText(body.problemStatementMd, 3000)}
 </problem>
 <constraints>
-${clampText(body.problemConstraintsMd, 4000)}
+${clampText(body.problemConstraintsMd, 1500)}
 </constraints>
 <test_cases>
 ${buildTestCasesString(testCases)}
@@ -600,7 +602,7 @@ ${buildTestCasesString(testCases)}
   return `<problem_context>
 <problem id="${body.problemId}">${body.problemTitle ? ` — ${body.problemTitle}` : ""}</problem>
 <constraints>
-${clampText(body.problemConstraintsMd, 3000)}
+${clampText(body.problemConstraintsMd, 1200)}
 </constraints>
 <test_cases>
 ${buildTestCasesString(testCases.slice(0, 3))}
@@ -614,12 +616,12 @@ function buildUserCodeContext(body: MentorRequest): string {
   context += `Language: ${body.language}\n\n`;
   if (body.userCode) {
     context += "```" + body.language + "\n";
-    context += clampText(body.userCode, 8000);
+    context += clampText(body.userCode, 3000);
     context += "\n```\n";
   }
   if (body.syntaxError) {
     context += "\n**Error**:\n```\n";
-    context += clampText(body.syntaxError, 800);
+    context += clampText(body.syntaxError, 500);
     context += "\n```\n";
   }
   context += "</current_code>";
@@ -680,7 +682,7 @@ function buildConversationHistory(
     context += `<conversation_summary>\n${rollingSummaryMd}\n</conversation_summary>\n\n`;
   }
 
-  const recentCount = rollingSummaryMd ? 4 : 6;
+  const recentCount = rollingSummaryMd ? 3 : 4;
   const clean = sanitizeHistoryForContext(history).slice(-recentCount);
 
   if (clean.length > 0) {
@@ -688,7 +690,7 @@ function buildConversationHistory(
     context += clean
       .map((msg) => {
         const role = msg.role === "user" ? "STUDENT" : "MENTOR";
-        return `[${role}]\n${clampText(msg.content, 800)}`;
+        return `[${role}]\n${clampText(msg.content, 500)}`;
       })
       .join("\n\n");
     context += `\n</recent_exchanges>`;
@@ -716,78 +718,53 @@ function extractAssistantContent(payload: unknown): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// ROLLING SUMMARY
+// INLINE MEMORY PARSING — replaces rewriteRollingSummary AI call
 // ─────────────────────────────────────────────────────────────────────────
 
-async function rewriteRollingSummary(params: {
-  apiKey: string;
-  apiBaseUrl?: string;
-  model: string;
-  previousSummaryMd: string | null;
-  userMessage: string;
-  assistantMessage: string;
-  stage: TeachingStage;
-}): Promise<string> {
-  const prev = (params.previousSummaryMd ?? "").trim();
+const MEM_MARKER = "\n---MENTOR_MEM---\n";
 
-  const system = `You maintain a compact memory for a DSA coding mentor.
+/**
+ * Strips the memory block from the AI response, returns { cleanText, memoryJson }.
+ * The AI is instructed to append JSON at the end. We parse it out here.
+ */
+function parseMentorMemory(text: string): { text: string; memoryJson: string | null } {
+  // Try the exact marker first
+  let idx = text.lastIndexOf(MEM_MARKER);
 
-Output ONLY Markdown bullet points. Max 900 characters.
-
-Track and update:
-- Current teaching stage (EXPLORE/STRATEGIZE/IMPLEMENT/DEBUG/STUCK/REFLECT)
-- What the student understands vs is confused about
-- Their current approach or algorithm hypothesis
-- Key misconceptions (mark clearly)
-- What questions led to breakthroughs
-- Next logical question to ask them
-- Emotional state (frustrated? confident? making progress?)
-
-Return ONLY the updated summary. No preamble.`;
-
-  const user = `Stage: ${params.stage}
-Previous summary:\n${prev || "(none)"}
-
----
-New exchange:
-
-[STUDENT]\n${clampText(params.userMessage, 1000)}
-
-[MENTOR]\n${clampText(params.assistantMessage, 1000)}`;
-
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-  };
-
-  if (params.apiKey !== "ollama") {
-    headers.Authorization = `Bearer ${params.apiKey}`;
+  // Fallback: LLM sometimes wraps it in ```json or ``` blocks
+  if (idx === -1) {
+    const jsonCodeBlock = text.match(/```\s*json\s*\n([\s\S]*?)```/);
+    if (jsonCodeBlock) {
+      const jsonContent = jsonCodeBlock[1].trim();
+      try { JSON.parse(jsonContent); } catch { return { text, memoryJson: null }; }
+      // Remove the code block from visible text
+      return { text: text.replace(jsonCodeBlock[0], "").trim(), memoryJson: jsonContent };
+    }
   }
 
-  const summaryUrl = params.apiBaseUrl
-    ? `${params.apiBaseUrl}/chat/completions`
-    : "https://api.groq.com/openai/v1/chat/completions";
+  // Fallback: try to find a JSON object near the end
+  if (idx === -1) {
+    const lastBrace = text.lastIndexOf("}");
+    if (lastBrace !== -1) {
+      const openBrace = text.lastIndexOf("{", lastBrace);
+      if (openBrace !== -1 && lastBrace - openBrace > 10) {
+        const jsonCandidate = text.slice(openBrace, lastBrace + 1);
+        try { JSON.parse(jsonCandidate); } catch { return { text, memoryJson: null }; }
+        // Only accept if JSON has expected keys
+        const parsed = JSON.parse(jsonCandidate);
+        const hasKeys = ["s", "stage", "w", "d"].some(k => k in parsed);
+        if (hasKeys) {
+          return { text: text.slice(0, openBrace).trim(), memoryJson: jsonCandidate };
+        }
+      }
+    }
+  }
 
-  const { raw } = await llmFetchWithRetry(
-    summaryUrl,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        model: process.env.GROQ_SUMMARY_MODEL || params.model,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-        temperature: 0.2,
-        max_tokens: 350,
-        stream: false,
-      }),
-    },
-    { maxRetries: 2, baseDelayMs: 1500 },
-  );
-
-  const data = raw ? (JSON.parse(raw) as unknown) : null;
-  return extractAssistantContent(data);
+  if (idx === -1) {
+    return { text, memoryJson: null };
+  }
+  const memoryBlock = text.slice(idx + MEM_MARKER.length).trim();
+  return { text: text.slice(0, idx), memoryJson: memoryBlock };
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1015,17 +992,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (decision.type === "CACHE_HIT") {
-      await saveMessage(mentorSession.id, "user", body.userMessage, mentorSession.stage as TeachingStage);
+    if (decision.type === "CACHE_HIT" && decision.quality === "HARD") {
       await saveMessage(mentorSession.id, "assistant", decision.entry.response, mentorSession.stage as TeachingStage);
 
-      // Increment usedCount
       prisma.cacheEntry.update({
         where: { id: decision.entry.id },
         data: { usedCount: { increment: 1 } },
       }).catch(console.warn);
 
-      // Debug log
       logInteraction({
         userId,
         problemId,
@@ -1045,7 +1019,96 @@ export async function POST(req: NextRequest) {
         message: decision.entry.response,
         metadata: {
           stage: mentorSession.stage,
-          type: "cache_hit",
+          type: "cache_hit_hard",
+          similarity: decision.similarity,
+        },
+      });
+    }
+
+    // ── 5b. CACHE HIT — SOFT — refine the best cached answer via AI ──
+    // The cached response looked similar (cosine + bigram), but not enough
+    // to reuse verbatim. Send it to the AI as context so it can adapt it.
+    if (decision.type === "CACHE_HIT" && decision.quality === "SOFT") {
+      // ── resolve API config ──
+      let apiConfig: ApiConfig;
+      try {
+        apiConfig = await resolveApiConfig(userAiSettings);
+      } catch {
+        return Response.json(
+          { error: "No AI provider available. Please configure your API key in Settings or contact support." },
+          { status: 503 },
+        );
+      }
+
+      const verb = inferVerbosityFromText(body.userMessage);
+      const verbosity: Verbosity = (userAiSettings?.verbosity as Verbosity) || "normal";
+
+      const currentRung = existingSummary?.lastRung ?? 1;
+      const refinementRung = detectLearningRung(history, stats, body.userMessage, body.userCode, currentRung);
+
+      const refinedSystemPrompt = `You are a helpful Socratic mentor for DSA.
+A student just asked: "${body.userMessage}"
+
+Someone previously asked a very similar question. Their question was: "${(decision.entry as any).questionText || decision.similarity.toFixed(2)} similar"
+The answer we gave was:
+
+${decision.entry.response.slice(0, 1200)}
+
+Do NOT repeat that answer verbatim. Instead:
+1. Give a fresh, tailored response to the student's exact wording
+2. Keep it Socratic — ask guiding questions, don't give code
+3. Adapt to the current teaching stage: ${mentorSession.stage as string}
+4. Be concise and conversational`;
+
+      const refinementMessages = [
+        { role: "system" as const, content: refinedSystemPrompt },
+        { role: "assistant" as const, content: clampText(
+          history.filter(h => h.role === "assistant").slice(-2).map(h => h.content).join("\n"), 800
+        )},
+        { role: "user" as const, content: body.userMessage },
+      ];
+
+      let refinedMessage: string;
+      try {
+        refinedMessage = await callAIWithKeyRotation(
+          refinementMessages,
+          getAdaptiveTemperature(body, stats),
+          verbosityToModelMaxTokens(verbosity),
+          apiConfig,
+        );
+      } catch {
+        return Response.json(
+          { error: "AI service unavailable — try again in a moment." },
+          { status: 503 },
+        );
+      }
+
+      if (!refinedMessage) {
+        return Response.json({ error: "Empty response from AI service" }, { status: 502 });
+      }
+
+      await saveMessage(mentorSession.id, "assistant", refinedMessage, mentorSession.stage as TeachingStage);
+
+      logInteraction({
+        userId,
+        problemId,
+        userMessage: body.userMessage,
+        decisionType: "CACHE_HIT",
+        responseData: refinedMessage,
+        stage: mentorSession.stage as string,
+        rung: refinementRung,
+        cacheHitData: {
+          similarity: decision.similarity?.toFixed(4) ?? "0",
+          cacheEntryId: decision.entry.id,
+        },
+      });
+
+      return Response.json({
+        ok: true,
+        message: refinedMessage,
+        metadata: {
+          stage: mentorSession.stage,
+          type: "cache_hit_soft",
           similarity: decision.similarity,
         },
       });
@@ -1164,6 +1227,8 @@ Change your approach completely. Try:
 `;
     }
 
+    const existingMem = rollingSummaryMd?.trim() || null;
+
     const systemMessage = buildMentorSystemPrompt(
       stage,
       rung,
@@ -1177,6 +1242,7 @@ Change your approach completely. Try:
       conversationHistory,
       guideQuestion,
       loopAlert,
+      existingMem,
     );
 
     const messages: Array<{
@@ -1184,11 +1250,11 @@ Change your approach completely. Try:
       content: string;
     }> = [{ role: "system", content: systemMessage }];
 
-    const recentTurns = sanitizeHistoryForContext(history).slice(-6);
+    const recentTurns = sanitizeHistoryForContext(history).slice(-4);
     for (const msg of recentTurns) {
       messages.push({
         role: msg.role,
-        content: clampText(msg.content, 1000),
+        content: clampText(msg.content, 600),
       });
     }
 
@@ -1209,17 +1275,36 @@ Change your approach completely. Try:
     } catch (e) {
       console.error("AI API error:", e);
 
-      let errorMessage =
-        "AI service is temporarily unavailable. Please try again in a few seconds.";
+      // Graceful degradation — give a contextual fallback instead of an error
+      const stageTeaching: Record<TeachingStage, string> = {
+        EXPLORE: `Mentors are busy right now! While you wait, try this: explain the problem to yourself in plain English. Pretend you're a rubber duck — read through the problem statement out loud and trace each example. This alone often unlocks the first insight.`,
+        STRATEGIZE: `Mentors are busy — take a step back. Look at the test cases. What pattern do you see in the examples? Try solving them by hand. What steps did you follow? That's your algorithm.`,
+        IMPLEMENT: `Mentors are a bit backed up right now — great time to keep coding! Which specific part is blocking you? Try tracing your code with a failing test case input step by step. Often the bug reveals itself that way.`,
+        DEBUG: `Mentors are busy — keep debugging! Try running your code with the smallest possible input (1-2 elements). What happens? What did you expect? Compare those two — the difference is your bug.`,
+        STUCK: `Mentors are busy so I can't chat right now, but I can give you a hint: forget the code completely. How would you solve this with a pen and paper using 3-4 elements? Write those steps down — that physical procedure is exactly what your algorithm needs to implement.`,
+        REFLECT: `Great job solving! While mentors are busy right now, here's something to think about: why does your approach work? What property of the data are you exploiting? Can you explain it in one sentence? That sentence is the pattern name.`,
+      };
 
-      if (e instanceof Error && e.message.includes("401")) {
-        errorMessage = "Invalid API key. Please check your API key in Settings.";
-      } else if (e instanceof Error && e.message.includes("429")) {
-        errorMessage =
-          "Rate limit exceeded. All API keys are currently busy — please wait a moment or add your own API key in Settings.";
-      }
+      const fallbackMessage = stageTeaching[stage] || `Mentors are busy right now — please try again in a moment.`;
 
-      return Response.json({ error: errorMessage }, { status: 503 });
+      await saveMessage(mentorSession.id, "assistant", fallbackMessage, mentorSession.stage as TeachingStage);
+
+      logInteraction({
+        userId,
+        problemId,
+        userMessage: body.userMessage,
+        decisionType: "STATIC",
+        responseData: fallbackMessage,
+        stage: mentorSession.stage as string,
+        rung,
+        error: e instanceof Error ? e.message.slice(0, 200) : String(e),
+      });
+
+      return Response.json({
+        ok: true,
+        message: fallbackMessage,
+        metadata: { stage, runGated: true, reason: "ai_unavailable" },
+      });
     }
 
     if (!assistantMessage) {
@@ -1311,40 +1396,32 @@ Change your approach completely. Try:
       })
       .catch((e) => console.warn("Failed to save assistant message:", e));
 
-    // ── 13. Update rolling summary ──
-    const newMessageCount = currentMessageCount + 2;
-    const shouldUpdateSummary = newMessageCount % 4 === 0;
+    // ── 13. Parse inline memory from AI response ──
+    const { text: cleanText, memoryJson } = parseMentorMemory(assistantMessage);
+    assistantMessage = cleanText; // strip memory from visible response
 
-    if (shouldUpdateSummary) {
-      rewriteRollingSummary({
-        apiKey: apiConfig.apiKey,
-        apiBaseUrl: apiConfig.apiBaseUrl,
-        model: apiConfig.model,
-        previousSummaryMd: rollingSummaryMd,
-        userMessage: body.userMessage,
-        assistantMessage,
-        stage,
-      })
-        .then((nextSummary) =>
-          prisma.mentorConversationSummary.upsert({
-            where: { userId_problemId: { userId, problemId } },
-            create: {
-              userId,
-              problemId,
-              status: "ONGOING",
-              summaryMd: nextSummary,
-              messageCount: newMessageCount,
-              lastRung: rung,
-            },
-            update: {
-              status: "ONGOING",
-              summaryMd: nextSummary,
-              messageCount: newMessageCount,
-              lastRung: rung,
-            },
-          }),
-        )
-        .catch((e) => console.warn("Failed to update summary:", e));
+    const newMessageCount = currentMessageCount + 2;
+
+    // Save memory — every turn, zero extra AI calls
+    if (memoryJson) {
+      prisma.mentorConversationSummary
+        .upsert({
+          where: { userId_problemId: { userId, problemId } },
+          create: {
+            userId,
+            problemId,
+            status: "ONGOING",
+            summaryMd: memoryJson,
+            messageCount: newMessageCount,
+            lastRung: rung,
+          },
+          update: {
+            summaryMd: memoryJson,
+            messageCount: newMessageCount,
+            lastRung: rung,
+          },
+        })
+        .catch((e) => console.warn("Failed to save memory:", e));
     } else {
       prisma.mentorConversationSummary
         .upsert({

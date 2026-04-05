@@ -1,7 +1,7 @@
 /**
  * OpenRouter Free Models Configuration
- * These models are 100% free to use with unlimited requests
- * Perfect for unlimited usage without any cost concerns
+ * Updated for maximum intelligence — DeepSeek V3 as primary, Gemini Flash as backup.
+ * All models are 100% free (:free suffix = zero cost).
  */
 
 export type FreeModelConfig = {
@@ -15,55 +15,55 @@ export type FreeModelConfig = {
 };
 
 export const FREE_MODELS: Record<string, FreeModelConfig> = {
+  "deepseek/deepseek-chat-v3-0324:free": {
+    id: "deepseek/deepseek-chat-v3-0324:free",
+    name: "DeepSeek Chat V3 (Free)",
+    description: "Top-tier reasoning for coding, math, and DSA — RECOMMENDED DEFAULT",
+    contextLength: 131072,
+    speed: "medium",
+    quality: "excellent",
+    bestFor: "Complex DSA problem-solving and detailed explanations",
+  },
+  "google/gemini-2.0-flash-exp:free": {
+    id: "google/gemini-2.0-flash-exp:free",
+    name: "Google Gemini 2.0 Flash (Free)",
+    description: "Fast, capable model — great backup for when DeepSeek is rate-limited",
+    contextLength: 1048576,
+    speed: "fast",
+    quality: "excellent",
+    bestFor: "Quick responses, fallback when DeepSeek busy",
+  },
+  "meta-llama/llama-3.3-70b-instruct:free": {
+    id: "meta-llama/llama-3.3-70b-instruct:free",
+    name: "Meta Llama 3.3 70B (Free)",
+    description: "Strong general-purpose model with large parameter count",
+    contextLength: 131072,
+    speed: "fast",
+    quality: "excellent",
+    bestFor: "General mentoring and pattern recognition",
+  },
   "nvidia/nemotron-3-nano-30b-a3b:free": {
     id: "nvidia/nemotron-3-nano-30b-a3b:free",
     name: "NVIDIA Nemotron 3 Nano 30B (Free)",
-    description: "Excellent for coding and technical explanations - RECOMMENDED",
+    description: "Lightweight but capable model for faster responses",
     contextLength: 256000,
     speed: "fast",
-    quality: "excellent",
-    bestFor: "All coding problems - best all-around free model",
+    quality: "good",
+    bestFor: "Quick hints and brief responses",
   },
-  "stepfun/step-3.5-flash:free": {
-    id: "stepfun/step-3.5-flash:free",
-    name: "StepFun Step 3.5 Flash (Free)",
-    description: "Fast and capable general-purpose model",
-    contextLength: 256000,
-    speed: "fast",
-    quality: "excellent",
-    bestFor: "Quick responses with good quality",
-  },
-  "upstage/solar-pro-3:free": {
-    id: "upstage/solar-pro-3:free",
-    name: "Upstage Solar Pro 3 (Free)",
-    description: "High-quality responses for complex queries",
-    contextLength: 128000,
+  "qwen/qwen3.5:free": {
+    id: "qwen/qwen3.5:free",
+    name: "Qwen 3.5 (Free)",
+    description: "Strong coding model, especially good at algorithmic problems",
+    contextLength: 131072,
     speed: "medium",
     quality: "excellent",
-    bestFor: "Detailed explanations and problem-solving",
-  },
-  "arcee-ai/trinity-large-preview:free": {
-    id: "arcee-ai/trinity-large-preview:free",
-    name: "Arcee AI Trinity Large (Free)",
-    description: "Large context window for long conversations",
-    contextLength: 131000,
-    speed: "medium",
-    quality: "good",
-    bestFor: "Extended coding sessions",
-  },
-  "nvidia/nemotron-nano-12b-v2-vl:free": {
-    id: "nvidia/nemotron-nano-12b-v2-vl:free",
-    name: "NVIDIA Nemotron Nano 12B VL (Free)",
-    description: "Smaller but efficient model",
-    contextLength: 128000,
-    speed: "fast",
-    quality: "good",
-    bestFor: "Quick hints and brief explanations",
+    bestFor: "Algorithmic problem-solving and code review",
   },
 };
 
-// Default model - NVIDIA Nemotron for best quality and reliability
-export const DEFAULT_FREE_MODEL = "nvidia/nemotron-3-nano-30b-a3b:free";
+// Default model - DeepSeek V3 for best reasoning quality
+export const DEFAULT_FREE_MODEL = "deepseek/deepseek-chat-v3-0324:free";
 
 // Get model configuration by ID
 export function getFreeModelConfig(modelId: string): FreeModelConfig {

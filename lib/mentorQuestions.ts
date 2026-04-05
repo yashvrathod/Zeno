@@ -97,6 +97,11 @@ export type ProblemContext = {
   isTreeProblem: boolean;
   isGraphProblem: boolean;
   isDPHint: boolean;
+  isTwoPointer: boolean;
+  isTwoPointerPalin: boolean;
+  isTwoPointerSlidingWindow: boolean;
+  isTwoPointerOppositeEnds: boolean;
+  isTwoPointerPartition: boolean;
 };
 
 /**

@@ -42,7 +42,7 @@ export function verbosityToModelMaxTokens(verbosity: Verbosity): number {
       return 1200;
     case "normal":
     default:
-      return 700;
+      return 900;
   }
 }
 

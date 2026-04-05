@@ -291,7 +291,7 @@ export function detectLearningRung(
   // Rung 4: IMPLEMENTATION - Has code with errors or wrong answers
   if (hasCode && (hasErrors || hasSubmitted)) return 4;
 
-  // Rung 3: STRATEGY FORMATION - Confident pattern name but no code yet
+  // Rung 3: STRATEGY FORMATION - Confident pattern + concrete approach, no code yet
   const patternKeywords = [
     'two pointer', 'sliding window', 'binary search', 'dynamic programming', 'dp',
     'greedy', 'backtrack', 'dfs', 'bfs', 'hash map', 'hash table', 'heap',
@@ -301,14 +301,16 @@ export function detectLearningRung(
   const uncertainWords = ['think', 'maybe', 'probably', 'might', 'could', 'perhaps', 'not sure'];
   const soundsUncertain = uncertainWords.some((w) => msg.includes(w));
 
-  if (mentionsPattern && !soundsUncertain && !hasCode) return 3;
+  // Rung 3 requires pattern + confidence + some articulation of HOW to apply it
+  const confidentPatternUse = mentionsPattern && !soundsUncertain && msg.length > 40;
+  if (confidentPatternUse && !hasCode) return 3;
 
-  // Rung 2: PATTERN RECOGNITION - Mentions pattern but uncertain
-  if (mentionsPattern && soundsUncertain) return 2;
+  // Rung 2: PATTERN RECOGNITION - Mentions pattern but uncertain, or short/confident pattern mention
+  if (mentionsPattern) return 2;
 
   // Rung 1: PATTERN BLINDNESS - Just started, no approach mentioned
   if (history.length < 2 && !hasCode && !mentionsPattern) return 1;
 
-  // Default: early exploration
-  return history.length < 4 ? 1 : 2;
+  // Default: respect previous rung to maintain continuity, default to early exploration
+  return Math.max(lastKnownRung, 2) as LearningRung;
 }

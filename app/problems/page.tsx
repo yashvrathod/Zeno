@@ -132,63 +132,82 @@ export default function ProblemsPage() {
               </div>
 
               {/* Pattern Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+              <div className={viewMode === 'grid' 
+                ? "grid grid-cols-1 md:grid-cols-2 gap-8" 
+                : "flex flex-col gap-6"
+              }>
                 {filteredPatterns.map((pattern) => (
-                  <div key={pattern.id} className="group flex flex-col bg-[#0d0d10] border border-white/5 rounded-2xl p-8 hover:border-white/10 transition-all duration-500">
-                    <div className="flex justify-between items-start mb-8">
+                  <div key={pattern.id} className="group flex flex-col bg-[#0d0d10] border border-white/5 rounded-2xl p-6 hover:border-white/10 transition-all duration-500">
+                    <div className="flex justify-between items-start mb-6">
                        <span className="text-[10px] font-bold text-zinc-700 tracking-[0.3em] uppercase font-mono">MOD_{pattern.id.slice(-4).toUpperCase()}</span>
                        <div className="w-2 h-2 rounded-full bg-zinc-800 group-hover:bg-purple-500 transition-colors shadow-[0_0_10px_rgba(168,85,247,0)] group-hover:shadow-[0_0_10px_rgba(168,85,247,0.5)]" />
                     </div>
 
-                    <h3 className="text-2xl font-serif italic text-white mb-4 group-hover:text-purple-200 transition-colors">{pattern.name}</h3>
-                    <p className="text-sm text-zinc-500 font-light leading-relaxed mb-10 line-clamp-2">
+                    <h3 className="text-2xl font-serif italic text-white mb-4 group-hover:text-purple-200 transition-colors tracking-tight">{pattern.name}</h3>
+                    <p className="text-base text-zinc-500 font-light leading-relaxed mb-10 line-clamp-2">
                       {pattern.description}
                     </p>
 
                     <div className="mt-auto space-y-8">
                        <div className="pt-8 border-t border-white/5 flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                             <div className="flex flex-col">
-                                <span className="text-[10px] font-bold text-zinc-700 tracking-widest uppercase">Complexity</span>
-                                <span className="text-xs text-zinc-400">Mixed Level</span>
+                          <div className="flex items-center gap-6">
+                             <div className="flex flex-col gap-1">
+                                <span className="text-[10px] font-bold text-zinc-600 tracking-[0.2em] uppercase">Nodes</span>
+                                <span className="text-sm text-zinc-400 font-medium">{pattern.problemCount} <span className="text-zinc-600 font-normal">Challenges</span></span>
                              </div>
-                             <div className="w-px h-6 bg-white/5" />
-                             <div className="flex flex-col">
-                                <span className="text-[10px] font-bold text-zinc-700 tracking-widest uppercase">Nodes</span>
-                                <span className="text-xs text-zinc-400">{pattern.problemCount} Problems</span>
+                             <div className="w-px h-8 bg-white/5" />
+                             <div className="flex flex-col gap-1">
+                                <span className="text-[10px] font-bold text-zinc-600 tracking-[0.2em] uppercase">Progress</span>
+                                <div className="flex items-center gap-3">
+                                  <div className="w-16 h-1 bg-white/5 rounded-full overflow-hidden">
+                                    <div className="h-full bg-purple-500/40 w-[0%] shadow-[0_0_10px_rgba(168,85,247,0.3)]" />
+                                  </div>
+                                  <span className="text-[10px] text-zinc-500 font-mono">0%</span>
+                                </div>
                              </div>
                           </div>
                           
                           <button 
                            onClick={() => setExpandedPattern(expandedPattern === pattern.id ? null : pattern.id)}
-                           className="flex items-center gap-2 text-[10px] font-bold tracking-widest text-zinc-500 hover:text-white transition-colors uppercase"
+                           className="flex items-center gap-2 text-[10px] font-bold tracking-[0.3em] text-zinc-500 hover:text-white transition-all uppercase group/btn"
                           >
-                            {expandedPattern === pattern.id ? 'Hide Nodes' : 'Show Nodes'}
-                            <ArrowRight size={14} className={`transition-transform duration-300 ${expandedPattern === pattern.id ? '-rotate-90' : 'group-hover:translate-x-1'}`} />
+                            {expandedPattern === pattern.id ? 'Hide Path' : 'Explore Path'}
+                            <ArrowRight size={14} className={`transition-transform duration-500 ${expandedPattern === pattern.id ? '-rotate-90' : 'group-hover/btn:translate-x-1'}`} />
                           </button>
                        </div>
 
                        {/* Expanded Problem List */}
-                       <div className={`space-y-2 transition-all duration-500 overflow-hidden ${expandedPattern === pattern.id ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                          <div className="grid grid-cols-1 gap-1 pb-4">
-                             {pattern.problems.map((problem) => (
-                               <Link 
-                                 key={problem.id}
-                                 href={`/problems/${problem.leetcodeId}`}
-                                 className="flex items-center justify-between py-3 px-4 rounded-xl hover:bg-white/[0.03] border border-transparent hover:border-white/5 transition-all group/item"
-                               >
-                                 <div className="flex items-center gap-3">
-                                    <div className="w-1 h-1 rounded-full bg-zinc-800 group-hover/item:bg-purple-500 transition-colors" />
-                                    <span className="text-sm text-zinc-400 group-hover/item:text-white transition-colors font-light">{problem.title}</span>
-                                 </div>
-                                 <span className={`text-[9px] font-bold uppercase tracking-widest ${
-                                   problem.difficulty === 'EASY' ? 'text-emerald-500/50' : 
-                                   problem.difficulty === 'MEDIUM' ? 'text-amber-500/50' : 'text-rose-500/50'
-                                 }`}>
-                                   {problem.difficulty}
-                                 </span>
-                               </Link>
-                             ))}
+                       <div className={`transition-all duration-700 ease-in-out overflow-hidden ${expandedPattern === pattern.id ? 'max-h-[1200px] opacity-100 mt-6' : 'max-h-0 opacity-0'}`}>
+                          <div className="space-y-1.5 pb-6 pr-3 custom-scrollbar overflow-y-auto max-h-[700px]">
+                             {pattern.problems.length > 0 ? (
+                               pattern.problems.map((problem) => (
+                                 <Link 
+                                   key={problem.id}
+                                   href={`/problems/${problem.id}`}
+                                   className="flex items-center justify-between py-3.5 px-5 rounded-2xl bg-white/[0.01] hover:bg-white/[0.04] border border-white/[0.02] hover:border-white/10 transition-all duration-300 group/item"
+                                 >
+                                   <div className="flex items-center gap-4">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-zinc-800 group-hover/item:bg-purple-500 transition-colors shadow-[0_0_8px_rgba(168,85,247,0)] group-hover/item:shadow-[0_0_8px_rgba(168,85,247,0.5)]" />
+                                      <span className="text-[15px] text-zinc-400 group-hover/item:text-white transition-colors font-light tracking-wide truncate max-w-[220px] md:max-w-md">{problem.title}</span>
+                                   </div>
+                                   <div className="flex items-center gap-5">
+                                     <span className={`text-[10px] font-bold uppercase tracking-[0.2em] px-2 py-0.5 rounded-full bg-white/5 border border-white/5 ${
+                                       problem.difficulty === 'EASY' ? 'text-emerald-400/70' : 
+                                       problem.difficulty === 'MEDIUM' ? 'text-amber-400/70' : 'text-rose-400/70'
+                                     }`}>
+                                       {problem.difficulty}
+                                     </span>
+                                     <div className="w-5 h-5 rounded-full border border-white/10 flex items-center justify-center group-hover/item:border-purple-500/30 transition-colors">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-white/10 group-hover/item:bg-purple-500/50 transition-colors" />
+                                     </div>
+                                   </div>
+                                 </Link>
+                               ))
+                             ) : (
+                               <div className="py-12 text-center border border-dashed border-white/5 rounded-3xl bg-white/[0.01]">
+                                  <span className="text-sm text-zinc-600 font-light italic tracking-widest uppercase">Nodes currently being architecture...</span>
+                               </div>
+                             )}
                           </div>
                        </div>
                     </div>

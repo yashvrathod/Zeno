@@ -700,7 +700,7 @@ function sleep(ms: number): Promise<void> {
  * We use it as a fallback when Groq rate limits are hit.
  *
  * FREE MODELS AVAILABLE:
- * - nvidia/nemotron-3-nano-30b-a3b:free
+ * - deepseek/deepseek-chat-v3-0324:free
  * - meta-llama/llama-3-8b-instruct:free
  * - google/gemma-2-9b-it:free
  *
@@ -768,7 +768,7 @@ export async function streamOpenRouterCompletion(
     temperature?: number;
   }
 ): Promise<ReadableStream> {
-  const model = options?.model || "nvidia/nemotron-3-nano-30b-a3b:free";
+  const model = options?.model || "deepseek/deepseek-chat-v3-0324:free";
   const temperature = options?.temperature ?? 0.6;
 
   const client = await getOpenRouterClient();
