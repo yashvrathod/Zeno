@@ -1,10 +1,16 @@
+// Enable pgvector extension for vector similarity search
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
   provider = "postgresql"
 }
+
+// Add pgvector extension to the database
+// Run: npx prisma migrate dev --create-only --name add_pgvector
+// Then add to migration SQL: CREATE EXTENSION IF NOT EXISTS vector;
 
 model User {
   id                 String             @id @default(cuid())
@@ -381,7 +387,8 @@ model CacheEntry {
   problemId    String
   questionMd5  String
   questionText String    @default("")
-  embedding    Json
+  embedding    Json      // Kept for backwards compatibility during migration
+  embeddingVector Bytes? // pgvector binary format for fast similarity search
   response     String
   stage        String
   rung         Int
@@ -393,6 +400,7 @@ model CacheEntry {
   @@unique([problemId, questionMd5])
   @@index([problemId])
   @@index([usedCount])
+  @@index([embeddingVector])
 }
 
 model MentorSession {

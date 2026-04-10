@@ -46,11 +46,19 @@ export type MentorRequest = {
   animationData?: string | null;
 };
 
+export type ArchitectReviewData = {
+  score: number;
+  grade: "A" | "B" | "C" | "D" | "F";
+  feedback: string;
+};
+
 export type MentorResponse = {
   ok: boolean;
   message?: string;
   error?: string;
   animation?: object | null;
+  architectReview?: ArchitectReviewData | null;
+  visualization?: object | null;
   metadata?: Record<string, unknown>;
 };
 
@@ -204,9 +212,9 @@ export async function execute(params: {
   }
 
   // ──────────────────────────────────────────────────────────────────────────
-  // CACHE HIT — HARD
+  // CACHE HIT — HARD (exact match, similarity = 1.0)
   // ──────────────────────────────────────────────────────────────────────────
-  if (decision.type === "CACHE_HIT" && decision.quality === "HARD") {
+  if (decision.type === "CACHE_HIT" && decision.similarity === 1.0) {
     await saveMessage(
       mentorSession.id,
       "assistant",
@@ -246,9 +254,9 @@ export async function execute(params: {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // CACHE HIT — SOFT (refine via AI)
+  // CACHE HIT — SOFT (semantic match, needs refinement via AI)
   // ───────────────────────────────────────────────────────────────────────────
-  if (decision.type === "CACHE_HIT" && decision.quality === "SOFT") {
+  if (decision.type === "CACHE_HIT" && decision.similarity >= 0.6 && decision.similarity < 1.0) {
     return handleSoftCacheHit({
       body,
       userId,

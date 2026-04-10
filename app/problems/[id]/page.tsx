@@ -24,6 +24,8 @@ import Link from 'next/link';
 import Editor from '@monaco-editor/react';
 import { Markdown } from '@/components/Markdown';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { BottomSheetChat } from '@/components/BottomSheetChat';
+import { VisualizationRenderer, AnimatedVisualization } from '@/components/VisualizationRenderer';
 import Sidebar from '@/components/Sidebar';
 
 type Problem = {
@@ -92,9 +94,9 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [output, setOutput] = useState<string>('');
   const [showLangDropdown, setShowLangDropdown] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [currentVisualization, setCurrentVisualization] = useState<{type: string; data: unknown} | null>(null);
   const langDropdownRef = useRef<HTMLDivElement>(null);
-  
-  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch(`/api/problems/${problemId}`)
@@ -118,11 +120,18 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
     }
   }, [problemId, session]);
 
-  useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+  // Handle visualization from AI response
+  const handleMentorResponse = (data: any) => {
+    if (data.visualization) {
+      setCurrentVisualization(data.visualization);
     }
-  }, [messages, isMentorLoading, activeLeftTab]);
+    if (data.architectReview) {
+      setMessages(prev => [...prev, {
+        role: 'assistant' as const,
+        content: `**Code Review: Grade ${data.architectReview.grade} (${data.architectReview.score}/100)**\n\n${data.architectReview.feedback}`,
+      }]);
+    }
+  };
 
   // Click outside to close language dropdown
   useEffect(() => {
@@ -296,7 +305,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
                </button>
             </div>
 
-            <div ref={chatContainerRef} className="flex-1 overflow-y-auto px-16 py-12 scrollbar-hide">
+            <div className="flex-1 overflow-y-auto px-16 py-12 scrollbar-hide">
               {activeLeftTab === 'problem' ? (
                 <div className="space-y-8 max-w-xl animate-in fade-in duration-500">
                   <div className="flex items-center gap-3 mb-8">
@@ -326,76 +335,66 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
                       </div>
                     </div>
                   )}
+
+                  {/* Visualization Section */}
+                  {currentVisualization && (
+                    <div className="mt-8 pt-8 border-t border-white/5">
+                      <h3 className="text-[10px] font-bold text-purple-400 uppercase tracking-widest mb-4">
+                        Algorithm Visualization
+                      </h3>
+                      <VisualizationRenderer
+                        type={currentVisualization.type}
+                        data={currentVisualization.data}
+                      />
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div className="space-y-12 max-w-xl animate-in fade-in duration-500">
-                   {messages.length === 0 ? (
-                      <div className="space-y-8">
-                        <div className="p-8 bg-[#0d0d10] border-l-2 border-purple-500/30 italic text-zinc-300 font-light text-lg">
-                          "Use the chat below if you get stuck or need a hint to move forward."
+                <div className="space-y-8 max-w-xl animate-in fade-in duration-500">
+                  <div className="flex items-center gap-3 mb-8">
+                    <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/30">
+                      <Sparkles size={14} className="text-purple-400" />
+                    </div>
+                    <span className="text-[10px] font-bold tracking-[0.3em] text-purple-400 uppercase">AI MENTOR</span>
+                  </div>
+
+                  <div className="p-8 bg-[#0d0d10] border-l-2 border-purple-500/30 italic text-zinc-300 font-light text-lg">
+                    "Click the AI button in the bottom right to open the mentor chat. I'll guide you without giving away the answer."
+                  </div>
+
+                  {messages.length > 0 && (
+                    <div className="space-y-4">
+                      <p className="text-[12px] text-zinc-500 uppercase tracking-wider">Recent Messages</p>
+                      {messages.slice(-3).map((msg, idx) => (
+                        <div
+                          key={idx}
+                          className={`p-4 rounded-lg text-[13px] ${
+                            msg.role === 'user'
+                              ? 'bg-purple-500/10 border border-purple-500/20 text-zinc-300'
+                              : 'bg-[#111114] border border-white/5 text-zinc-400'
+                          }`}
+                        >
+                          <span className="text-[10px] font-bold text-zinc-600 uppercase block mb-1">
+                            {msg.role === 'user' ? 'You' : 'AI'}
+                          </span>
+                          <div className="line-clamp-2">
+                            <Markdown md={msg.content.length > 100 ? msg.content.slice(0, 100) + '...' : msg.content} />
+                          </div>
                         </div>
-                      </div>
-                   ) : (
-                     <div className="space-y-10 pb-12">
-                        {messages.map((msg, idx) => (
-                          <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} gap-3 animate-in fade-in slide-in-from-bottom-2 duration-500`}>
-                             <div className={`text-[10px] font-bold tracking-widest uppercase ${msg.role === 'user' ? 'text-zinc-600' : 'text-purple-400'}`}>
-                                {msg.role === 'user' ? 'GUEST_EXPLORER' : 'AI_MENTOR'}
-                             </div>
-                             <div className={`max-w-[90%] p-6 rounded-2xl text-[16px] font-light leading-relaxed ${
-                               msg.role === 'user' 
-                                 ? 'bg-white/5 border border-white/5 text-white' 
-                                 : 'bg-[#0d0d10] border border-white/5 text-zinc-300'
-                             }`}>
-                               <Markdown md={msg.content} />
-                             </div>
-                          </div>
-                        ))}
-                        {isMentorLoading && (
-                          <div className="flex gap-2 p-4 bg-white/5 rounded-xl border border-white/5 animate-pulse">
-                            <div className="w-1 h-1 bg-purple-500 rounded-full" />
-                            <div className="w-1 h-1 bg-purple-500 rounded-full" />
-                            <div className="w-1 h-1 bg-purple-500 rounded-full" />
-                          </div>
-                        )}
-                     </div>
-                   )}
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* AI Interaction Footer */}
-            <div className="p-8 border-t border-white/5 bg-[#0a0a0c]">
-               <div className="relative group">
-                  <input 
-                    type="text"
-                    placeholder="Ask a question or get a hint..."
-                    className="w-full bg-[#111114] border border-white/5 rounded-2xl py-6 px-8 text-white placeholder:text-zinc-700 outline-none focus:border-purple-500/20 transition-all pr-20 text-lg font-light"
-                    value={mentorInput}
-                    onChange={(e) => setMentorInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void sendMentorMessage(mentorInput);
-                    }}
-                  />
-                  <button 
-                    onClick={() => void sendMentorMessage(mentorInput)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-12 h-12 bg-purple-200/90 text-black rounded-xl flex items-center justify-center hover:bg-white transition-all shadow-xl active:scale-95"
-                  >
-                    <ArrowUpRight size={24} />
-                  </button>
-               </div>
-               
-               <div className="mt-6 flex items-center gap-8 text-[10px] font-bold tracking-widest text-zinc-600 uppercase">
-                  <button className="flex items-center gap-2 hover:text-white transition-colors">
-                    <Paperclip size={12} />
-                    ATTACH FILE
-                  </button>
-                  <button className="flex items-center gap-2 hover:text-white transition-colors">
-                    <History size={12} />
-                    CHAT HISTORY
-                  </button>
-               </div>
-            </div>
+            {/* AI Mentor Floating Button */}
+            <button
+              onClick={() => setIsChatOpen(true)}
+              className="absolute bottom-8 right-8 w-14 h-14 bg-purple-500 rounded-full flex items-center justify-center shadow-lg shadow-purple-500/30 hover:scale-110 transition-all z-30"
+            >
+              <Sparkles size={24} className="text-white" />
+            </button>
           </div>
 
           {/* Right Panel: Code Workspace */}
@@ -647,6 +646,57 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
 
         </main>
       </div>
+
+      {/* Bottom Sheet AI Chat with Blur Backdrop */}
+      <BottomSheetChat
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        messages={messages}
+        input={mentorInput}
+        onInputChange={setMentorInput}
+        onSend={async () => {
+          if (!mentorInput.trim()) return;
+          const newMessages = [...messages, { role: 'user' as const, content: mentorInput }];
+          setMessages(newMessages);
+          setMentorInput('');
+          setIsMentorLoading(true);
+
+          try {
+            const res = await fetch('/api/mentor', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                problemId,
+                language,
+                userMessage: mentorInput,
+                history: newMessages,
+                userCode: code,
+                problemTitle: dbProblem?.title,
+                problemStatementMd: dbProblem?.statementMd,
+                problemConstraintsMd: dbProblem?.constraintsMd,
+              }),
+            });
+
+            if (!res.ok) {
+              const errData = await res.json();
+              setMessages([...newMessages, { role: 'assistant' as const, content: errData.error ?? 'Something went wrong.' }]);
+              return;
+            }
+
+            const data = await res.json();
+            setMessages([...newMessages, { role: 'assistant' as const, content: data.message }]);
+
+            // Handle visualization and architect review
+            handleMentorResponse(data);
+          } catch (err) {
+            setMessages([...newMessages, { role: 'assistant' as const, content: 'Network error. Please try again.' }]);
+          } finally {
+            setIsMentorLoading(false);
+          }
+        }}
+        isLoading={isMentorLoading}
+        blurBackdrop={true}
+      />
     </div>
   );
 }

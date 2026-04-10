@@ -1,24 +1,7 @@
  ---
   Critical Issues (Fix First)
 
-  1. /api/mentor/route.ts — 1562 lines of God-function
-
-  This is the worst file in the codebase. A single POST handler that does auth, rate limiting, routing, API config      
-  resolution, context building, AI calling, output sanitization, cache management, stage advancement, memory parsing,   
-  animation triggering, and background persistence. Google's code review would reject this immediately for being an     
-  unmaintainable monolith.
-
-  Fix: Split into a service layer with clear boundaries:
-  lib/mentor/services/
-    ├── sessionService.ts     → session creation, message saving
-    ├── aiOrchestrator.ts     → API config resolution, LLM calls, retry logic
-    ├── responseGuardrails.ts → sanitization, solution detection
-    ├── contextBuilder.ts     → all the build*Context functions
-    └── stageOrchestrator.ts  → stage advancement logic
-
-  app/api/mentor/route.ts     → thin HTTP handler (~60 lines)
-  The route handler should read like a flowchart: validate → route → respond. Each step delegates to a service.
-
+  
   2. Embedded LLM calls in route handlers
 
   /api/mentor/route.ts makes raw fetch() calls to LLM APIs inside the HTTP handler. This couples the transport layer    

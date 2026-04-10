@@ -11,9 +11,11 @@
  */
 
 import prisma from "@/lib/prisma";
-import { TeachingStage, LearningRung } from "@/lib/mentorContext";
+import { TeachingStage } from "@/lib/mentorContext";
+import { LearningRung } from "@/types/mentor";
 import { debug, startTimer } from "@/lib/debug";
-import { getEmbedding, cosineSimilarity, bigramJaccard } from "@/lib/embeddings";
+import { getEmbedding, cosineSimilarity } from "@/lib/embeddings";
+import { searchSimilarCachedResponses, isPgvectorAvailable, saveCacheEntryWithVector } from "@/lib/pgvector";
 
 // ─────────────────────────────────────────────
 // TYPES
@@ -22,15 +24,13 @@ import { getEmbedding, cosineSimilarity, bigramJaccard } from "@/lib/embeddings"
 export type RouteDecision =
   | {
       type: "STATIC";
-      handler: "breakdown" | "stage_gate";
+      handler: "breakdown" | "already_answered" | "stage_gate";
       reason?: string;
     }
   | {
       type: "CACHE_HIT";
-      quality: "HARD" | "SOFT";
       entry: CacheEntry;
       similarity: number;
-      keywordOverlap: number;
     }
   | {
       type: "AI_NEEDED";
@@ -41,7 +41,6 @@ export type CacheEntry = {
   id: string;
   problemId: string;
   questionMd5: string;
-  questionText: string;
   embedding: number[];
   response: string;
   stage: string;
@@ -77,29 +76,8 @@ export type ProblemMeta = {
 // CONSTANTS
 // ─────────────────────────────────────────────
 
-// ═══════════════════════════════════════════════════════════════
-// HYBRID MATCHING THRESHOLDS
-// ═══════════════════════════════════════════════════════════════
-//
-// Single cosine similarity threshold produces false positives:
-// two different questions about different algorithms can have 0.7
-// cosine similarity but zero lexical overlap.
-//
-// Defense-in-depth: require BOTH semantic similarity AND lexical
-// overlap to agree. This is how search systems work in production.
-//
-// HARD_HIT  — near-certain the same question → reuse response directly
-// SOFT_HIT  — potentially the same question → response needs AI refinement
-// AI_NEEDED — different question → generate fresh
-//
-// These thresholds were chosen after analyzing the embedding space:
-// - all-MiniLM-L6-v2 cosine similarity typically clusters same-intent
-//   questions > 0.82, different-intent 0.55-0.72
-// - Bigram Jaccard for same intent > 0.2 for short text
-
-const HARD_HIT = { minCosine: 0.82, minBigram: 0.20 };
-const SOFT_HIT = { minCosine: 0.75, minBigram: 0.15 };
-
+// Threshold matching debug embedding behavior
+const CACHE_HIT_THRESHOLD_DB = 0.6;
 
 // Patterns that indicate user is trying to skip stages
 const SOLUTION_REQUEST_PATTERNS = [
@@ -158,6 +136,36 @@ export async function computeEmbedding(text: string): Promise<number[]> {
 }
 
 /**
+ * Checks if two strings are near-duplicates (simple heuristic)
+ */
+function isNearDuplicate(a: string, b: string): boolean {
+  const normalize = (s: string) => s.toLowerCase().trim().replace(/\s+/g, " ");
+  const normA = normalize(a);
+  const normB = normalize(b);
+
+  // Exact match after normalization
+  if (normA === normB) return true;
+
+  // Containment check — only for meaningfully long strings
+  if (normA.length > 40 && normB.includes(normA)) return true;
+  if (normB.length > 40 && normA.includes(normB)) return true;
+
+  // Word overlap — only for questions long enough to have meaningful vocabulary
+  // Short questions like "how?" or "hint please" share too many stop words
+  const wordsA = normA.split(" ").filter(w => w.length > 3);
+  const wordsB = normB.split(" ").filter(w => w.length > 3);
+
+  if (wordsA.length < 3 || wordsB.length < 3) return false;
+
+  const setA = new Set(wordsA);
+  const setB = new Set(wordsB);
+  const overlap = [...setA].filter(w => setB.has(w)).length;
+  const total = Math.max(setA.size, setB.size);
+
+  return total > 0 && overlap / total > 0.85;
+}
+
+/**
  * Detects if user is trying to skip stages (ask for solution directly)
  */
 function isStageSkipAttempt(input: string): boolean {
@@ -186,7 +194,15 @@ function isStageSkipAttempt(input: string): boolean {
  * └─────────────────────────────────────────────────────────────────┘
  *                              ↓
  * ┌─────────────────────────────────────────────────────────────────┐
- * │ STEP 2: STATIC - Is user trying to skip stages?                 │
+ * │ STEP 2: STATIC - Has this question been asked before?           │
+ * │         → YES: Return "already_answered" handler                │
+ * │         → NO: Continue to STEP 3                                │
+ * │         WHY: No value in re-answering the same question.        │
+ * │              Use near-duplicate detection (80% word overlap).   │
+ * └─────────────────────────────────────────────────────────────────┘
+ *                              ↓
+ * ┌─────────────────────────────────────────────────────────────────┐
+ * │ STEP 3: STATIC - Is user trying to skip stages?                 │
  * │         → YES: Return "stage_gate" handler                      │
  * │         → NO: Continue to STEP 4                                │
  * │         WHY: Never give solutions directly. Make them think.    │
@@ -248,7 +264,25 @@ export async function routeInteraction(
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // STEP 2: STATIC CHECK - Stage Gate Detection
+  // STEP 2: STATIC CHECK - Duplicate Question Detection
+  // ═══════════════════════════════════════════════════════════════
+  // Check if user has already asked this exact (or near-duplicate) question
+  // in the current session. No value in answering twice.
+  const userMessages = session.messages.filter((m) => m.role === "user");
+  for (const prevMsg of userMessages) {
+    if (isNearDuplicate(input, prevMsg.content)) {
+      debug.mentor("Duplicate question detected", { inputLength: input.length });
+      timer();
+      return {
+        type: "STATIC",
+        handler: "already_answered",
+        reason: "User has already asked this question in this session"
+      };
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // STEP 3: STATIC CHECK - Stage Gate Detection
   // ═══════════════════════════════════════════════════════════════
   // Detect if user is trying to bypass the learning process by asking
   // for the solution directly. We gently redirect them instead.
@@ -289,110 +323,157 @@ export async function routeInteraction(
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // STEP 5: CACHE LOOKUP - Hybrid Semantic + Lexical Matching
+  // STEP 5: CACHE LOOKUP - Database Search (pgvector-powered)
   // ═══════════════════════════════════════════════════════════════
-  // Search the CacheEntry table using a two-signal approach:
-  //   1. Cosine similarity (semantic meaning via embeddings)
-  //   2. Bigram Jaccard overlap (lexical similarity)
-  //
-  // Both must agree to accept a hit. This prevents false positives
-  // where different questions have similar embeddings.
-  //
-  // IMPORTANT: Filter by current stage to prevent cross-stage leaks.
+  // Search the CacheEntry table for previously answered questions
+  // that are semantically similar to this one.
+  // Uses pgvector for 10ms similarity search when available.
   try {
-    const cachedEntries = await prisma.cacheEntry.findMany({
+    // First check for exact MD5 match
+    const exactMatch = await prisma.cacheEntry.findFirst({
       where: {
         problemId: session.problemId,
-        stage: session.stage,
+        questionMd5: questionMd5,
       },
-      orderBy: {
-        updatedAt: "desc",
-      },
-      take: 50,
     });
 
-    debug.cache("Cache search", { count: cachedEntries.length });
+    if (exactMatch) {
+      debug.cache("CACHE HIT — exact MD5 match");
+      prisma.cacheEntry.update({
+        where: { id: exactMatch.id },
+        data: { usedCount: { increment: 1 } },
+      }).catch(console.warn);
+      timer();
+      return {
+        type: "CACHE_HIT",
+        entry: exactMatch as unknown as CacheEntry,
+        similarity: 1.0,
+      };
+    }
 
-    // Track the best hard and soft matches independently
-    let hardMatch: { entry: CacheEntry; similarity: number; overlap: number } | null = null;
-    let softMatch: { entry: CacheEntry; similarity: number; overlap: number } | null = null;
-
+    // Try pgvector similarity search if available
     if (embedding) {
-      for (const entry of cachedEntries) {
-        const cachedEmbedding = Array.isArray(entry.embedding)
-          ? entry.embedding.map(Number)
-          : [];
+      const pgvectorAvailable = await isPgvectorAvailable();
 
-        if (cachedEmbedding.length === 0) continue;
+      if (pgvectorAvailable) {
+        // Fast pgvector search (~10ms)
+        const vectorResults = await searchSimilarCachedResponses(
+          session.problemId,
+          embedding,
+          CACHE_HIT_THRESHOLD_DB,
+          5
+        );
 
-        const similarity = cosineSimilarity(embedding, cachedEmbedding);
+        if (vectorResults.length > 0) {
+          const bestMatch = vectorResults[0]!;
+          debug.cache("CACHE HIT — pgvector semantic", { score: bestMatch.similarity.toFixed(4) });
 
-        // EXACT MD5 MATCH → hard hit, skip all other checks
-        if (entry.questionMd5 === questionMd5) {
-          debug.cache("CACHE HIT — exact MD5 match");
+          prisma.cacheEntry.update({
+            where: { id: bestMatch.id },
+            data: { usedCount: { increment: 1 }, similarity: bestMatch.similarity },
+          }).catch(console.warn);
+
           timer();
           return {
             type: "CACHE_HIT",
-            quality: "HARD",
-            entry: entry as unknown as CacheEntry,
-            similarity: 1.0,
-            keywordOverlap: 1.0,
+            entry: {
+              id: bestMatch.id,
+              problemId: session.problemId,
+              questionMd5: "", // Not needed for response
+              questionText: bestMatch.questionText,
+              embedding: [],
+              response: bestMatch.response,
+              stage: bestMatch.stage,
+              rung: bestMatch.rung,
+              usedCount: bestMatch.usedCount,
+              similarity: bestMatch.similarity,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            } as unknown as CacheEntry,
+            similarity: bestMatch.similarity,
           };
         }
+      } else {
+        // Fallback: In-memory similarity (slower but works without pgvector)
+        debug.cache("pgvector not available, using in-memory similarity");
 
-        // Compute bigram Jaccard overlap from the stored question text
-        const questionText = (entry as any).questionText ?? "";
-        const overlap = questionText ? bigramJaccard(input, questionText) : 0;
+        const cachedEntries = await prisma.cacheEntry.findMany({
+          where: { problemId: session.problemId },
+          orderBy: { usedCount: "desc" },
+          take: 50,
+        });
 
-        // Evaluate tiered thresholds: both signals must pass
-        if (similarity >= HARD_HIT.minCosine && overlap >= HARD_HIT.minBigram) {
-          if (!hardMatch || similarity > hardMatch.similarity) {
-            hardMatch = { entry: entry as unknown as CacheEntry, similarity, overlap };
+        let bestMatch: { entry: typeof cachedEntries[0]; similarity: number } | null = null;
+
+        for (const entry of cachedEntries) {
+          const cachedEmbedding = Array.isArray(entry.embedding)
+            ? entry.embedding.map(Number)
+            : [];
+          if (cachedEmbedding.length === 0) continue;
+
+          const similarity = cosineSimilarity(embedding, cachedEmbedding);
+
+          if (similarity > CACHE_HIT_THRESHOLD_DB) {
+            if (!bestMatch || similarity > bestMatch.similarity) {
+              bestMatch = { entry, similarity };
+            }
           }
         }
 
-        if (similarity >= SOFT_HIT.minCosine && overlap >= SOFT_HIT.minBigram) {
-          if (!softMatch || similarity > softMatch.similarity) {
-            softMatch = { entry: entry as unknown as CacheEntry, similarity, overlap };
-          }
+        if (bestMatch && bestMatch.similarity >= CACHE_HIT_THRESHOLD_DB) {
+          prisma.cacheEntry.update({
+            where: { id: bestMatch.entry.id },
+            data: { usedCount: { increment: 1 }, similarity: bestMatch.similarity },
+          }).catch(console.warn);
+
+          debug.cache("CACHE HIT — semantic (in-memory)", { score: bestMatch.similarity.toFixed(4) });
+          timer();
+          return {
+            type: "CACHE_HIT",
+            entry: bestMatch.entry as unknown as CacheEntry,
+            similarity: bestMatch.similarity,
+          };
+        }
+      }
+    }
+
+    // ── KEYWORD FALLBACK ──
+    // When embeddings fail or no semantic match found, do keyword overlap
+    const inputWords = new Set(
+      input.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+    );
+    if (inputWords.size > 0) {
+      const cachedEntries = await prisma.cacheEntry.findMany({
+        where: { problemId: session.problemId },
+        take: 50,
+      });
+
+      let bestKeyword: { entry: typeof cachedEntries[0]; score: number } | null = null;
+
+      for (const entry of cachedEntries) {
+        const responseWords = new Set(
+          entry.response.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+        );
+        const overlap = [...inputWords].filter(w => responseWords.has(w)).length;
+        const score = overlap / Math.max(inputWords.size, 1);
+
+        if (score >= 0.4 && (!bestKeyword || score > bestKeyword.score)) {
+          bestKeyword = { entry, score };
         }
       }
 
-      // Return hard match if found (highest confidence)
-      if (hardMatch) {
-        const { entry, similarity, overlap } = hardMatch;
-        debug.cache("CACHE HIT — hard", { score: similarity.toFixed(4), overlap: overlap.toFixed(4) });
+      if (bestKeyword) {
         prisma.cacheEntry.update({
-          where: { id: entry.id },
-          data: { usedCount: { increment: 1 }, similarity },
+          where: { id: bestKeyword.entry.id },
+          data: { usedCount: { increment: 1 } },
         }).catch(console.warn);
 
+        debug.cache("CACHE HIT — keyword fallback", { score: bestKeyword.score.toFixed(2) });
         timer();
         return {
           type: "CACHE_HIT",
-          quality: "HARD",
-          entry,
-          similarity,
-          keywordOverlap: overlap,
-        };
-      }
-
-      // Return soft match (needs refinement — signal this to caller)
-      if (softMatch) {
-        const { entry, similarity, overlap } = softMatch;
-        debug.cache("CACHE HIT — soft", { score: similarity.toFixed(4), overlap: overlap.toFixed(4) });
-        prisma.cacheEntry.update({
-          where: { id: entry.id },
-          data: { usedCount: { increment: 1 }, similarity },
-        }).catch(console.warn);
-
-        timer();
-        return {
-          type: "CACHE_HIT",
-          quality: "SOFT",
-          entry,
-          similarity,
-          keywordOverlap: overlap,
+          entry: bestKeyword.entry as unknown as CacheEntry,
+          similarity: bestKeyword.score,
         };
       }
     }
@@ -422,6 +503,7 @@ export async function routeInteraction(
 
 /**
  * Saves a response to the cache for future lookups
+ * Uses pgvector when available for faster similarity search
  */
 export async function saveToCache(params: {
   problemId: string;
@@ -433,13 +515,46 @@ export async function saveToCache(params: {
 }): Promise<CacheEntry> {
   const { problemId, question, response, stage, rung } = params;
 
-  debug.cache("Saving to cache", { questionMd5: question.slice(0, 50), stage });
-
   const embedding = params.embedding ?? await computeEmbedding(question);
   const questionMd5 = await md5Hash(question);
 
-  debug.cache("Embedding computed for cache save");
+  // Check if pgvector is available
+  const pgvectorAvailable = await isPgvectorAvailable();
 
+  if (pgvectorAvailable) {
+    // Use pgvector for both JSON and binary vector storage
+    try {
+      await saveCacheEntryWithVector({
+        problemId,
+        questionMd5,
+        questionText: question,
+        embedding,
+        response,
+        stage: stage as string,
+        rung: rung as number,
+      });
+
+      // Return a cache entry object
+      return {
+        id: "", // Will be generated by DB
+        problemId,
+        questionMd5,
+        questionText: question,
+        embedding: embedding as unknown as any,
+        response,
+        stage: stage as string,
+        rung: rung as number,
+        usedCount: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as unknown as CacheEntry;
+    } catch (error) {
+      console.warn("pgvector save failed, falling back to regular save:", error);
+      // Fall through to regular Prisma upsert
+    }
+  }
+
+  // Regular Prisma upsert (fallback or when pgvector unavailable)
   const entry = await prisma.cacheEntry.upsert({
     where: {
       problemId_questionMd5: {
@@ -450,6 +565,7 @@ export async function saveToCache(params: {
     create: {
       problemId,
       questionMd5,
+      questionText: question,
       embedding: embedding as unknown as any,
       response,
       stage: stage as string,
@@ -460,11 +576,11 @@ export async function saveToCache(params: {
       response,
       stage: stage as string,
       rung: rung as number,
+      questionText: question,
       embedding: embedding as unknown as any,
     },
   });
 
-  debug.cache("Saved to cache successfully", { entryId: entry.id, stage: entry.stage });
   return entry as unknown as CacheEntry;
 }
 

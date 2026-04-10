@@ -7,6 +7,7 @@
       "summary": "Next.js root layout component. Configures Inter and JetBrains Mono Google fonts, imports global CSS, and wraps all page content in the Providers client component. Defines app metadata (title, description) and viewport settings.",
       "tags": ["nextjs", "layout", "ssr", "font-configuration", "entry-point"],
       "complexity": 2,
+      
       "filePath": "app/layout.tsx"
     },
     {

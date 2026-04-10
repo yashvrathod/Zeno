@@ -15,6 +15,7 @@ import { inferVerbosityFromText, verbosityToModelMaxTokens, verbosityToStyleProm
 import { extractProblemContext, selectGuideQuestion } from "@/lib/mentorQuestions";
 import { getOrCreateSession, saveMessage, tryAdvanceStage, type TransitionContext } from "@/lib/mentor/stageEngine";
 import { saveToCache } from "@/lib/mentor/interactionRouter";
+import { getWeakPatternReport, type WeakPatternTag } from "@/lib/mentor/patternTracker";
 import prisma from "@/lib/prisma";
 import { type ApiConfig, type LlmMessage, callLlmAndExtract } from "../llmClient";
 import {
@@ -35,6 +36,9 @@ import {
   parseAnimationMarker,
   parseMentorMemory,
 } from "../responseGuardrails";
+import { findPausePoints, generateDebuggerPrompt } from "../traceDebugger";
+import { detectVisualizationType, injectVisualizationMarker } from "../visualScaffolding";
+import { triggerArchitectReview, formatArchitectFeedback } from "../seniorArchitect";
 import type { MentorRequest, MentorResponse } from "../mentorService";
 
 async function logInteraction(data: {
@@ -116,6 +120,34 @@ export async function handleAiNeeded(params: {
   const previousRung = existingSummary?.lastRung ?? 1;
   const rung = detectLearningRung(history, stats, body.userMessage, body.userCode, previousRung);
 
+  // ── FETCH WEAKNESS MAP (Pattern Recognition) ──
+  let weaknessContext = "";
+  try {
+    const weakPatterns = await getWeakPatternReport(userId);
+    if (weakPatterns.length > 0) {
+      const topWeakness = weakPatterns[0];
+      if (topWeakness && topWeakness.percentOfSessions > 20) {
+        weaknessContext = `PATTERN ALERT: This student has shown weakness in "${topWeakness.friendlyName}" (${topWeakness.count} occurrences, ${topWeakness.percentOfSessions.toFixed(1)}% of sessions). Watch for this pattern and provide targeted guidance. How to fix: ${topWeakness.howToFix}`;
+      }
+    }
+  } catch {
+    // Non-critical: continue without weakness context
+  }
+
+  // ── TRACE DEBUGGER (for DEBUG stage) ──
+  let debuggerContext = "";
+  if (stage === "DEBUG" && body.userCode && body.syntaxError) {
+    try {
+      const pausePoints = findPausePoints(body.userCode, body.language);
+      if (pausePoints.length > 0) {
+        const firstPause = pausePoints[0];
+        debuggerContext = `DEBUGGER MODE: Student has syntax/runtime error. Consider asking them to trace line ${firstPause.line}: "${firstPause.prompt}". Pause points available: ${pausePoints.map(p => `L${p.line}`).join(", ")}`;
+      }
+    } catch {
+      // Non-critical: continue without debugger context
+    }
+  }
+
   // ── Loop detection ──
   const loopDetected = detectLoop(history);
   const allowFullSolution = isSolutionRequest(body.userMessage);
@@ -154,7 +186,21 @@ Change your approach completely. Try:
 `;
   }
 
+  // ── VISUAL SCAFFOLDING detection ──
+  let vizType = null;
+  if (stage === "STRATEGIZE" || stage === "EXPLORE") {
+    vizType = detectVisualizationType(body.problemTitle || "", body.problemStatementMd || "");
+  }
+
   const existingMem = rollingSummaryMd?.trim() || null;
+
+  // Combine all contexts
+  const enhancedGuidance = [
+    contextualGuidance,
+    weaknessContext,
+    debuggerContext,
+    vizType ? `VISUAL SCAFFOLDING: This problem involves ${vizType}. Consider using ASCII visualization to explain the algorithm state. Use {{VISUALIZATION}} marker when appropriate.` : "",
+  ].filter(Boolean).join("\n\n");
 
   const systemMessage = buildMentorSystemPrompt(
     stage,
@@ -162,7 +208,7 @@ Change your approach completely. Try:
     tone,
     verbosity,
     stylePrompt,
-    contextualGuidance,
+    enhancedGuidance,
     problemContext,
     codeContext,
     statsContext,
@@ -226,6 +272,20 @@ Change your approach completely. Try:
     animationData = { type: body.animationType, data: body.animationData, title: body.problemTitle || "Algorithm Visualization" };
   }
 
+  // ── VISUAL SCAFFOLDING injection ──
+  let vizData: object | null = null;
+  if (vizType && (stage === "STRATEGIZE" || stage === "EXPLORE")) {
+    // Check if AI already included visualization marker, if not, we might inject one
+    const hasVizMarker = assistantMessage.includes("{{VISUALIZATION}}");
+    if (!hasVizMarker && /visualize|imagine|picture|look at this/i.test(assistantMessage)) {
+      assistantMessage = injectVisualizationMarker(assistantMessage, vizType, {
+        type: vizType,
+        data: body.publicTestCases?.[0]?.input?.split(",").map(Number) || [1, 2, 3, 4, 5],
+      });
+      vizData = { type: vizType };
+    }
+  }
+
   // ── STAGE ENGINE PERSISTENCE ──
   await saveMessage(mentorSession.id, "assistant", assistantMessage, stage);
 
@@ -242,12 +302,42 @@ Change your approach completely. Try:
     isFrustrated: /frustrat|give up|don't understand/i.test(body.userMessage.toLowerCase()),
   };
 
+  let architectReviewData = null;
+
   if (stage === "EXPLORE") {
     await tryAdvanceStage(mentorSession.id, "STRATEGIZE", transitionCtx);
   } else if (stage === "STRATEGIZE" && transitionCtx.approachCorrect) {
     await tryAdvanceStage(mentorSession.id, "IMPLEMENT", transitionCtx);
   } else if (stage === "IMPLEMENT" && transitionCtx.codeCorrect) {
     await tryAdvanceStage(mentorSession.id, "REFLECT", transitionCtx);
+
+    // ── TRIGGER SENIOR ARCHITECT REVIEW ──
+    // This is the "second agent" that reviews production quality after solution works
+    if (body.userCode) {
+      try {
+        const architectReview = await triggerArchitectReview({
+          userId,
+          problemId,
+          code: body.userCode,
+          language: body.language,
+          problemTitle: body.problemTitle,
+        });
+        if (architectReview) {
+          const grade: "A" | "B" | "C" | "D" | "F" =
+            architectReview.overallScore >= 90 ? "A" :
+            architectReview.overallScore >= 80 ? "B" :
+            architectReview.overallScore >= 70 ? "C" :
+            architectReview.overallScore >= 60 ? "D" : "F";
+          architectReviewData = {
+            score: architectReview.overallScore,
+            grade,
+            feedback: formatArchitectFeedback(architectReview),
+          };
+        }
+      } catch {
+        // Non-critical: continue without architect review
+      }
+    }
   } else if (stage === "IMPLEMENT" && transitionCtx.hasErrors) {
     await tryAdvanceStage(mentorSession.id, "DEBUG", transitionCtx);
   } else if (stage === "DEBUG" && !transitionCtx.hasErrors) {
@@ -290,6 +380,8 @@ Change your approach completely. Try:
     ok: true,
     message: assistantMessage,
     animation: animationData,
-    metadata: { verbosity, temperature, model: apiConfig.model, stage, rung, tone, wasViolation, wantsAnimation },
+    architectReview: architectReviewData,
+    visualization: vizData,
+    metadata: { verbosity, temperature, model: apiConfig.model, stage, rung, tone, wasViolation, wantsAnimation, hasArchitectReview: !!architectReviewData, hasVisualization: !!vizData },
   };
 }
