@@ -245,8 +245,8 @@ export async function getEmbedding(text: string): Promise<number[]> {
       tensor = result.embeddings as Float32Array;
     } else if (result && typeof result === "object" && "last_hidden_state" in result) {
       tensor = (result as any).last_hidden_state.data;
-    } else if (result?.data) {
-      tensor = result.data;
+    } else if (result && typeof result === "object") {
+      tensor = (result as any).data;
     } else {
       throw new Error(`Unexpected pipeline output structure: ${Object.keys(result || {})}`);
     }

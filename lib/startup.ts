@@ -126,8 +126,8 @@ async function checkRedis(): Promise<{ connected: boolean; error?: string }> {
 async function warmupEmbeddings(): Promise<{ loaded: boolean; error?: string }> {
   try {
     debug.embed("Warming up embedding model...");
-    const { getPipeline } = await import("@/lib/embeddings");
-    await getPipeline();
+    const { getEmbedding } = await import("@/lib/embeddings");
+    await getEmbedding("warmup check");
     debug.embed("Embedding model loaded successfully");
     return { loaded: true };
   } catch (error) {
@@ -332,9 +332,9 @@ async function checkGroq(): Promise<{ available: boolean; error?: string }> {
  */
 async function checkEmbeddingModel(): Promise<{ loaded: boolean; error?: string }> {
   try {
-    const { getPipeline } = await import("@/lib/embeddings");
+    const { getEmbedding } = await import("@/lib/embeddings");
     // This will fail if model isn't loaded
-    await getPipeline();
+    await getEmbedding("warmup check");
     return { loaded: true };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

@@ -1,0 +1,424 @@
+{
+  "nodes": [
+    {
+      "id": "file:app/problems/page.tsx",
+      "type": "file",
+      "name": "ProblemsPage",
+      "filePath": "app/problems/page.tsx",
+      "summary": "Problems listing page organized into curated coding patterns with search, grid/list toggle, expandable problem lists, difficulty badges, and a sidebar showing global skill sync and recent activity.",
+      "tags": ["problem-listing", "curriculum", "navigation", "ui-layout"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/problems/[id]/page.tsx",
+      "type": "file",
+      "name": "ProblemDetailPage",
+      "filePath": "app/problems/[id]/page.tsx",
+      "summary": "Individual problem view with split-panel layout: left panel for problem description or AI mentor chat, right panel with Monaco code editor. Supports animation visualization and mentor API integration.",
+      "tags": ["problem-detail", "code-editor", "ai-mentor", "split-view"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:app/profile/page.tsx",
+      "type": "file",
+      "name": "ProfilePage",
+      "filePath": "app/profile/page.tsx",
+      "summary": "User profile page displaying stats, streak calendar, ranking chart, achievements, and problem history. Includes editable profile dialog updating name, bio, social links, languages, skills, and quotes.",
+      "tags": ["user-profile", "statistics", "achievements", "profile-editing"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:app/settings/page.tsx",
+      "type": "file",
+      "name": "SettingsPage",
+      "filePath": "app/settings/page.tsx",
+      "summary": "API settings page for configuring AI provider selection among server, Groq, OpenAI, Google, OpenRouter, and Ollama with conditional form fields for each provider's API keys and configuration.",
+      "tags": ["settings", "api-keys", "ai-provider", "configuration"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/leaderboard/page.tsx",
+      "type": "file",
+      "name": "LeaderboardPage",
+      "filePath": "app/leaderboard/page.tsx",
+      "summary": "Competitive leaderboard with top-3 podium display, countdown timer, and ranked table showing user avatars, followers, points, and rewards with load-more pagination.",
+      "tags": ["leaderboard", "competition", "ranking", "gamification"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/auth/login/page.tsx",
+      "type": "file",
+      "name": "LoginPage",
+      "filePath": "app/auth/login/page.tsx",
+      "summary": "Login form supporting credentials-based email/password sign-in and OAuth via Google or GitHub. Includes loading states, error handling, and links to registration.",
+      "tags": ["authentication", "login", "oauth", "credentials"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/auth/register/page.tsx",
+      "type": "file",
+      "name": "RegisterPage",
+      "filePath": "app/auth/register/page.tsx",
+      "summary": "Registration form with email, username, name, and password confirmation validation. Calls register API on submit with success/error feedback and redirect to login.",
+      "tags": ["authentication", "registration", "form-validation", "account-creation"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/auth/error/page.tsx",
+      "type": "file",
+      "name": "AuthErrorPage",
+      "filePath": "app/auth/error.tsx",
+      "summary": "Auth error display component wrapped in React Suspense, reading the error query parameter and providing a link back to login.",
+      "tags": ["authentication", "error-handling", "suspense"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/admin/patterns/page.tsx",
+      "type": "file",
+      "name": "AdminPatternsPage",
+      "filePath": "app/admin/patterns/page.tsx",
+      "summary": "Admin panel for creating and listing coding patterns with name and description. Protected by ADMIN_EMAILS restriction.",
+      "tags": ["admin", "patterns", "crud", "content-management"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/admin/problems/page.tsx",
+      "type": "file",
+      "name": "AdminProblemsPage",
+      "filePath": "app/admin/problems/page.tsx",
+      "summary": "Admin panel for creating, listing, and navigating to problem editor. Creates new problems with default stubs for test cases and starter code across four languages.",
+      "tags": ["admin", "problems", "crud", "content-management"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/admin/problems/[id]/page.tsx",
+      "type": "file",
+      "name": "AdminProblemEditPage",
+      "filePath": "app/admin/problems/[id]/page.tsx",
+      "summary": "Full problem editor supporting slug, title, difficulty, publish toggle, Markdown statement and constraints, pattern associations, hints, public/hidden test cases, multi-language starter code, and animation uploads (SVG/Canvas/Lottie) with file upload support.",
+      "tags": ["admin", "problem-editor", "test-cases", "animation", "markdown"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:app/debug/embedding/page.tsx",
+      "type": "file",
+      "name": "EmbeddingDebugPage",
+      "filePath": "app/debug/embedding/page.tsx",
+      "summary": "Debug UI for testing the all-MiniLM-L6-v2 embedding pipeline with tabs for storing Q&A pairs, generating embeddings, searching with similarity threshold and stage filters, viewing stored entries, and a live log console.",
+      "tags": ["debug", "embeddings", "vector-search", "testing"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:app/debug/mentor-log/page.tsx",
+      "type": "file",
+      "name": "MentorLogPage",
+      "filePath": "app/debug/mentor-log/page.tsx",
+      "summary": "Debug UI with three tabs for monitoring AI mentor interactions: live log (placeholder), session history with expandable messages showing stage/rung/role, and cache DB viewer with cached response inspection. Supports auto-refresh polling.",
+      "tags": ["debug", "mentor", "conversation-log", "caching"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:components/AnimationPlayer.tsx",
+      "type": "file",
+      "name": "AnimationPlayer",
+      "filePath": "components/AnimationPlayer.tsx",
+      "summary": "Interactive visualization player for DSA algorithm animations supporting SVG rendering and Canvas-based simulation with play/pause/step controls, speed adjustment, progress seeking, array-based interactive inputs, and fullscreen toggle.",
+      "tags": ["animation", "visualization", "algorithm", "canvas", "interactive"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:components/ui/avatar.tsx",
+      "type": "file",
+      "name": "Avatar",
+      "filePath": "components/ui/avatar.tsx",
+      "summary": "shadcn/ui Avatar composite component wrapping Radix Avatar primitives with Avatar, AvatarImage, AvatarFallback, AvatarBadge, AvatarGroup, and AvatarGroupCount sub-components.",
+      "tags": ["ui", "avatar", "radix", "shadcn"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:components/ui/badge.tsx",
+      "type": "file",
+      "name": "Badge",
+      "filePath": "components/ui/badge.tsx",
+      "summary": "shadcn/ui Badge component using class-variance-authority for variant styling (default, secondary, destructive, outline, ghost, link) with asChild support via Radix Slot.",
+      "tags": ["ui", "badge", "variants", "shadcn"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:components/ui/button.tsx",
+      "type": "file",
+      "name": "Button",
+      "filePath": "components/ui/button.tsx",
+      "summary": "shadcn/ui Button component with class-variance-authority variants for style (default, destructive, outline, secondary, ghost, link) and multiple sizes, with asChild support.",
+      "tags": ["ui", "button", "variants", "shadcn"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:components/ui/card.tsx",
+      "type": "file",
+      "name": "Card",
+      "filePath": "components/ui/card.tsx",
+      "summary": "shadcn/ui Card composite component with Card, CardHeader, CardTitle, CardDescription, CardAction, CardContent, and CardFooter sub-components for structured card layouts.",
+      "tags": ["ui", "card", "layout", "shadcn"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:components/ui/dialog.tsx",
+      "type": "file",
+      "name": "Dialog",
+      "filePath": "components/ui/dialog.tsx",
+      "summary": "shadcn/ui Dialog composite wrapping Radix Dialog with overlay, portal, header, footer, title, description, and close components. Depends on Button for footer close action.",
+      "tags": ["ui", "dialog", "modal", "radix", "shadcn"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:components/ui/dropdown-menu.tsx",
+      "type": "file",
+      "name": "DropdownMenu",
+      "filePath": "components/ui/dropdown-menu.tsx",
+      "summary": "shadcn/ui DropdownMenu wrapping Radix dropdown-menu primitives with full sub-component set including sub-menus, checkboxes, radio items, labels, separators, and shortcuts.",
+      "tags": ["ui", "dropdown", "menu", "radix", "shadcn"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:components/ui/form.tsx",
+      "type": "file",
+      "name": "Form",
+      "filePath": "components/ui/form.tsx",
+      "summary": "shadcn/ui Form integration with react-hook-form providing FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage, and useFormField hook for accessible form validation.",
+      "tags": ["ui", "form", "react-hook-form", "validation"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:components/ui/input.tsx",
+      "type": "file",
+      "name": "Input",
+      "filePath": "components/ui/input.tsx",
+      "summary": "shadcn/ui Input component styling a native input element with focus, accessibility, and file-upload state support.",
+      "tags": ["ui", "input", "form-field", "shadcn"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:components/ui/label.tsx",
+      "type": "file",
+      "name": "Label",
+      "filePath": "components/ui/label.tsx",
+      "summary": "shadcn/ui Label component wrapping Radix Label primitive with disabled and peer-disabled state support.",
+      "tags": ["ui", "label", "form-field", "radix"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:components/ui/select.tsx",
+      "type": "file",
+      "name": "Select",
+      "filePath": "components/ui/select.tsx",
+      "summary": "shadcn/ui Select wrapping Radix Select with trigger, content, items, groups, labels, separators, scroll buttons, and value display. Supports popper positioning.",
+      "tags": ["ui", "select", "dropdown", "radix", "shadcn"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:components/ui/sonner.tsx",
+      "type": "file",
+      "name": "Toaster",
+      "filePath": "components/ui/sonner.tsx",
+      "summary": "shadcn/ui Toaster wrapping Sonner with next-themes integration and custom icons for success, info, warning, error, and loading toast states.",
+      "tags": ["ui", "toast", "notifications", "sonner"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:app/problems/page.tsx:ProgressItem",
+      "type": "function",
+      "name": "ProgressItem",
+      "lineRange": { "start": 261, "end": 276 },
+      "summary": "Renders a horizontal progress bar with label and percentage value for skill metrics display.",
+      "tags": ["progress-bar", "skill-metrics", "ui-component"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:app/problems/[id]/page.tsx:NavLink",
+      "type": "function",
+      "name": "NavLink",
+      "lineRange": { "start": 350, "end": 359 },
+      "summary": "Simple navigation link with active state styling and uppercase tracking for the top navbar.",
+      "tags": ["navigation", "link", "ui-component"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:app/problems/[id]/page.tsx:sendMentorMessage",
+      "type": "function",
+      "name": "sendMentorMessage",
+      "lineRange": { "start": 76, "end": 112 },
+      "summary": "Sends a user message to the AI mentor API endpoint, appends to local message history, and handles success/error states for the chat interface.",
+      "tags": ["ai-mentor", "chat", "api-call"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:app/auth/register/page.tsx:handleSubmit",
+      "type": "function",
+      "name": "handleSubmit",
+      "lineRange": { "start": 29, "end": 82 },
+      "summary": "Validates registration form (password match, length checks) then submits to register API with redirect on success.",
+      "tags": ["form-submit", "registration", "validation"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:app/auth/login/page.tsx:handleSubmit",
+      "type": "function",
+      "name": "handleSubmit",
+      "lineRange": { "start": 20, "end": 43 },
+      "summary": "Submits credentials via next-auth signIn with redirect on success or error display on failure.",
+      "tags": ["form-submit", "login", "authentication"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:app/auth/login/page.tsx:handleOAuthSignIn",
+      "type": "function",
+      "name": "handleOAuthSignIn",
+      "lineRange": { "start": 45, "end": 53 },
+      "summary": "Initiates OAuth sign-in flow for Google or GitHub provider via next-auth signIn.",
+      "tags": ["oauth", "authentication", "social-login"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:app/profile/page.tsx:fetchMe",
+      "type": "function",
+      "name": "fetchMe",
+      "lineRange": { "start": 39, "end": 47 },
+      "summary": "Fetches current user profile data from API endpoint with error handling.",
+      "tags": ["api", "profile", "data-fetching"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:app/admin/patterns/page.tsx:fetchPatterns",
+      "type": "function",
+      "name": "fetchPatterns",
+      "lineRange": { "start": 13, "end": 21 },
+      "summary": "Fetches all patterns from admin API for display in the pattern management list.",
+      "tags": ["api", "patterns", "data-fetching"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:app/admin/problems/page.tsx:fetchProblems",
+      "type": "function",
+      "name": "fetchProblems",
+      "lineRange": { "start": 21, "end": 29 },
+      "summary": "Fetches all problems from admin API for display in the problem management list.",
+      "tags": ["api", "problems", "data-fetching"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:app/admin/problems/page.tsx:create",
+      "type": "function",
+      "name": "createProblem",
+      "lineRange": { "start": 52, "end": 93 },
+      "summary": "Creates a new problem via API with default test cases and starter code templates for four languages, then navigates to the editor.",
+      "tags": ["create", "problems", "api"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:app/admin/problems/[id]/page.tsx:fetchProblem",
+      "type": "function",
+      "name": "fetchProblem",
+      "lineRange": { "start": 38, "end": 53 },
+      "summary": "Fetches a single problem by ID from admin API and normalizes JSON fields for the editor form.",
+      "tags": ["api", "problem", "data-fetching"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:app/admin/problems/[id]/page.tsx:parseTests",
+      "type": "function",
+      "name": "parseTests",
+      "lineRange": { "start": 131, "end": 142 },
+      "summary": "Parses text blocks separated by --- into structured test case objects with input, expected output, and hidden flag using regex matching.",
+      "tags": ["parsing", "test-cases", "text-processing"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:app/admin/problems/[id]/page.tsx:FileUploadInput",
+      "type": "function",
+      "name": "FileUploadInput",
+      "lineRange": { "start": 412, "end": 470 },
+      "summary": "File upload input component that reads SVG/JSON/JS files directly for small files or uploads to cloud storage for larger files through the animations upload API.",
+      "tags": ["file-upload", "animation", "cloud-storage"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:components/AnimationPlayer.tsx:SVGViewer",
+      "type": "function",
+      "name": "SVGViewer",
+      "lineRange": { "start": 48, "end": 95 },
+      "summary": "Renders SVG animation data with speed control and fullscreen toggle, using dangerouslySetInnerHTML for SVG content.",
+      "tags": ["svg", "animation", "viewer"],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:components/AnimationPlayer.tsx:CanvasSimulation",
+      "type": "function",
+      "name": "CanvasSimulation",
+      "lineRange": { "start": 101, "end": 574 },
+      "summary": "Full interactive canvas simulation engine that parses animation code, computes algorithm steps, renders on canvas with grid background, and provides playback controls and interactive array inputs.",
+      "tags": ["canvas", "simulation", "animation-engine", "interactive"],
+      "complexity": "complex"
+    }
+  ],
+  "edges": [
+    {"source": "file:app/problems/page.tsx", "target": "file:components/ui/card.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/problems/page.tsx", "target": "file:components/ui/avatar.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/problems/[id]/page.tsx", "target": "file:components/ui/avatar.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/problems/[id]/page.tsx", "target": "file:components/AnimationPlayer.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/profile/page.tsx", "target": "file:components/ui/dialog.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/profile/page.tsx", "target": "file:components/ui/input.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/profile/page.tsx", "target": "file:components/ui/label.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/profile/page.tsx", "target": "file:components/ui/button.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/profile/page.tsx", "target": "file:components/ui/card.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/profile/page.tsx", "target": "file:components/ui/badge.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/profile/page.tsx", "target": "file:components/ui/avatar.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/settings/page.tsx", "target": "file:components/ui/card.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/settings/page.tsx", "target": "file:components/ui/input.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/settings/page.tsx", "target": "file:components/ui/label.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/settings/page.tsx", "target": "file:components/ui/button.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/settings/page.tsx", "target": "file:components/ui/badge.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/leaderboard/page.tsx", "target": "file:components/ui/card.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/leaderboard/page.tsx", "target": "file:components/ui/avatar.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/auth/login/page.tsx", "target": "file:components/ui/button.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/auth/login/page.tsx", "target": "file:components/ui/input.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/auth/login/page.tsx", "target": "file:components/ui/label.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/auth/login/page.tsx", "target": "file:components/ui/card.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/auth/register/page.tsx", "target": "file:components/ui/button.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/auth/register/page.tsx", "target": "file:components/ui/input.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/auth/register/page.tsx", "target": "file:components/ui/label.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/auth/register/page.tsx", "target": "file:components/ui/card.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/auth/error/page.tsx", "target": "file:components/ui/card.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/auth/error/page.tsx", "target": "file:components/ui/button.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/admin/patterns/page.tsx", "target": "file:components/ui/card.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/admin/patterns/page.tsx", "target": "file:components/ui/button.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/admin/patterns/page.tsx", "target": "file:components/ui/input.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/admin/patterns/page.tsx", "target": "file:components/ui/label.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/admin/problems/page.tsx", "target": "file:components/ui/card.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/admin/problems/page.tsx", "target": "file:components/ui/button.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/admin/problems/page.tsx", "target": "file:components/ui/input.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/admin/problems/page.tsx", "target": "file:components/ui/label.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/admin/problems/[id]/page.tsx", "target": "file:components/ui/button.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/admin/problems/[id]/page.tsx", "target": "file:components/ui/card.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/admin/problems/[id]/page.tsx", "target": "file:components/ui/input.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/admin/problems/[id]/page.tsx", "target": "file:components/ui/label.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:components/ui/badge.tsx", "target": "file:components/ui/button.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:components/ui/dialog.tsx", "target": "file:components/ui/button.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:components/ui/form.tsx", "target": "file:components/ui/label.tsx", "type": "imports", "weight": 0.7},
+    {"source": "file:app/problems/page.tsx", "target": "function:app/problems/page.tsx:ProgressItem", "type": "contains", "weight": 1.0},
+    {"source": "file:app/problems/[id]/page.tsx", "target": "function:app/problems/[id]/page.tsx:NavLink", "type": "contains", "weight": 1.0},
+    {"source": "file:app/problems/[id]/page.tsx", "target": "function:app/problems/[id]/page.tsx:sendMentorMessage", "type": "contains", "weight": 1.0},
+    {"source": "file:app/auth/register/page.tsx", "target": "function:app/auth/register/page.tsx:handleSubmit", "type": "contains", "weight": 1.0},
+    {"source": "file:app/auth/login/page.tsx", "target": "function:app/auth/login/page.tsx:handleSubmit", "type": "contains", "weight": 1.0},
+    {"source": "file:app/auth/login/page.tsx", "target": "function:app/auth/login/page.tsx:handleOAuthSignIn", "type": "contains", "weight": 1.0},
+    {"source": "file:app/profile/page.tsx", "target": "function:app/profile/page.tsx:fetchMe", "type": "contains", "weight": 1.0},
+    {"source": "file:app/admin/patterns/page.tsx", "target": "function:app/admin/patterns/page.tsx:fetchPatterns", "type": "contains", "weight": 1.0},
+    {"source": "file:app/admin/problems/page.tsx", "target": "function:app/admin/problems/page.tsx:fetchProblems", "type": "contains", "weight": 1.0},
+    {"source": "file:app/admin/problems/page.tsx", "target": "function:app/admin/problems/page.tsx:createProblem", "type": "contains", "weight": 1.0},
+    {"source": "file:app/admin/problems/[id]/page.tsx", "target": "function:app/admin/problems/[id]/page.tsx:fetchProblem", "type": "contains", "weight": 1.0},
+    {"source": "file:app/admin/problems/[id]/page.tsx", "target": "function:app/admin/problems/[id]/page.tsx:parseTests", "type": "contains", "weight": 1.0},
+    {"source": "file:app/admin/problems/[id]/page.tsx", "target": "function:app/admin/problems/[id]/page.tsx:FileUploadInput", "type": "contains", "weight": 1.0},
+    {"source": "file:components/AnimationPlayer.tsx", "target": "function:components/AnimationPlayer.tsx:SVGViewer", "type": "contains", "weight": 1.0},
+    {"source": "file:components/AnimationPlayer.tsx", "target": "function:components/AnimationPlayer.tsx:CanvasSimulation", "type": "contains", "weight": 1.0}
+  ]
+}

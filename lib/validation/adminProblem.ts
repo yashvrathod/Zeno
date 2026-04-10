@@ -20,6 +20,8 @@ export const CreateProblemSchema = z.object({
   hints: z.array(z.string()).optional().default([]),
   starterCode: z.record(z.string(), z.string()).optional().default({}),
   testCases: z.array(TestCaseInputSchema).optional().default([]),
+  animationType: z.enum(['svg', 'canvas', 'lottie']).nullable().optional(),
+  animationData: z.string().nullable().optional(),
 });
 
 export const UpdateProblemSchema = CreateProblemSchema.partial().extend({

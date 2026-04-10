@@ -189,5 +189,10 @@ export function extractProblemContext(
     isTreeProblem: /tree|node|root|binary/.test(statement),
     isGraphProblem: /graph|edge|vertex|node|connected/.test(statement),
     isDPHint: /subproblem|overlap|optimal|maximum|minimum|count.*ways/.test(statement),
+    isTwoPointer: false,
+    isTwoPointerPalin: false,
+    isTwoPointerSlidingWindow: false,
+    isTwoPointerOppositeEnds: false,
+    isTwoPointerPartition: false,
   };
 }

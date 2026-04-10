@@ -440,7 +440,7 @@ export async function jsonCompletion(
     const content = response.choices?.[0]?.message?.content || "";
 
     timer();
-    debug.ai("JSON completion complete", content.length, "chars");
+    debug.ai("JSON completion complete", `${content.length} chars`);
 
     return content.trim();
   } catch (error) {
@@ -491,7 +491,7 @@ export async function textCompletion(
     const content = response.choices?.[0]?.message?.content || "";
 
     timer();
-    debug.ai("Text completion complete", content.length, "chars");
+    debug.ai("Text completion complete", `${content.length} chars`);
 
     return content.trim();
   } catch (error) {

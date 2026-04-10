@@ -1,0 +1,259 @@
+<svg viewBox="0 0 700 450" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes highlight {
+      0%, 100% { fill: #1a1a2e; stroke: #3f3f46; }
+      50% { fill: #1e3a5f; stroke: #3b82f6; }
+    }
+
+    @keyframes found {
+      0% { fill: #1a1a2e; stroke: #3f3f46; }
+      100% { fill: #065f46; stroke: #10b981; }
+    }
+
+    text {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 24px;
+      fill: #f4f4f5;
+      text-anchor: middle;
+      dominant-baseline: central;
+    }
+
+    label {
+      font-size: 12px;
+      fill: #71717a;
+    }
+
+    .bar {
+      fill: #1a1a2e;
+      stroke: #3f3f46;
+      stroke-width: 1.5;
+      transition: fill 0.3s, stroke 0.3s;
+    }
+
+    .title {
+      font-size: 16px;
+      font-weight: 700;
+      fill: #e4e4e7;
+      letter-spacing: 0.1em;
+    }
+
+    .subtitle {
+      font-size: 11px;
+      fill: #52525b;
+      font-weight: 400;
+    }
+
+    /* Mid pointer animation */
+    .ptr-mid {
+      animation: midMove 5s ease-in-out infinite;
+    }
+
+    @keyframes midMove {
+      0%, 15%  { transform: translateX(150px); }
+      30%, 45% { transform: translateX(260px); }
+      60%, 75% { transform: translateX(320px); }
+      90%, 100% { transform: translateX(350px); }
+    }
+
+    /* Left pointer */
+    .ptr-low {
+      animation: lowMove 5s ease-in-out infinite;
+    }
+
+    @keyframes lowMove {
+      0%, 15%  { transform: translateX(0); }
+      30%, 75% { transform: translateX(200px); }
+      90%, 100% { transform: translateX(350px); }
+    }
+
+    /* Right pointer */
+    .ptr-high {
+      animation: highMove 5s ease-in-out infinite;
+    }
+
+    @keyframes highMove {
+      0%, 15%  { transform: translateX(350px); }
+      30%, 75% { transform: translateX(350px); }
+      90%, 100% { transform: translateX(350px); }
+    }
+
+    /* Bars appear sequentially */
+    .bar-0 { animation: scale0 5s ease-in-out infinite; }
+    .bar-1 { animation: scale1 5s ease-in-out infinite; }
+    .bar-2 { animation: scale2 5s ease-in-out infinite; }
+    .bar-3 { animation: scale3 5s ease-in-out infinite; }
+    .bar-4 { animation: scale4 5s ease-in-out infinite; }
+    .bar-5 { animation: scale5 5s ease-in-out infinite; }
+    .bar-6 { animation: scale6 5s ease-in-out infinite; }
+    .bar-7 { animation: scale7 5s ease-in-out infinite; }
+
+    @keyframes scale0 {
+      0%, 5% { opacity: 0; transform: scaleY(0); }
+      10%, 85% { opacity: 1; transform: scaleY(1); }
+      90%, 100% { opacity: 0.5; transform: scaleY(1); fill: #3f3f46; }
+    }
+    @keyframes scale1 {
+      0%, 10% { opacity: 0.5; transform: scaleY(1); fill: #3f3f46; }
+      15%, 85% { opacity: 1; transform: scaleY(1); }
+      90%, 100% { opacity: 0.5; transform: scaleY(1); fill: #3f3f46; }
+    }
+    @keyframes scale2 {
+      0%, 15% { opacity: 0.5; transform: scaleY(1); fill: #3f3f46; }
+      20%, 85% { opacity: 1; transform: scaleY(1); }
+      90%, 100% { opacity: 0.5; transform: scaleY(1); fill: #3f3f46; }
+    }
+    @keyframes scale3 {
+      0%, 20% { opacity: 0.5; transform: scaleY(1); fill: #3f3f46; }
+      25%, 85% { opacity: 1; transform: scaleY(1); }
+      90%, 100% { opacity: 0.5; transform: scaleY(1); fill: #3f3f46; }
+    }
+    @keyframes scale4 {
+      0%, 25% { opacity: 0.5; transform: scaleY(1); fill: #3f3f46; }
+      30%, 85% { opacity: 1; transform: scaleY(1); }
+      90%, 100% { opacity: 0.3; transform: scaleY(1); fill: #27272a; }
+    }
+    @keyframes scale5 {
+      0%, 30% { opacity: 0.3; transform: scaleY(1); fill: #27272a; }
+      35%, 85% { opacity: 1; transform: scaleY(1); }
+      90%, 100% { opacity: 0.3; transform: scaleY(1); fill: #27272a; }
+    }
+    @keyframes scale6 {
+      0%, 60% { opacity: 0.3; transform: scaleY(1); fill: #27272a; }
+      65%, 85% { opacity: 1; transform: scaleY(1); }
+      90%, 100% { opacity: 0.3; transform: scaleY(1); fill: #27272a; }
+    }
+    @keyframes scale7 {
+      0%, 75% { opacity: 0.3; transform: scaleY(1); fill: #27272a; }
+      80%, 85% { opacity: 1; transform: scaleY(1); }
+      90%, 100% { opacity: 0.3; transform: scaleY(1); fill: #27272a; }
+    }
+
+    /* Found highlight */
+    .found-highlight {
+      animation: foundGlow 5s ease-in-out infinite;
+    }
+
+    @keyframes foundGlow {
+      0%, 75% { opacity: 0; }
+      80%, 95% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
+    /* Step label */
+    .step-label {
+      animation: stepFade 5s ease-in-out infinite;
+      font-size: 14px;
+      fill: #a855f7;
+    }
+
+    @keyframes stepFade {
+      0%, 10% { opacity: 0; }
+      15%, 85% { opacity: 1; }
+      90%, 100% { opacity: 0; }
+    }
+  </style>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="700" height="450" rx="16" fill="#0a0a0c"/>
+
+  <!-- Grid dots -->
+  <pattern id="grid" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+    <circle cx="10" cy="10" r="1" fill="#27272a"/>
+  </pattern>
+  <rect x="0" y="0" width="700" height="450" fill="url(#grid)"/>
+
+  <!-- Title -->
+  <text x="350" y="35" class="title">BINARY SEARCH</text>
+  <text x="350" y="55" class="subtitle">Find 23 in a sorted array</text>
+
+  <!-- Sorted array with values -->
+  <g transform="translate(50, 120)">
+    <g class="bar-0" transform-origin="0 150">
+      <rect x="0" y="30" width="60" height="120" rx="6" fill="#1a1a2e" stroke="#3f3f46" stroke-width="1.5"/>
+      <text x="30" y="90" opacity="1">2</text>
+      <text x="30" y="175" class="label">[0]</text>
+    </g>
+    <g class="bar-1" transform-origin="0 150">
+      <rect x="70" y="50" width="60" height="100" rx="6" fill="#1a1a2e" stroke="#3f3f46" stroke-width="1.5"/>
+      <text x="100" y="100" opacity="1">5</text>
+      <text x="100" y="175" class="label">[1]</text>
+    </g>
+    <g class="bar-2" transform-origin="0 150">
+      <rect x="140" y="70" width="60" height="80" rx="6" fill="#1a1a2e" stroke="#3f3f46" stroke-width="1.5"/>
+      <text x="170" y="110" opacity="1">8</text>
+      <text x="170" y="175" class="label">[2]</text>
+    </g>
+    <g class="bar-3" transform-origin="0 150">
+      <rect x="210" y="40" width="60" height="110" rx="6" fill="#1a1a2e" stroke="#3f3f46" stroke-width="1.5"/>
+      <text x="240" y="95" opacity="1">12</text>
+      <text x="240" y="175" class="label">[3]</text>
+    </g>
+    <g class="bar-4" transform-origin="0 150">
+      <rect x="280" y="55" width="60" height="95" rx="6" fill="#1a1a2e" stroke="#3f3f46" stroke-width="1.5"/>
+      <text x="310" y="102" opacity="1">18</text>
+      <text x="310" y="175" class="label">[4]</text>
+    </g>
+    <g class="bar-5" transform-origin="0 150">
+      <rect x="350" y="25" width="60" height="125" rx="6" fill="#1a1a2e" stroke="#3f3f46" stroke-width="1.5"/>
+      <text x="380" y="87" opacity="1">23</text>
+      <text x="380" y="175" class="label">[5]</text>
+    </g>
+    <g class="bar-6" transform-origin="0 150">
+      <rect x="420" y="10" width="60" height="140" rx="6" fill="#1a1a2e" stroke="#3f3f46" stroke-width="1.5"/>
+      <text x="450" y="80" opacity="1">30</text>
+      <text x="450" y="175" class="label">[6]</text>
+    </g>
+    <g class="bar-7" transform-origin="0 150">
+      <rect x="490" y="0" width="60" height="150" rx="6" fill="#1a1a2e" stroke="#3f3f46" stroke-width="1.5"/>
+      <text x="520" y="75" opacity="1">35</text>
+      <text x="520" y="175" class="label">[7]</text>
+    </g>
+
+    <!-- Found highlight -->
+    <rect class="found-highlight" x="345" y="20" width="70" height="135" rx="8" fill="#065f46" stroke="#10b981" stroke-width="2"/>
+
+    <!-- Low pointer (left boundary) -->
+    <g class="ptr-low">
+      <polygon points="30,-15 22,-30 38,-30" fill="#a855f7"/>
+      <text x="30" y="-40" font-size="11" fill="#a855f7" font-weight="700">L</text>
+    </g>
+
+    <!-- High pointer (right boundary) -->
+    <g class="ptr-high">
+      <polygon points="520,-15 512,-30 528,-30" fill="#ef4444"/>
+      <text x="520" y="-40" font-size="11" fill="#ef4444" font-weight="700">R</text>
+    </g>
+
+    <!-- Mid pointer -->
+    <g class="ptr-mid">
+      <polygon points="300,180 292,165 308,165" fill="#3b82f6"/>
+      <text x="300" y="200" font-size="11" fill="#3b82f6" font-weight="700">M</text>
+    </g>
+  </g>
+
+  <!-- Target indicator -->
+  <g transform="translate(620, 180)">
+    <rect x="-45" y="-25" width="90" height="50" rx="10" fill="#065f46" stroke="#10b981" stroke-width="2"/>
+    <text x="0" y="-5" fill="#10b981" font-size="14" font-weight="700">= 23</text>
+  </g>
+
+  <!-- Steps panel -->
+  <g transform="translate(30, 340)">
+    <rect x="0" y="0" width="640" height="90" rx="8" fill="#0d0d10" stroke="#27272a" stroke-width="1"/>
+
+    <text x="320" y="20" class="step-label" style="animation: stepFade 5s ease-in-out infinite;">
+      Step 1: mid=3, arr[3]=12 &lt; 23, search right half → eliminate [0..3]
+    </text>
+    <text x="320" y="45" class="step-label" style="animation: stepFade 5s ease-in-out infinite;">
+      Step 2: mid=5, arr[5]=23 = 23, FOUND!
+    </text>
+    <text x="320" y="70" font-size="12" fill="#10b981" class="title" style="animation: foundGlow 5s ease-in-out infinite;">
+      Found 23 at index 5 in just 2 comparisons! (vs 6 for linear search)
+    </text>
+  </g>
+</svg>

@@ -159,6 +159,8 @@ model Problem {
   expectedTimeMin  Int?
   tags             Json?
   starterCode      Json?
+  animationType    String?            // "svg" | "canvas" | "lottie"
+  animationData    String?            // SVG markup, Canvas JS code, or Lottie JSON URL
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
   hints            Hint[]

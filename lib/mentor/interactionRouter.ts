@@ -11,7 +11,7 @@
  */
 
 import prisma from "@/lib/prisma";
-import { TeachingStage } from "@/lib/mentorContext";
+import { TeachingStage, LearningRung } from "@/lib/mentorContext";
 import { debug, startTimer } from "@/lib/debug";
 import { getEmbedding, cosineSimilarity, bigramJaccard } from "@/lib/embeddings";
 
@@ -99,6 +99,7 @@ export type ProblemMeta = {
 
 const HARD_HIT = { minCosine: 0.82, minBigram: 0.20 };
 const SOFT_HIT = { minCosine: 0.75, minBigram: 0.15 };
+
 
 // Patterns that indicate user is trying to skip stages
 const SOLUTION_REQUEST_PATTERNS = [

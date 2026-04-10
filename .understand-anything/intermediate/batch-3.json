@@ -1,0 +1,754 @@
+{
+  "nodes": [
+    {
+      "id": "file:app/api/auth/[...nextauth]/route.ts",
+      "type": "GraphNode",
+      "name": "NextAuth Route Handler",
+      "filePath": "app/api/auth/[...nextauth]/route.ts",
+      "summary": "NextAuth handler that exports GET and POST handlers from lib/auth. Sets runtime to nodejs.",
+      "tags": ["authentication", "nextauth", "route-handler"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/api/auth/register/route.ts",
+      "type": "GraphNode",
+      "name": "User Registration Endpoint",
+      "filePath": "app/api/auth/register/route.ts",
+      "summary": "User registration endpoint. Handles POST requests to create new users with email, username, and password. Validates uniqueness, hashes passwords with bcryptjs, and creates user records via Prisma.",
+      "tags": ["authentication", "registration", "user-management"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/api/problems/route.ts",
+      "type": "GraphNode",
+      "name": "Problems Listing Endpoint",
+      "filePath": "app/api/problems/route.ts",
+      "summary": "Problems listing endpoint. Returns all published problems with their slug, title, difficulty, updatedAt, and associated patterns. No authentication required.",
+      "tags": ["problems", "listing", "public-api"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/api/problems/[slug]/route.ts",
+      "type": "GraphNode",
+      "name": "Problem Detail Endpoint",
+      "filePath": "app/api/problems/[slug]/route.ts",
+      "summary": "Single problem detail endpoint. Fetches a problem by slug or id, including patterns, hints (ordered), and public test cases. Returns 404 for unpublished or missing problems.",
+      "tags": ["problems", "detail", "public-api"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/api/problems/[slug]/run/route.ts",
+      "type": "GraphNode",
+      "name": "Code Run Endpoint",
+      "filePath": "app/api/problems/[slug]/run/route.ts",
+      "summary": "Code execution endpoint using Piston. Authenticated POST that runs user code against public test cases only, tracks userProblemStats (runCount, acceptedCount, wrongAnswerCount, runtimeErrorCount), and reports pass/fail per test. Does not expose hidden test cases.",
+      "tags": ["code-execution", "piston", "grading"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:app/api/problems/[slug]/submit/route.ts",
+      "type": "GraphNode",
+      "name": "Code Submit Endpoint",
+      "filePath": "app/api/problems/[slug]/submit/route.ts",
+      "summary": "Code submission and auto-grading endpoint. Similar to run but also tests against hidden test cases. Updates bounded per-user-per-problem stats via upsert. Never leaks hidden test inputs or expected outputs to the response.",
+      "tags": ["code-execution", "grading", "hidden-tests"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:app/api/posts/route.ts",
+      "type": "GraphNode",
+      "name": "Posts Feed and Creation Endpoint",
+      "filePath": "app/api/posts/route.ts",
+      "summary": "Post creation and feed endpoint. GET supports multiple feed types (following, featured, rising, all) with cursor-based pagination and like/comment counts. POST creates a new post with content, optional code snippets, images, and auto-extracts hashtags. Updates trending topics on post creation.",
+      "tags": ["social", "feed", "pagination", "trending"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:app/api/posts/[postId]/comments/route.ts",
+      "type": "GraphNode",
+      "name": "Comments Endpoint",
+      "filePath": "app/api/posts/[postId]/comments/route.ts",
+      "summary": "Comment endpoint for posts. GET fetches comments with cursor-based pagination and user info. POST creates a comment (requires auth), validates post exists, and atomically increments the post's commentCount via a Prisma transaction.",
+      "tags": ["social", "comments", "transactions"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/api/posts/[postId]/like/route.ts",
+      "type": "GraphNode",
+      "name": "Post Like/Unlike Endpoint",
+      "filePath": "app/api/posts/[postId]/like/route.ts",
+      "summary": "Post like/unlike endpoint. POST creates a like and increments likeCount atomically via transaction. DELETE removes the like and decrements. Both require auth. Prevents duplicate likes and unlikes.",
+      "tags": ["social", "likes", "transactions"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/api/profile/me/route.ts",
+      "type": "GraphNode",
+      "name": "User Profile Endpoint",
+      "filePath": "app/api/profile/me/route.ts",
+      "summary": "Current user profile endpoint. GET returns the authenticated user's profile including name, bio, location, links, languages, skills, and quote arrays. PATCH allows updating these fields with type-safe filtering.",
+      "tags": ["profile", "user-management", "crud"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/api/users/[userId]/follow/route.ts",
+      "type": "GraphNode",
+      "name": "User Follow/Unfollow Endpoint",
+      "filePath": "app/api/users/[userId]/follow/route.ts",
+      "summary": "User follow/unfollow endpoint. POST creates a follow relationship (with self-follow prevention and duplicate check). DELETE removes it. Both require authentication.",
+      "tags": ["social", "follow", "user-relationships"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/api/channels/[channelId]/follow/route.ts",
+      "type": "GraphNode",
+      "name": "Channel Follow/Unfollow Endpoint",
+      "filePath": "app/api/channels/[channelId]/follow/route.ts",
+      "summary": "Channel follow endpoint. Creates or removes channelFollow records for the authenticated user. Prevents duplicate follows.",
+      "tags": ["social", "channels", "follow"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/api/settings/ai/route.ts",
+      "type": "GraphNode",
+      "name": "AI Settings Management Endpoint",
+      "filePath": "app/api/settings/ai/route.ts",
+      "summary": "AI settings management endpoint. GET fetches user's AI configuration (provider, API keys masked, model, verbosity, onboarding status). PATCH upsertes userAiSettings with validation of the API provider enum (server, groq, openai, google, openrouter, ollama).",
+      "tags": ["settings", "ai-configuration", "api-keys"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/api/voice-chat/route.ts",
+      "type": "GraphNode",
+      "name": "Voice Chat Endpoint",
+      "filePath": "app/api/voice-chat/route.ts",
+      "summary": "Voice chat processing endpoint. Takes a message and conversation history, builds a voice-optimized system prompt (concise, conversational), and calls either OpenRouter or OpenAI depending on AI_PROVIDER env var. No database access.",
+      "tags": ["ai", "voice", "chat"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/api/health/route.ts",
+      "type": "GraphNode",
+      "name": "Health Check Endpoint",
+      "filePath": "app/api/health/route.ts",
+      "summary": "API health check endpoint. Delegates to getHealthStatus from lib/startup which checks database connectivity, Redis, Groq API, embedding model, cache entries, and server uptime. Returns 200/203/503 based on health.",
+      "tags": ["health", "monitoring", "startup"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/api/execute/route.ts",
+      "type": "GraphNode",
+      "name": "Code Execute Endpoint",
+      "filePath": "app/api/execute/route.ts",
+      "summary": "Code execution (protected by middleware). Runs user code through the Piston API with per-language support for JavaScript, Python, Java, and C++. Wraps code in language-specific harnesses, runs test cases, and compares outputs.",
+      "tags": ["code-execution", "piston", "multi-language"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:app/api/fix-model/route.ts",
+      "type": "GraphNode",
+      "name": "Fix Model Endpoint",
+      "filePath": "app/api/fix-model/route.ts",
+      "summary": "Temporary endpoint to fix user's preferred AI model. Upserts userAiSettings to set preferredFreeModel to a specific Deepseek model. Requires authentication. One-time utility endpoint.",
+      "tags": ["utility", "ai-configuration", "temporary"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/api/syntax-check/route.ts",
+      "type": "GraphNode",
+      "name": "Syntax Check Endpoint",
+      "filePath": "app/api/syntax-check/route.ts",
+      "summary": "Syntax checking via Piston endpoint. Runs a best-effort compilation/parse check without full test execution. Detects syntax errors via stderr analysis for JavaScript, Python, Java, and C++.",
+      "tags": ["syntax-validation", "piston", "compilation"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/api/trending/route.ts",
+      "type": "GraphNode",
+      "name": "Trending Topics Endpoint",
+      "filePath": "app/api/trending/route.ts",
+      "summary": "Trending topics endpoint. Returns TrendingTopic records ordered by weekCount descending, then postCount. Supports limit query parameter. No authentication required.",
+      "tags": ["trending", "analytics", "public-api"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/api/patterns/route.ts",
+      "type": "GraphNode",
+      "name": "Coding Patterns Endpoint",
+      "filePath": "app/api/patterns/route.ts",
+      "summary": "Coding patterns listing endpoint. Fetches all patterns with their associated published problems, sorted by name ascending. Filters out unpublished problems from the results.",
+      "tags": ["patterns", "problems", "public-api"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:app/api/discussions/top/route.ts",
+      "type": "GraphNode",
+      "name": "Top Discussions Endpoint",
+      "filePath": "app/api/discussions/top/route.ts",
+      "summary": "Top discussions endpoint. Returns posts from the last 7 days with the most comments, ordered by commentCount descending. Supports limit parameter.",
+      "tags": ["discussions", "social", "analytics"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/api/admin/problems/route.ts",
+      "type": "GraphNode",
+      "name": "Admin Problems List/Create Endpoint",
+      "filePath": "app/api/admin/problems/route.ts",
+      "summary": "Admin problem management endpoint. GET lists all problems (admin check temporarily disabled). POST creates a new problem with Zod-validated schema, normalizing test cases and creating related problemPatterns, hints, and testCases in a Prisma transaction.",
+      "tags": ["admin", "problems", "crud", "validation"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:app/api/admin/problems/[id]/route.ts",
+      "type": "GraphNode",
+      "name": "Admin Problem Detail/Update Endpoint",
+      "filePath": "app/api/admin/problems/[id]/route.ts",
+      "summary": "Admin problem update/delete endpoint. GET returns full problem details with patterns, hints, and testCases. PATCH updates a problem including scalar fields, pattern associations, hints (full replacement), and test cases (full replacement) in a transaction. Uses Zod validation and Prisma error handling.",
+      "tags": ["admin", "problems", "transactions", "validation"],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:app/api/admin/patterns/route.ts",
+      "type": "GraphNode",
+      "name": "Admin Patterns Endpoint",
+      "filePath": "app/api/admin/patterns/route.ts",
+      "summary": "Admin pattern management endpoint. GET lists all patterns. POST creates a new pattern with admin guard. Simpler CRUD compared to admin problems.",
+      "tags": ["admin", "patterns", "crud"],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:app/api/mentor/route.ts",
+      "type": "GraphNode",
+      "name": "AI Mentor Endpoint",
+      "filePath": "app/api/mentor/route.ts",
+      "summary": "Main AI mentor interaction endpoint (1466 lines). Socratic teaching engine with 4-layer rate-limit defense (per-user limiting, global cache, request coalescing, API key pool). Implements a 6-stage teaching pipeline (Explore, Strategize, Implement, Debug, Stuck, Reflect) with learning rung detection, tone analysis, solution-request gating, output sanitization, conversation memory, and graceful AI failure fallback. Supports Groq, OpenRouter, OpenAI, Google, and Ollama providers with automatic key rotation.",
+      "tags": ["ai", "mentor", "socratic", "rate-limiting", "multi-provider"],
+      "complexity": "complex"
+    },
+    {
+      "id": "fn:mentor/resolveApiConfig",
+      "type": "GraphNode",
+      "name": "resolveApiConfig",
+      "filePath": "app/api/mentor/route.ts",
+      "summary": "Resolves API configuration with priority chain: user key (BYOK) > server key pool (Groq round-robin > OpenRouter). Supports retry loop for 429 responses. Returns apiKey, apiBaseUrl, model, provider, and isServerKey flag.",
+      "tags": ["api-config", "key-pool", "rate-limiting"],
+      "complexity": "complex"
+    },
+    {
+      "id": "fn:mentor/callAIWithKeyRotation",
+      "type": "GraphNode",
+      "name": "callAIWithKeyRotation",
+      "filePath": "app/api/mentor/route.ts",
+      "summary": "Makes LLM API calls with automatic key rotation on 429 errors. Falls back to the next key in the server pool when the current one is rate-limited. Uses exponential backoff retry via llmFetchWithRetry.",
+      "tags": ["ai", "rate-limiting", "error-handling"],
+      "complexity": "complex"
+    },
+    {
+      "id": "fn:mentor/buildMentorSystemPrompt",
+      "type": "GraphNode",
+      "name": "buildMentorSystemPrompt",
+      "filePath": "app/api/mentor/route.ts",
+      "summary": "Constructs the full system prompt for the AI mentor by combining base prompt, stage instructions, tone, verbosity, contextual guidance, problem context, user code, stats, conversation history, and guide questions.",
+      "tags": ["prompt-engineering", "context-building"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "fn:mentor/sanitizeAssistantResponse",
+      "type": "GraphNode",
+      "name": "sanitizeAssistantResponse",
+      "filePath": "app/api/mentor/route.ts",
+      "summary": "Output guardrail that prevents the AI from leaking full solutions. Allows only tiny illustrative snippets unless allowFullSolution is true. Detects full-solution indicators like code length, class definitions, and specific phrases.",
+      "tags": ["guardrails", "security", "anti-cheating"],
+      "complexity": "moderate"
+    },
+    {
+      "id": "fn:run/submit/route-clampDbText",
+      "type": "GraphNode",
+      "name": "clampDbText",
+      "filePath": "app/api/problems/[slug]/submit/route.ts",
+      "summary": "Utility function that truncates text to a maximum of 800 characters, appending a truncation indicator showing the original length.",
+      "tags": ["utility", "text-processing"],
+      "complexity": "simple"
+    },
+    {
+      "id": "fn:run/route-clampDbText",
+      "type": "GraphNode",
+      "name": "clampDbText",
+      "filePath": "app/api/problems/[slug]/run/route.ts",
+      "summary": "Utility function that truncates text to a maximum of 800 characters, appending a truncation indicator showing the original length.",
+      "tags": ["utility", "text-processing"],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:app/api/auth/[...nextauth]/route.ts",
+      "target": "file:lib/auth.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/problems/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/problems/[slug]/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/problems/[slug]/run/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/problems/[slug]/run/route.ts",
+      "target": "file:lib/piston.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/problems/[slug]/run/route.ts",
+      "target": "file:lib/auth.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/problems/[slug]/submit/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/problems/[slug]/submit/route.ts",
+      "target": "file:lib/piston.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/problems/[slug]/submit/route.ts",
+      "target": "file:lib/auth.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/profile/me/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/profile/me/route.ts",
+      "target": "file:lib/auth.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/settings/ai/route.ts",
+      "target": "file:lib/auth.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/settings/ai/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/fix-model/route.ts",
+      "target": "file:lib/auth.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/fix-model/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/syntax-check/route.ts",
+      "target": "file:lib/auth.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/syntax-check/route.ts",
+      "target": "file:lib/piston.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/admin/problems/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/admin/problems/route.ts",
+      "target": "file:lib/admin.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/admin/problems/route.ts",
+      "target": "file:lib/httpErrors.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/admin/problems/route.ts",
+      "target": "file:lib/validation/adminProblem.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/admin/problems/[id]/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/admin/problems/[id]/route.ts",
+      "target": "file:lib/admin.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/admin/problems/[id]/route.ts",
+      "target": "file:lib/httpErrors.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/admin/problems/[id]/route.ts",
+      "target": "file:lib/validation/adminProblem.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/mentor/route.ts",
+      "target": "file:lib/auth.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/mentor/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/auth/register/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/posts/route.ts",
+      "target": "file:lib/auth.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/posts/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/posts/[postId]/comments/route.ts",
+      "target": "file:lib/auth.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/posts/[postId]/comments/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/posts/[postId]/like/route.ts",
+      "target": "file:lib/auth.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/posts/[postId]/like/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/users/[userId]/follow/route.ts",
+      "target": "file:lib/auth.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/users/[userId]/follow/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/channels/[channelId]/follow/route.ts",
+      "target": "file:lib/auth.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/channels/[channelId]/follow/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/trending/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/patterns/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/discussions/top/route.ts",
+      "target": "file:lib/prisma.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:app/api/auth/register/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/problems/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/problems/[slug]/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/problems/[slug]/run/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/problems/[slug]/submit/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/posts/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/posts/[postId]/comments/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/posts/[postId]/like/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/profile/me/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/users/[userId]/follow/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/channels/[channelId]/follow/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/settings/ai/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/fix-model/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/trending/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/patterns/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/discussions/top/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/admin/problems/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/admin/problems/[id]/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/admin/patterns/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/mentor/route.ts",
+      "target": "schema:prisma/schema.prisma",
+      "type": "defines_schema",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:app/api/mentor/route.ts",
+      "target": "fn:mentor/resolveApiConfig",
+      "type": "defines",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:app/api/mentor/route.ts",
+      "target": "fn:mentor/callAIWithKeyRotation",
+      "type": "defines",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:app/api/mentor/route.ts",
+      "target": "fn:mentor/buildMentorSystemPrompt",
+      "type": "defines",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:app/api/mentor/route.ts",
+      "target": "fn:mentor/sanitizeAssistantResponse",
+      "type": "defines",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:app/api/problems/[slug]/run/route.ts",
+      "target": "fn:run/route-clampDbText",
+      "type": "defines",
+      "direction": "forward",
+      "weight": 0.5
+    },
+    {
+      "source": "file:app/api/problems/[slug]/submit/route.ts",
+      "target": "fn:run/submit/route-clampDbText",
+      "type": "defines",
+      "direction": "forward",
+      "weight": 0.5
+    }
+  ]
+}

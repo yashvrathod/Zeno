@@ -9,11 +9,13 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { resolveApiConfig } from "@/lib/mentor/services/llmClient";
 import { routeInteraction, saveToCache } from "@/lib/mentor/interactionRouter";
 import { saveMessage, tryAdvanceStage } from "@/lib/mentor/stageEngine";
 import { detectPatternsStatically, trackWeakPatterns } from "@/lib/mentor/patternTracker";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { computeEmbedding } from "@/lib/mentor/interactionRouter";
+import { callLlm } from "@/lib/clients/llmClient";
 
 export const runtime = "nodejs";
 
@@ -25,6 +27,8 @@ type ApproachRequest = {
   problemId: string;
   problemTitle: string;
   problemStatementMd: string;
+  problemSlug?: string;
+  constraintsMd?: string;
   userApproach: string; // User's proposed approach
 };
 
@@ -44,11 +48,12 @@ async function callApproachAI(params: {
   apiKey: string;
   apiBaseUrl: string;
   model: string;
+  provider: string;
   problemTitle: string;
   problemStatement: string;
   userApproach: string;
 }): Promise<{ approachCorrect: boolean; message: string; reasoning: string }> {
-  const { apiKey, apiBaseUrl, model, problemTitle, problemStatement, userApproach } = params;
+  const { apiKey, apiBaseUrl, model, provider, problemTitle, problemStatement, userApproach } = params;
 
   const systemPrompt = `You are a DSA mentor validating a student's approach.
 
@@ -78,35 +83,18 @@ Student's proposed approach:
 
 Evaluate their approach.`;
 
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-  };
-
-  if (apiKey !== "ollama") {
-    headers.Authorization = `Bearer ${apiKey}`;
-  }
-
-  const response = await fetch(`${apiBaseUrl}/chat/completions`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.3,
-      max_tokens: 500,
-      stream: false,
-    }),
+  const content = await callLlmAndParse({
+    apiKey,
+    apiBaseUrl,
+    model,
+    provider: provider as Parameters<typeof callLlm>[0]["provider"],
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.3,
+    maxTokens: 500,
   });
-
-  if (!response.ok) {
-    throw new Error(`AI API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content || "";
 
   // Parse JSON from response
   try {
@@ -121,6 +109,15 @@ Evaluate their approach.`;
       message: content,
       reasoning: "",
     };
+  }
+}
+
+async function callLlmAndParse(params: Parameters<typeof callLlm>[0]): Promise<string> {
+  try {
+    const { content } = await callLlm(params);
+    return content;
+  } catch (error) {
+    throw new Error(`AI API error: ${error instanceof Error ? error.message : "unknown error"}`);
   }
 }
 
@@ -174,7 +171,9 @@ export async function POST(req: NextRequest) {
       id: mentorSession.id,
       userId,
       problemId,
-      stage: (mentorSession.stage as "EXPLORE" | "APPROACH" | "CODE" | "COMPLETE"),
+      stage: mentorSession.stage as any,
+      createdAt: mentorSession.createdAt || new Date(),
+      updatedAt: mentorSession.updatedAt || new Date(),
       messages: [],
     };
 
@@ -242,7 +241,7 @@ export async function POST(req: NextRequest) {
 
       // Advance stage if approach is correct
       if (approachCorrect) {
-        await tryAdvanceStage(mentorSession.id, "CODE", { approachCorrect: true });
+        await tryAdvanceStage(mentorSession.id, "IMPLEMENT", { approachCorrect: true });
       }
 
       return Response.json({
@@ -261,39 +260,14 @@ export async function POST(req: NextRequest) {
       where: { userId },
     });
 
-    const provider = userAiSettings?.apiProvider || "server";
-    let apiKey: string | undefined;
-    let apiBaseUrl: string;
-    let model: string;
-
-    if (provider === "openrouter" && userAiSettings?.openrouterApiKey) {
-      apiKey = userAiSettings.openrouterApiKey;
-      apiBaseUrl = "https://openrouter.ai/api/v1";
-      model = userAiSettings.preferredFreeModel || "deepseek/deepseek-chat-v3-0324:free";
-    } else if (provider === "groq" && userAiSettings?.groqApiKey) {
-      apiKey = userAiSettings.groqApiKey;
-      apiBaseUrl = "https://api.groq.com/openai/v1";
-      model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
-    } else if (process.env.OPENROUTER || process.env.OPENROUTER_API_KEY) {
-      apiKey = process.env.OPENROUTER || process.env.OPENROUTER_API_KEY;
-      apiBaseUrl = "https://openrouter.ai/api/v1";
-      model = "deepseek/deepseek-chat-v3-0324:free";
-    } else if (process.env.GROQ_API_KEY) {
-      apiKey = process.env.GROQ_API_KEY;
-      apiBaseUrl = process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1";
-      model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
-    } else {
-      return Response.json(
-        { error: "No API key configured" },
-        { status: 500 }
-      );
-    }
+    const apiConfig = await resolveApiConfig(userAiSettings);
 
     // Call AI
     const aiResult = await callApproachAI({
-      apiKey,
-      apiBaseUrl,
-      model,
+      apiKey: apiConfig.apiKey,
+      apiBaseUrl: apiConfig.apiBaseUrl,
+      model: apiConfig.model,
+      provider: apiConfig.provider,
       problemTitle: body.problemTitle || "Unknown",
       problemStatement: body.problemStatementMd || "",
       userApproach,
@@ -324,9 +298,9 @@ export async function POST(req: NextRequest) {
     // ── STEP 8: Advance stage if approach is correct ──
     let newStage = mentorSession.stage;
     if (aiResult.approachCorrect) {
-      const advanceResult = await tryAdvanceStage(mentorSession.id, "CODE", { approachCorrect: true });
+      const advanceResult = await tryAdvanceStage(mentorSession.id, "IMPLEMENT", { approachCorrect: true });
       if (advanceResult.success) {
-        newStage = "CODE";
+        newStage = "IMPLEMENT";
       }
     }
 

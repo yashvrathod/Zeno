@@ -1,14 +1,19 @@
 {
   "env": {
-    "ANTHROPIC_BASE_URL": "https://openrouter.ai/api",
-    "ANTHROPIC_AUTH_TOKEN": "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",
+    "ANTHROPIC_BASE_URL": "https://openrouter.ai/api/v1",
+    "ANTHROPIC_AUTH_TOKEN": "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",
     "ANTHROPIC_API_KEY": "",
-    "ANTHROPIC_MODEL": "qwen/qwen3.6-plus:free"
+    "ANTHROPIC_MODEL": "qwen/qwen3-coder:free"
   },
   "permissions": {
     "allow": [
       "Bash(npx tsc:*)",
-      "Bash(npx prisma:*)"
+      "Bash(npx prisma:*)",
+      "Read(//c/Users/yashv/Desktop/New-ai/**)",
+      "Bash(ls -la /c/Users/yashv/Desktop/New-ai/code.zone/.understand-anything/intermediate/batch-*.json)",
+      "Bash(python3:*)",
+      "Bash(python:*)",
+      "Bash(ls -la *.config.* *.config.ts *.config.js)"
     ]
   }
 }

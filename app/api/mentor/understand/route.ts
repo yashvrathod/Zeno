@@ -142,6 +142,8 @@ export async function POST(req: NextRequest) {
       userId,
       problemId,
       stage: "EXPLORE" as const,
+      createdAt: mentorSession.createdAt || new Date(),
+      updatedAt: mentorSession.updatedAt || new Date(),
       messages: [],
     };
 

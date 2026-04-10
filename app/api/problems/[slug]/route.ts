@@ -38,6 +38,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ slug: stri
       hints: problem.hints.map((h) => h.textMd),
       publicTestCases: problem.testCases,
       starterCode: problem.starterCode ?? {},
+      animationType: problem.animationType,
+      animationData: problem.animationData,
     },
   });
 }

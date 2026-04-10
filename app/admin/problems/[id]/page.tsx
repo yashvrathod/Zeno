@@ -24,6 +24,8 @@ type LoadedProblem = {
   patternIds: string[];
   hints: Array<{ order: number; textMd: string }>;
   testCases: Array<{ order: number; input: string; expected: string; isHidden: boolean }>;
+  animationType: string | null;
+  animationData: string | null;
 };
 
 async function fetchPatterns(): Promise<Pattern[]> {
@@ -76,6 +78,9 @@ export default function AdminProblemEditPage() {
   const [starterJava, setStarterJava] = React.useState('');
   const [starterCpp, setStarterCpp] = React.useState('');
 
+  const [animationType, setAnimationType] = React.useState<'svg' | 'canvas' | 'lottie' | ''>('');
+  const [animationData, setAnimationData] = React.useState('');
+
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
@@ -105,6 +110,9 @@ export default function AdminProblemEditPage() {
       setStarterPy(sc.python ?? '');
       setStarterJava(sc.java ?? '');
       setStarterCpp(sc.cpp ?? '');
+
+      setAnimationType((prob.animationType as 'svg' | 'canvas' | 'lottie' | '') ?? '');
+      setAnimationData(prob.animationData ?? '');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to load');
     } finally {
@@ -163,6 +171,8 @@ export default function AdminProblemEditPage() {
           hints,
           testCases,
           starterCode,
+          animationType: animationType || null,
+          animationData: animationData || null,
         }),
       });
 
@@ -301,6 +311,69 @@ export default function AdminProblemEditPage() {
         </Card>
 
         <Card className="bg-[#1a1a1a] border-zinc-800 p-4 space-y-4">
+          <div className="text-sm font-semibold">Problem Visualization (Animation)</div>
+          <p className="text-xs text-gray-400">
+            Upload an SVG, Canvas-based animation, or Lottie JSON to help users understand the problem visually.
+            SVG/Canvas/Javascript is stored directly (stored in DB), Lottie requires a file upload endpoint.
+          </p>
+
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              {(['svg', 'canvas', 'lottie'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setAnimationType(animationType === t ? '' : t)}
+                  className={`px-3 py-1.5 rounded-md border text-xs uppercase tracking-wider ${
+                    animationType === t
+                      ? 'border-purple-500 text-purple-300 bg-purple-500/5'
+                      : 'border-zinc-700 text-gray-300 hover:border-zinc-500'
+                  }`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+
+            {animationType === 'svg' ? (
+              <textarea
+                value={animationData}
+                onChange={(e) => setAnimationData(e.target.value)}
+                placeholder='<svg viewBox="0 0 400 300">...'
+                className="w-full min-h-48 rounded-md bg-[#0f0f0f] border border-zinc-700 px-3 py-2 text-xs text-white font-mono outline-none focus-visible:border-orange-500"
+              />
+            ) : animationType === 'canvas' ? (
+              <textarea
+                value={animationData}
+                onChange={(e) => setAnimationData(e.target.value)}
+                placeholder={`(canvas) => (ctx, t, w, h) => {\n  // t is 0 to 1 (animation progress)\n  // draw your algorithm visualization here\n  const x = t * w;\n  ctx.fillStyle = '#9333ea';\n  ctx.fillRect(0, h/2 - 20, x, 40);\n}`}
+                className="w-full min-h-48 rounded-md bg-[#0f0f0f] border border-zinc-700 px-3 py-2 text-xs text-white font-mono outline-none focus-visible:border-orange-500"
+              />
+            ) : animationType === 'lottie' ? (
+              <input
+                value={animationData}
+                onChange={(e) => setAnimationData(e.target.value)}
+                placeholder="Lottie animation file URL or inline JSON"
+                className="w-full rounded-md bg-[#0f0f0f] border border-zinc-700 px-3 py-2 text-xs text-white font-mono outline-none focus-visible:border-orange-500"
+              />
+            ) : null}
+
+            {animationType && (
+              <div className="flex items-center gap-2">
+                <label htmlFor="animationFileUpload" className="text-xs text-gray-400">
+                  Or upload a file (SVG/Lottie/Canvas .js):
+                </label>
+                <FileUploadInput
+                  fileKey={animationType}
+                  onFileContent={(content) => setAnimationData(content)}
+                  problemId={id}
+                />
+              </div>
+            )}
+          </div>
+        </Card>
+
+        <Card className="bg-[#1a1a1a] border-zinc-800 p-4 space-y-4">
           <div className="text-sm font-semibold">Starter code</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -329,5 +402,69 @@ export default function AdminProblemEditPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+/**
+ * FileUploadInput — reads a local .svg, .json (lottie), or .js (canvas) file
+ * and sets its content into the animation text area.
+ */
+function FileUploadInput({
+  fileKey,
+  onFileContent,
+  problemId,
+}: {
+  fileKey: string;
+  onFileContent: (content: string) => void;
+  problemId: string;
+}) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowed = ['image/svg+xml', 'application/json', 'text/javascript', 'text/plain'];
+    if (!allowed.includes(file.type) && !file.name.match(/\.(svg|json|js|ts)$/)) {
+      toast.error('Only .svg, .json, or .js files are accepted');
+      return;
+    }
+
+    // For small files (<200KB), read directly; otherwise upload to cloud
+    if (file.size < 200 * 1024) {
+      const content = await file.text();
+      onFileContent(content);
+      toast.success(`Loaded ${file.name}`);
+    } else {
+      // Large file: upload to cloud storage
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('problemId', problemId);
+
+        const res = await fetch('/api/admin/animations/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!res.ok) throw new Error('Upload failed');
+        const data = await res.json();
+        onFileContent(data.url);
+        toast.success(`Uploaded ${file.name} to cloud storage`);
+      } catch {
+        toast.error('Cloud upload failed. File too large for local storage.');
+      }
+    }
+  };
+
+  return (
+    <input
+      ref={inputRef}
+      id="animationFileUpload"
+      type="file"
+      accept=".svg,.json,.js,.ts"
+      onChange={handleFile}
+      className="text-xs text-gray-400"
+    />
   );
 }
