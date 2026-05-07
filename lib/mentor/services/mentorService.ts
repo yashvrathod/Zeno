@@ -26,6 +26,138 @@ import { handleAiNeeded } from "./handlers/aiHandler";
 import prisma from "@/lib/prisma";
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ENHANCED FEATURE INTEGRATION
+// ─────────────────────────────────────────────────────────────────────────────
+import {
+  classifyIntentWithContext,
+  makeRoutingDecision,
+  detectInterventionNeed,
+  type ConversationIntent
+} from "../enhancedIntentClassifier";
+import {
+  getStudentKnowledgeGraph,
+  updateConceptMastery,
+  recordProblemAttempt,
+  calculateOverallMastery,
+  getWeakestConcepts,
+  type ConceptId
+} from "../personalizationEngine";
+import {
+  analyzeCodeForDebugging,
+  type DebugAnalysis
+} from "../enhancedDebuggingAssistant";
+import {
+  generateVisualizationFromTrace,
+  type VisualizationType
+} from "../interactiveVisualization";
+import { features } from "@/lib/features";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPER FUNCTIONS FOR ENHANCED FEATURES
+// ─────────────────────────────────────────────────────────────────────────────
+
+function detectFrustrationLevel(message: string): number {
+  const frustrationWords = [
+    'frustrated', 'stuck', 'hate', 'confused', 'lost',
+    'impossible', 'give up', 'ugh', 'wtf', 'screw this',
+    'annoying', 'terrible', 'worst', 'fed up'
+  ];
+  const lower = message.toLowerCase();
+  const count = frustrationWords.filter(word => lower.includes(word)).length;
+  return Math.min(count / 5, 1); // Normalize to 0-1
+}
+
+async function handleIntervention(
+  intervention: any,
+  body: MentorRequest,
+  session: any,
+  context: any
+): Promise<MentorResponse> {
+  let message = '';
+
+  switch (intervention.type) {
+    case 'frustration':
+      message = `I can see you're feeling frustrated, and that's completely okay.
+Let's take a step back. ${intervention.suggestedAction}`;
+      break;
+
+    case 'confusion':
+      message = `It sounds like we're going in circles. Let me try a different approach.
+${intervention.suggestedAction}`;
+      break;
+
+    case 'escalation':
+      message = `I notice you're asking for more direct help.
+${intervention.suggestedAction}`;
+      break;
+
+    case 'stuck':
+      message = `You've been working on this for a while. ${intervention.suggestedAction}`;
+      break;
+
+    case 'repetition':
+      message = `I notice you're asking similar questions.
+${intervention.suggestedAction}`;
+      break;
+
+    default:
+      message = intervention.suggestedAction;
+  }
+
+  // Save the intervention message
+  await saveMessage(
+    session.id,
+    "assistant",
+    message,
+    session.stage as any,
+  );
+
+  return {
+    ok: true,
+    message,
+    metadata: {
+      interventionType: intervention.type,
+      stage: session.stage,
+      requiresAttention: true
+    }
+  };
+}
+
+function extractConceptsFromProblem(body: MentorRequest): ConceptId[] {
+  const concepts: ConceptId[] = [];
+  const text = (body.problemTitle + ' ' + (body.problemStatementMd || '')).toLowerCase();
+
+  // Map keywords to concepts
+  const conceptMap: Record<string, ConceptId> = {
+    'binary search': 'binary_search',
+    'two pointer': 'two_pointer',
+    'sliding window': 'sliding_window',
+    'hash map': 'hash_map',
+    'hashmap': 'hash_map',
+    'stack': 'stack',
+    'queue': 'queue',
+    'heap': 'heap',
+    'dfs': 'dfs',
+    'bfs': 'bfs',
+    'tree': 'tree',
+    'graph': 'graph',
+    'dp': 'dp',
+    'dynamic programming': 'dp',
+    'recursion': 'recursion',
+    'backtrack': 'backtracking',
+    'greedy': 'greedy',
+  };
+
+  for (const [keyword, concept] of Object.entries(conceptMap)) {
+    if (text.includes(keyword) && !concepts.includes(concept)) {
+      concepts.push(concept);
+    }
+  }
+
+  return concepts;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PUBLIC TYPES
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -171,7 +303,68 @@ export async function execute(params: {
     content: m.content,
   }));
 
-  // ── 4. ROUTE INTERACTION ──
+  // ── 4. ENHANCED INTENT CLASSIFICATION & PERSONALIZATION ──
+  let knowledgeGraph = null;
+  let conversationIntent: ConversationIntent | null = null;
+  let routingDecision: any = null;
+  let intervention = null;
+
+  if (features.enhancedIntent || features.personalization) {
+    // Fetch student knowledge graph for personalization
+    if (features.personalization) {
+      knowledgeGraph = await getStudentKnowledgeGraph(userId);
+    }
+
+    // Enhanced intent classification with conversation context
+    if (features.enhancedIntent) {
+      const allIntents = await Promise.all(
+        history.map(async (h) => ({
+          intent: h.role === "user"
+            ? (await classifyIntentWithContext(h.content, {})).primaryIntent
+            : ("assistant" as any),
+          confidence: "medium" as any,
+          shouldEnforceStage: true,
+          requiresValidation: true,
+          reason: "from_history",
+          keywords: [],
+          metadata: {}
+        }))
+      );
+      const previousIntents = allIntents.filter((h: any) => h.intent !== "assistant");
+
+      conversationIntent = classifyIntentWithContext(body.userMessage, {
+        stage: mentorSession.stage as any,
+        previousIntents,
+        userFrustrationLevel: detectFrustrationLevel(body.userMessage),
+        attemptCount: stats?.submitCount || 0
+      });
+
+      routingDecision = makeRoutingDecision(conversationIntent, {
+        stage: mentorSession.stage,
+        userFrustrationLevel: detectFrustrationLevel(body.userMessage)
+      });
+
+      // Detect need for proactive intervention
+      intervention = detectInterventionNeed(
+        conversationIntent,
+        previousIntents,
+        {
+          frustrationLevel: detectFrustrationLevel(body.userMessage),
+          attemptCount: stats?.submitCount || 0
+        }
+      );
+
+      // Handle intervention immediately
+      if (intervention) {
+        return handleIntervention(intervention, body, mentorSession, {
+          stage: mentorSession.stage,
+          problemTitle: problemRecord.title
+        });
+      }
+    }
+  }
+
+  // ── 5. ROUTE INTERACTION ──
   const decision = await routeInteraction(body.userMessage, mentorSession, problemForRouter);
 
   // ────────────────────────────────
@@ -286,6 +479,19 @@ export async function execute(params: {
     };
   }
 
+  // By this point, decision must be AI_NEEDED (STATIC and CACHE_HIT handled above)
+  const intent = decision.type === "AI_NEEDED" ? decision.intent : undefined;
+
+  // ── Enhanced Debugging Analysis (if in DEBUG stage with errors) ──
+  let analysis: DebugAnalysis | null = null;
+  if (features.debugAnalysis && mentorSession.stage === "DEBUG" && body.userCode && (body.syntaxError || body.userMessage.toLowerCase().includes("error") || body.userMessage.toLowerCase().includes("bug"))) {
+    try {
+      analysis = await analyzeCodeForDebugging(body.userCode, body.language as any, { errorMessage: body.syntaxError });
+    } catch (e) {
+      console.warn("Debug analysis failed:", e);
+    }
+  }
+
   return handleAiNeeded({
     body,
     userId,
@@ -296,5 +502,9 @@ export async function execute(params: {
     userAiSettings,
     existingSummary,
     apiConfig,
+    intent,
+    conversationIntent,
+    knowledgeGraph,
+    debugAnalysis: analysis,
   });
 }

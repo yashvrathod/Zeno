@@ -42,9 +42,16 @@ next-env.d.ts
 
 # local scratch notes (not part of app)
 response
+responseai
 
-/lib/generated/prisma
+# npm cache
+npm-cache/
 
-/lib/generated/prisma
+# temp analysis directories
+.understand-anything/
 
+# local IDE settings
+.claude/settings.local.json
+
+# generated prisma client
 /lib/generated/prisma

@@ -14,7 +14,7 @@ import { routeInteraction, saveToCache } from "@/lib/mentor/interactionRouter";
 import { saveMessage, tryAdvanceStage } from "@/lib/mentor/stageEngine";
 import { detectPatternsStatically, trackWeakPatterns } from "@/lib/mentor/patternTracker";
 import { checkRateLimit } from "@/lib/rateLimit";
-import { computeEmbedding } from "@/lib/mentor/interactionRouter";
+import { getEmbedding } from "@/lib/embeddings";
 import { callLlm } from "@/lib/clients/llmClient";
 
 export const runtime = "nodejs";
@@ -281,7 +281,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── STEP 6: Save to cache (GLOBAL — reusable by ALL users) ──
-    const embedding = await computeEmbedding(userApproach);
+    const embedding = await getEmbedding(userApproach);
     await saveToCache({
       problemId,
       question: userApproach,

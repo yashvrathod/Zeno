@@ -1,17 +1,33 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
-import Navbar from '@/components/Navbar';
+import React, { useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import {
-  Search,
-  LayoutGrid,
-  List,
-  ArrowRight,
-  Sparkles,
+  Play,
+  CheckCircle2,
+  Clock,
+  BookOpen,
+  Users,
+  Calendar,
+  BarChart,
+  Infinity,
+  Globe,
+  Monitor,
+  Award,
+  ChevronLeft,
+  Pause,
+  Layout,
+  Brain,
+  Zap,
   Target,
+  TrendingUp,
+  Sparkles,
+  ArrowRight,
+  Eye
 } from 'lucide-react';
 import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 type ApiPattern = {
   id: string;
@@ -19,15 +35,6 @@ type ApiPattern = {
   description: string | null;
   problemCount: number;
   problems: Array<{ id: string; slug: string; title: string; difficulty: 'EASY' | 'MEDIUM' | 'HARD' }>;
-};
-
-type UiPattern = {
-  id: string;
-  name: string;
-  description: string;
-  problemCount: number;
-  completed: number;
-  problems: Array<{ id: string; title: string; difficulty: string; leetcodeId: string }>;
 };
 
 async function fetchPatterns(): Promise<ApiPattern[]> {
@@ -38,219 +45,218 @@ async function fetchPatterns(): Promise<ApiPattern[]> {
 }
 
 export default function ProblemsPage() {
-  const [expandedPattern, setExpandedPattern] = useState<string | null>(null);
   const [apiPatterns, setApiPatterns] = useState<ApiPattern[] | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   useEffect(() => {
     fetchPatterns().then(setApiPatterns).catch(() => setApiPatterns([]));
   }, []);
 
-  const patterns: UiPattern[] = useMemo(() => {
-    if (apiPatterns) {
-      return apiPatterns.map((p) => ({
-        id: p.id,
-        name: p.name,
-        description: p.description ?? '',
-        problemCount: p.problemCount,
-        completed: 0,
-        problems: p.problems.map((pr) => ({
-          id: pr.id,
-          title: pr.title,
-          difficulty: pr.difficulty,
-          leetcodeId: pr.id,
-        })),
-      }));
-    }
-    return [];
-  }, [apiPatterns]);
-
-  const filteredPatterns = useMemo(() => {
-    if (!searchQuery) return patterns;
-    return patterns.filter(p => 
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      p.description.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [patterns, searchQuery]);
-
   return (
-    <div className="flex h-screen bg-[#050505] text-zinc-400 font-sans overflow-hidden">
+    <div className="flex h-screen bg-[#0d0d0d] text-zinc-100 font-sans overflow-hidden">
       <Sidebar />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Navbar />
-
-        <main className="flex-1 overflow-y-auto bg-[#0a0a0c] selection:bg-purple-500/30 scrollbar-hide">
-          <div className="max-w-6xl mx-auto px-12 py-16 flex gap-16">
+        <main className="flex-1 overflow-y-auto no-scrollbar pb-20">
+          <div className="max-w-[1400px] mx-auto p-8 space-y-10">
             
-            <div className="flex-1 min-w-0">
-              {/* Aether Header */}
-              <div className="space-y-6 mb-16 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* AI Recommendation Hero */}
+            <section className="relative rounded-[32px] overflow-hidden bg-[#111111] border border-zinc-800 shadow-2xl p-10 flex flex-col md:flex-row items-center gap-10">
+              <div className="absolute top-0 right-0 w-full h-full opacity-10 pointer-events-none">
+                <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-purple-500 rounded-full blur-[120px]" />
+                <div className="absolute bottom-[-20%] left-[-10%] w-[400px] h-[400px] bg-blue-500 rounded-full blur-[100px]" />
+              </div>
+
+              <div className="flex-1 space-y-6 relative z-10">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center border border-white/10">
-                    <Sparkles size={14} className="text-purple-400" />
+                  <div className="flex -space-x-2">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="w-8 h-8 rounded-full border-2 border-[#111111] bg-zinc-800 overflow-hidden">
+                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${i + 20}`} alt="user" />
+                      </div>
+                    ))}
                   </div>
-                  <span className="text-[10px] font-bold tracking-[0.3em] text-zinc-500 uppercase">CURRICULUM ARCHITECT</span>
+                  <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Joined by 12k+ engineers this week</span>
                 </div>
-                
-                <h1 className="text-5xl font-serif italic text-white leading-tight tracking-tight">
-                  Algorithmic foundations for the modern architect.
-                </h1>
-                <p className="text-lg text-zinc-500 font-light max-w-2xl leading-relaxed">
-                  Master the core patterns of computation through our curated curriculum. Each module represents a neural path toward mastery.
-                </p>
-              </div>
 
-              {/* Controls */}
-              <div className="flex items-center justify-between mb-12 border-b border-white/5 pb-8">
-                <div className="relative flex-1 max-w-md group">
-                  <Search className="absolute left-0 top-1/2 -translate-y-1/2 text-zinc-700 group-focus-within:text-purple-500 transition-colors" size={18} />
-                  <input 
-                    type="text"
-                    placeholder="Search neural paths..."
-                    className="w-full bg-transparent py-3 pl-8 text-sm text-white placeholder:text-zinc-800 outline-none transition-all font-light"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-[#a855f7]">
+                    <Sparkles size={16} />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Mentor Recommendation</span>
+                  </div>
+                  <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-[1.1]">
+                    You're mastering <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">Sliding Window</span>.
+                  </h1>
+                  <p className="text-zinc-400 text-lg max-w-2xl leading-relaxed">
+                    Based on your recent sessions, you have strong syntax precision but struggle with <span className="text-white font-semibold">off-by-one errors</span>. Let's fix that with "Longest Substring Without Repeating Characters".
+                  </p>
                 </div>
-                
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => setViewMode('grid')}
-                    className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'text-white' : 'text-zinc-700 hover:text-zinc-500'}`}
-                  >
-                    <LayoutGrid size={18} />
-                  </button>
-                  <button 
-                    onClick={() => setViewMode('list')}
-                    className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'text-white' : 'text-zinc-700 hover:text-zinc-500'}`}
-                  >
-                    <List size={18} />
-                  </button>
+
+                <div className="flex items-center gap-4 pt-2">
+                  <Button className="bg-[#4ade80] hover:bg-[#3bbd6d] text-black font-bold h-12 px-8 rounded-xl shadow-[0_0_20px_rgba(74,222,128,0.3)] transition-all">
+                    Resume Journey
+                  </Button>
+                  <Button variant="outline" className="border-zinc-800 bg-transparent text-zinc-300 h-12 px-6 rounded-xl hover:bg-zinc-900 transition-all">
+                    View Weakness Map
+                  </Button>
                 </div>
               </div>
 
-              {/* Pattern Grid */}
-              <div className={viewMode === 'grid' 
-                ? "grid grid-cols-1 md:grid-cols-2 gap-8" 
-                : "flex flex-col gap-6"
-              }>
-                {filteredPatterns.map((pattern) => (
-                  <div key={pattern.id} className="group flex flex-col bg-[#0d0d10] border border-white/5 rounded-2xl p-6 hover:border-white/10 transition-all duration-500">
-                    <div className="flex justify-between items-start mb-6">
-                       <span className="text-[10px] font-bold text-zinc-700 tracking-[0.3em] uppercase font-mono">MOD_{pattern.id.slice(-4).toUpperCase()}</span>
-                       <div className="w-2 h-2 rounded-full bg-zinc-800 group-hover:bg-purple-500 transition-colors shadow-[0_0_10px_rgba(168,85,247,0)] group-hover:shadow-[0_0_10px_rgba(168,85,247,0.5)]" />
-                    </div>
+              <div className="w-full md:w-[340px] bg-[#1a1a1a] rounded-2xl border border-zinc-800 p-6 space-y-6 relative z-10 shadow-xl">
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Skill Growth</span>
+                  <TrendingUp size={14} className="text-[#4ade80]" />
+                </div>
+                
+                <div className="space-y-4">
+                  <SkillProgress label="Analytical Velocity" value={78} color="bg-purple-500" />
+                  <SkillProgress label="Syntax Precision" value={42} color="bg-blue-500" />
+                  <SkillProgress label="Time Complexity" value={61} color="bg-emerald-500" />
+                </div>
 
-                    <h3 className="text-2xl font-serif italic text-white mb-4 group-hover:text-purple-200 transition-colors tracking-tight">{pattern.name}</h3>
-                    <p className="text-base text-zinc-500 font-light leading-relaxed mb-10 line-clamp-2">
-                      {pattern.description}
-                    </p>
+                <div className="pt-4 border-t border-zinc-800 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-zinc-500 font-bold uppercase">Current Streak</span>
+                    <span className="text-xl font-black text-white">12 Days</span>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-[#4ade80]/10 flex items-center justify-center text-[#4ade80]">
+                    <Zap size={20} fill="currentColor" />
+                  </div>
+                </div>
+              </div>
+            </section>
 
-                    <div className="mt-auto space-y-8">
-                       <div className="pt-8 border-t border-white/5 flex items-center justify-between">
-                          <div className="flex items-center gap-6">
-                             <div className="flex flex-col gap-1">
-                                <span className="text-[10px] font-bold text-zinc-600 tracking-[0.2em] uppercase">Nodes</span>
-                                <span className="text-sm text-zinc-400 font-medium">{pattern.problemCount} <span className="text-zinc-600 font-normal">Challenges</span></span>
-                             </div>
-                             <div className="w-px h-8 bg-white/5" />
-                             <div className="flex flex-col gap-1">
-                                <span className="text-[10px] font-bold text-zinc-600 tracking-[0.2em] uppercase">Progress</span>
-                                <div className="flex items-center gap-3">
-                                  <div className="w-16 h-1 bg-white/5 rounded-full overflow-hidden">
-                                    <div className="h-full bg-purple-500/40 w-[0%] shadow-[0_0_10px_rgba(168,85,247,0.3)]" />
-                                  </div>
-                                  <span className="text-[10px] text-zinc-500 font-mono">0%</span>
-                                </div>
-                             </div>
-                          </div>
-                          
-                          <button 
-                           onClick={() => setExpandedPattern(expandedPattern === pattern.id ? null : pattern.id)}
-                           className="flex items-center gap-2 text-[10px] font-bold tracking-[0.3em] text-zinc-500 hover:text-white transition-all uppercase group/btn"
+            <div className="flex flex-col lg:flex-row gap-12">
+              {/* Content Column */}
+              <div className="flex-1 space-y-16">
+                {apiPatterns ? (
+                  apiPatterns.map((pattern, idx) => (
+                    <div key={pattern.id} className="space-y-8">
+                      <div className="flex justify-between items-end border-b border-zinc-900 pb-6">
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-black text-purple-500 uppercase tracking-[0.3em]">Module {idx + 1}</span>
+                          <h2 className="text-3xl font-bold text-white tracking-tight">{pattern.name}</h2>
+                          <p className="text-zinc-500 text-sm max-w-xl">{pattern.description || "Mastering the fundamental logic of this computational pattern."}</p>
+                        </div>
+                        <div className="text-[11px] font-bold text-zinc-600 uppercase tracking-widest">
+                          {pattern.problemCount} Challenges
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4">
+                        {pattern.problems.map((problem, pIdx) => (
+                          <Link 
+                            key={problem.id}
+                            href={`/problems/${problem.id}`}
+                            className="group bg-[#111111] hover:bg-[#161616] border border-zinc-800/50 rounded-2xl p-6 flex items-center gap-8 transition-all duration-300 relative overflow-hidden"
                           >
-                            {expandedPattern === pattern.id ? 'Hide Path' : 'Explore Path'}
-                            <ArrowRight size={14} className={`transition-transform duration-500 ${expandedPattern === pattern.id ? '-rotate-90' : 'group-hover/btn:translate-x-1'}`} />
-                          </button>
-                       </div>
+                            <div className="absolute top-0 left-0 w-1 h-full bg-transparent group-hover:bg-[#4ade80] transition-all" />
+                            
+                            <div className="w-20 h-20 rounded-2xl bg-[#0d0d0d] flex items-center justify-center border border-zinc-800 shrink-0 relative group-hover:border-[#4ade80]/30 transition-colors">
+                                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <div className="text-zinc-700 group-hover:text-zinc-400 transition-colors relative z-10">
+                                  {pIdx % 3 === 0 ? <Brain size={32} /> : pIdx % 3 === 1 ? <Layout size={32} /> : <Target size={32} />}
+                                </div>
+                            </div>
 
-                       {/* Expanded Problem List */}
-                       <div className={`transition-all duration-700 ease-in-out overflow-hidden ${expandedPattern === pattern.id ? 'max-h-[1200px] opacity-100 mt-6' : 'max-h-0 opacity-0'}`}>
-                          <div className="space-y-1.5 pb-6 pr-3 custom-scrollbar overflow-y-auto max-h-[700px]">
-                             {pattern.problems.length > 0 ? (
-                               pattern.problems.map((problem) => (
-                                 <Link 
-                                   key={problem.id}
-                                   href={`/problems/${problem.id}`}
-                                   className="flex items-center justify-between py-3.5 px-5 rounded-2xl bg-white/[0.01] hover:bg-white/[0.04] border border-white/[0.02] hover:border-white/10 transition-all duration-300 group/item"
-                                 >
-                                   <div className="flex items-center gap-4">
-                                      <div className="w-1.5 h-1.5 rounded-full bg-zinc-800 group-hover/item:bg-purple-500 transition-colors shadow-[0_0_8px_rgba(168,85,247,0)] group-hover/item:shadow-[0_0_8px_rgba(168,85,247,0.5)]" />
-                                      <span className="text-[15px] text-zinc-400 group-hover/item:text-white transition-colors font-light tracking-wide truncate max-w-[220px] md:max-w-md">{problem.title}</span>
-                                   </div>
-                                   <div className="flex items-center gap-5">
-                                     <span className={`text-[10px] font-bold uppercase tracking-[0.2em] px-2 py-0.5 rounded-full bg-white/5 border border-white/5 ${
-                                       problem.difficulty === 'EASY' ? 'text-emerald-400/70' : 
-                                       problem.difficulty === 'MEDIUM' ? 'text-amber-400/70' : 'text-rose-400/70'
-                                     }`}>
-                                       {problem.difficulty}
-                                     </span>
-                                     <div className="w-5 h-5 rounded-full border border-white/10 flex items-center justify-center group-hover/item:border-purple-500/30 transition-colors">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-white/10 group-hover/item:bg-purple-500/50 transition-colors" />
-                                     </div>
-                                   </div>
-                                 </Link>
-                               ))
-                             ) : (
-                               <div className="py-12 text-center border border-dashed border-white/5 rounded-3xl bg-white/[0.01]">
-                                  <span className="text-sm text-zinc-600 font-light italic tracking-widest uppercase">Nodes currently being architecture...</span>
-                               </div>
-                             )}
-                          </div>
-                       </div>
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <div className="flex items-center gap-3">
+                                <h3 className="text-lg font-bold text-white group-hover:text-[#4ade80] transition-colors">{problem.title}</h3>
+                                {pIdx % 4 === 0 && (
+                                  <Badge className="bg-[#4ade80]/10 text-[#4ade80] border-[#4ade80]/20 text-[9px] font-black uppercase tracking-widest h-5">
+                                    <Eye size={10} className="mr-1" /> Visual Lab
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-6 text-zinc-500">
+                                <div className="flex items-center gap-1.5 text-xs font-medium">
+                                  <div className={`w-2 h-2 rounded-full ${problem.difficulty === 'EASY' ? 'bg-emerald-500' : problem.difficulty === 'MEDIUM' ? 'bg-amber-500' : 'bg-rose-500'}`} />
+                                  {problem.difficulty}
+                                </div>
+                                <div className="flex items-center gap-1.5 text-xs">
+                                  <Clock size={14} className="text-zinc-600" />
+                                  <span>Approx. 45 min</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 text-xs">
+                                  <Sparkles size={14} className="text-purple-500/60" />
+                                  <span className="text-zinc-400 font-bold uppercase tracking-widest text-[10px]">Strategize Stage</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-4">
+                              <div className="flex flex-col items-end mr-4">
+                                <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Success Rate</span>
+                                <span className="text-sm font-bold text-white">84%</span>
+                              </div>
+                              <div className="w-12 h-12 rounded-full bg-zinc-900 flex items-center justify-center text-[#4ade80] group-hover:bg-[#4ade80] group-hover:text-black transition-all shadow-xl">
+                                <Play size={20} fill="currentColor" className="ml-1" />
+                              </div>
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Side Rail */}
-            <aside className="hidden lg:block w-72 shrink-0 space-y-16">
-               <section className="space-y-8 p-8 bg-[#0d0d10] border border-white/5 rounded-2xl">
-                  <div className="flex items-center gap-3">
-                    <Target size={14} className="text-zinc-600" />
-                    <h4 className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">Global Sync</h4>
-                  </div>
-                  
-                  <div className="space-y-6">
-                    <ProgressItem label="Analytical" value={74} />
-                    <ProgressItem label="Syntax" value={42} />
-                    <ProgressItem label="Efficiency" value={61} />
-                  </div>
-
-                  <button className="w-full py-4 bg-white/5 border border-white/10 text-white rounded-xl text-[10px] font-bold tracking-widest uppercase hover:bg-white hover:text-black transition-all">
-                    Resume Neural Path
-                  </button>
-               </section>
-
-               <section className="px-8 space-y-6">
-                  <h4 className="text-[10px] font-bold text-zinc-700 uppercase tracking-widest">Recent Activity</h4>
+                  ))
+                ) : (
                   <div className="space-y-4">
-                     {[1, 2, 3].map(i => (
-                       <div key={i} className="flex gap-4 items-start border-l border-white/5 pl-4 py-1">
-                          <div className="w-1 h-1 rounded-full bg-purple-500 mt-1.5" />
-                          <div className="flex flex-col gap-1">
-                             <span className="text-xs text-zinc-400 font-light">Solved "Two Sum"</span>
-                             <span className="text-[9px] text-zinc-700 uppercase tracking-tighter">2 hours ago</span>
-                          </div>
-                       </div>
-                     ))}
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="h-32 bg-zinc-900 animate-pulse rounded-3xl" />
+                    ))}
                   </div>
-               </section>
-            </aside>
+                )}
+              </div>
 
+              {/* Sidebar Column */}
+              <aside className="lg:w-[400px] space-y-10">
+                <section className="bg-[#111111] border border-zinc-800 rounded-3xl p-8 space-y-8">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400">
+                      <Brain size={18} />
+                    </div>
+                    <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white">Mentor Insights</h3>
+                  </div>
+
+                  <div className="space-y-6">
+                    <InsightItem 
+                      icon={<Sparkles className="text-amber-400" size={14} />}
+                      text="Your recursive thinking has improved by 15% this week. Focus on base cases next."
+                    />
+                    <InsightItem 
+                      icon={<Target className="text-rose-400" size={14} />}
+                      text="Recurring 'Off-by-one' pattern detected in your Array sessions. Suggesting targeted labs."
+                    />
+                    <InsightItem 
+                      icon={<Zap className="text-blue-400" size={14} />}
+                      text="You solve 'Easy' problems 40% faster than the global average. Ready for 'Medium'."
+                    />
+                  </div>
+
+                  <Button className="w-full h-12 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800 transition-all font-bold text-[11px] uppercase tracking-widest">
+                    Open Full Analysis <ArrowRight size={14} className="ml-2" />
+                  </Button>
+                </section>
+
+                <section className="space-y-6 px-4">
+                  <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">Course Highlights</h4>
+                  <div className="space-y-5">
+                    <DetailItem icon={<Users size={18} />} text="17,402 engineers enrolled" />
+                    <DetailItem icon={<Globe size={18} />} text="Available in 4 languages" />
+                    <DetailItem icon={<Monitor size={18} />} text="Cross-platform sync enabled" />
+                    <DetailItem icon={<Award size={18} />} text="Industry recognized certificate" />
+                  </div>
+                </section>
+
+                <section className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-3xl p-8 space-y-4">
+                  <h4 className="text-lg font-bold text-white">Upgrade to Pro</h4>
+                  <p className="text-zinc-400 text-xs leading-relaxed">
+                    Get unlimited AI-guided sessions, system design tracks, and direct mentor support.
+                  </p>
+                  <Button className="w-full h-10 rounded-lg bg-white text-black font-bold text-[10px] uppercase tracking-widest hover:bg-zinc-200">
+                    Unlock Full Access
+                  </Button>
+                </section>
+              </aside>
+            </div>
           </div>
         </main>
       </div>
@@ -258,19 +264,39 @@ export default function ProblemsPage() {
   );
 }
 
-function ProgressItem({ label, value }: { label: string, value: number }) {
+function SkillProgress({ label, value, color }: { label: string, value: number, color: string }) {
   return (
-    <div className="space-y-3">
-      <div className="flex justify-between text-[9px] font-bold text-zinc-600 uppercase tracking-widest">
-        <span>{label}</span>
-        <span>{value}%</span>
+    <div className="space-y-2">
+      <div className="flex justify-between items-center text-[10px] font-bold">
+        <span className="text-zinc-400 uppercase tracking-widest">{label}</span>
+        <span className="text-white">{value}%</span>
       </div>
-      <div className="h-[2px] w-full bg-white/5 overflow-hidden">
+      <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
         <div 
-          className="h-full bg-purple-500 transition-all duration-1000"
+          className={`h-full ${color} rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(168,85,247,0.3)]`}
           style={{ width: `${value}%` }}
         />
       </div>
+    </div>
+  );
+}
+
+function InsightItem({ icon, text }: { icon: React.ReactNode, text: string }) {
+  return (
+    <div className="flex gap-4 items-start group">
+      <div className="mt-1 shrink-0">{icon}</div>
+      <p className="text-[13px] text-zinc-400 leading-relaxed group-hover:text-zinc-200 transition-colors">
+        {text}
+      </p>
+    </div>
+  );
+}
+
+function DetailItem({ icon, text }: { icon: React.ReactNode, text: string }) {
+  return (
+    <div className="flex items-center gap-4 text-zinc-400 group cursor-default">
+      <div className="text-zinc-600 group-hover:text-[#4ade80] transition-colors shrink-0">{icon}</div>
+      <span className="text-xs font-medium group-hover:text-zinc-200 transition-colors">{text}</span>
     </div>
   );
 }

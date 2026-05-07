@@ -3,68 +3,177 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-  LayoutGrid,
-  Activity,
-  Code,
-  Circle,
+import {
+  LayoutDashboard,
+  BookOpen,
+  Compass,
+  MessageSquare,
+  Target,
+  Award,
   Settings,
+  UserCircle,
+  ChevronDown,
+  Terminal
 } from 'lucide-react';
 
 export default function Sidebar() {
   const pathname = usePathname();
 
-  const SidebarIcon = ({ href, icon, label, active = false }: { href: string, icon: React.ReactNode, label: string, active?: boolean }) => (
-    <Link 
-      href={href} 
-      className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-300 group/icon relative ${
-        active 
-          ? 'bg-white/5 text-white shadow-[0_0_20px_rgba(255,255,255,0.05)]' 
-          : 'text-zinc-600 hover:text-white hover:bg-white/[0.02]'
-      }`}
+  const SidebarItem = ({
+    href,
+    icon,
+    label,
+    active = false,
+    badge,
+    hasSubItems = false,
+    isSubItem = false,
+  }: {
+    href: string;
+    icon?: React.ReactNode;
+    label: string;
+    active?: boolean;
+    badge?: string;
+    hasSubItems?: boolean;
+    isSubItem?: boolean;
+  }) => (
+    <Link
+      href={href}
+      className={`group/item flex items-center gap-3 px-4 py-3 transition-all duration-200 relative ${
+        active
+          ? 'text-white'
+          : 'text-zinc-400 hover:text-zinc-200'
+      } ${isSubItem ? 'pl-12 py-2' : ''}`}
     >
-      <div className="shrink-0 w-8 flex justify-center">
-        {icon}
-      </div>
-      <span className="text-[10px] font-bold tracking-[0.2em] uppercase opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-500 whitespace-nowrap">
+      {active && !isSubItem && (
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-[#4ade80] rounded-r-full shadow-[0_0_10px_rgba(74,222,128,0.5)]" />
+      )}
+      
+      {!isSubItem && icon && (
+        <div className={`transition-transform duration-200 ${active ? 'text-white' : ''}`}>
+          {React.cloneElement(icon as React.ReactElement, { size: 18 })}
+        </div>
+      )}
+
+      {isSubItem && (
+        <div className={`w-1.5 h-1.5 rounded-full mr-2 ${active ? 'bg-[#4ade80]' : 'bg-zinc-600'}`} />
+      )}
+
+      <span className={`text-[13px] font-medium flex-1 ${isSubItem ? 'text-[12px]' : ''}`}>
         {label}
       </span>
-      {active && <div className="absolute left-0 w-1 h-6 bg-purple-500 rounded-r-full" />}
+
+      {badge && (
+        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">
+          {badge}
+        </span>
+      )}
+
+      {hasSubItems && (
+        <ChevronDown size={14} className={`text-zinc-500 transition-transform ${active ? 'rotate-180' : ''}`} />
+      )}
     </Link>
   );
 
   return (
-    <aside 
-      className="w-16 hover:w-64 transition-all duration-500 ease-in-out flex flex-col items-center py-6 border-r border-white/5 bg-[#050505] h-full z-50 group/sidebar overflow-hidden"
-    >
-      <div className="mb-12 w-full flex justify-center group-hover/sidebar:justify-start group-hover/sidebar:px-4 transition-all duration-500">
-         <Link href="/" className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/10 italic font-serif text-white text-lg hover:border-white/40 transition-colors shrink-0">
-           A
-         </Link>
-         <span className="ml-4 text-white font-serif italic text-xl opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-700 whitespace-nowrap hidden group-hover/sidebar:block">
-           Aether
-         </span>
-      </div>
-      
-      <nav className="flex-1 flex flex-col gap-4 w-full px-2">
-        <SidebarIcon href="/" icon={<LayoutGrid size={20} />} label="WORKBENCH" active={pathname === '/'} />
-        <SidebarIcon href="/problems" icon={<Code size={20} />} label="ARCHITECT" active={pathname.startsWith('/problems')} />
-        <SidebarIcon href="/leaderboard" icon={<Activity size={20} />} label="LEADERBOARD" active={pathname === '/leaderboard'} />
-        <SidebarIcon href="/settings" icon={<Circle size={18} />} label="SETTINGS" active={pathname === '/settings'} />
-      </nav>
-
-      <div className="mt-auto w-full px-2">
-        <Link 
-          href="/settings" 
-          className="w-full flex items-center gap-4 px-4 py-3 text-zinc-600 hover:text-white hover:bg-white/[0.02] rounded-xl transition-all duration-300 group/icon"
-        >
-          <div className="shrink-0 w-8 flex justify-center">
-            <Settings size={20} />
+    <aside className="w-64 flex flex-col h-full bg-[#000000] border-r border-zinc-900 hidden lg:flex">
+      {/* Logo */}
+      <div className="h-20 flex items-center px-6">
+        <Link href="/" className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded bg-white flex items-center justify-center">
+            <Terminal className="text-black" size={18} />
           </div>
-          <span className="text-[10px] font-bold tracking-[0.2em] uppercase opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-500 whitespace-nowrap">
-            Configuration
-          </span>
+          <div className="flex flex-col">
+            <span className="text-[14px] font-bold text-white leading-tight uppercase tracking-wider">
+              Core
+            </span>
+            <span className="text-[14px] font-bold text-white leading-tight uppercase tracking-wider">
+              Developer
+            </span>
+          </div>
         </Link>
+      </div>
+
+      {/* Navigation */}
+      <div className="flex-1 py-4 overflow-y-auto no-scrollbar">
+        <nav className="space-y-1">
+          <SidebarItem
+            href="/dashboard"
+            icon={<LayoutDashboard />}
+            label="Dashboard"
+            active={pathname === '/dashboard'}
+          />
+          
+          <div>
+            <SidebarItem
+              href="/problems"
+              icon={<BookOpen />}
+              label="My Courses"
+              active={pathname.startsWith('/problems')}
+              hasSubItems={true}
+            />
+            {pathname.startsWith('/problems') && (
+              <div className="mt-1">
+                <SidebarItem
+                  href="/problems?tag=ios"
+                  label="iOS & Swift: Become..."
+                  active={false}
+                  isSubItem={true}
+                />
+                <SidebarItem
+                  href="/problems"
+                  label="Swift for Intermediate..."
+                  active={true}
+                  isSubItem={true}
+                />
+              </div>
+            )}
+          </div>
+
+          <SidebarItem
+            href="/explore"
+            icon={<Compass />}
+            label="Explore"
+            active={pathname === '/explore'}
+          />
+          
+          <SidebarItem
+            href="/messages"
+            icon={<MessageSquare />}
+            label="Messages"
+            active={pathname === '/messages'}
+            badge="2"
+          />
+
+          <SidebarItem
+            href="/skill-tests"
+            icon={<Target />}
+            label="Skill Tests"
+            active={pathname === '/skill-tests'}
+          />
+
+          <SidebarItem
+            href="/certificates"
+            icon={<Award />}
+            label="Certificates"
+            active={pathname === '/certificates'}
+          />
+        </nav>
+      </div>
+
+      {/* Bottom Section */}
+      <div className="py-4 border-t border-zinc-900">
+        <SidebarItem
+          href="/settings"
+          icon={<Settings />}
+          label="Settings"
+          active={pathname === '/settings'}
+        />
+        <SidebarItem
+          href="/profile"
+          icon={<UserCircle />}
+          label="Account"
+          active={pathname === '/profile'}
+        />
       </div>
     </aside>
   );

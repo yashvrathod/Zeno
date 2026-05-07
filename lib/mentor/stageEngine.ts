@@ -251,7 +251,9 @@ export async function getOrCreateSession(
         stage: "EXPLORE",
         currentRung: 1,
       },
-      update: {}, // No-op: don't mutate existing session on lookup
+      update: {
+        updatedAt: new Date(), // Touch updatedAt to mark session as recently active
+      },
     });
 
     const messages = await tx.mentorMessage.findMany({

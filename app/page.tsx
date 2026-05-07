@@ -16,12 +16,28 @@ import {
   Share2,
   Terminal,
   Cpu,
-  Globe,
-  Radio,
+  CheckCircle2,
+  Circle,
+  ChevronRight,
+  Flame,
+  Star,
+  Brain,
+  BookOpen,
+  Trophy,
+  Target,
+  Lightbulb,
+  Clock,
+  BarChart3,
+  Play,
 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
 import ApiOnboardingDialog from '@/components/ApiOnboardingDialog';
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import MentorChat from '@/components/MentorChat';
 
 type Post = {
   id: string;
@@ -48,13 +64,26 @@ type Post = {
   };
 };
 
+type LearningPath = {
+  id: string;
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  progress: number;
+  totalModules: number;
+  completedModules: number;
+  timeEstimate: string;
+  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
+};
+
 function getTimeAgo(date: Date): string {
   const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-  if (seconds < 60) return 'Signal Live';
+  if (seconds < 60) return 'Just now';
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m`;
   const hours = Math.floor(minutes / 60);
-  return `${hours}h`;
+  if (hours < 24) return `${hours}h`;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 export default function CodeZonePage() {
@@ -65,6 +94,7 @@ export default function CodeZonePage() {
   const [loadingPosts, setLoadingPosts] = useState(true);
   const [newPostContent, setNewPostContent] = useState('');
   const [isCreatingPost, setIsCreatingPost] = useState(false);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'feed' | 'mentor'>('dashboard');
 
   const fetchPosts = useCallback(async () => {
     setLoadingPosts(true);
@@ -101,209 +131,429 @@ export default function CodeZonePage() {
     }
   };
 
-  return (
-    <div className="relative flex flex-col h-screen bg-[#010103] text-zinc-400 font-sans overflow-hidden selection:bg-purple-500/30">
-      
-      {/* Immersive Aether Engine (Multi-layered Nebula) */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-[-20%] left-[-10%] w-[70%] h-[70%] bg-purple-600/10 blur-[160px] rounded-full animate-pulse transition-opacity duration-1000" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-orange-600/10 blur-[160px] rounded-full animate-pulse [animation-delay:3s]" />
-        <div className="absolute top-[30%] right-[5%] w-[40%] h-[40%] bg-blue-600/5 blur-[140px] rounded-full animate-pulse [animation-delay:6s]" />
-        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-50 contrast-150" />
-      </div>
+  const learningPaths: LearningPath[] = [
+    {
+      id: '1',
+      title: 'Arrays & Hashing',
+      description: 'Master fundamental data structures',
+      icon: <Layers className="w-5 h-5" />,
+      progress: 67,
+      totalModules: 12,
+      completedModules: 8,
+      timeEstimate: '4 hours',
+      difficulty: 'Beginner',
+    },
+    {
+      id: '2',
+      title: 'Two Pointers',
+      description: 'Optimize your array traversal',
+      icon: <Target className="w-5 h-5" />,
+      progress: 34,
+      totalModules: 8,
+      completedModules: 3,
+      timeEstimate: '2.5 hours',
+      difficulty: 'Intermediate',
+    },
+    {
+      id: '3',
+      title: 'Sliding Window',
+      description: 'Efficient subarray problems',
+      icon: <Zap className="w-5 h-5" />,
+      progress: 0,
+      totalModules: 10,
+      completedModules: 0,
+      timeEstimate: '3 hours',
+      difficulty: 'Intermediate',
+    },
+    {
+      id: '4',
+      title: 'Dynamic Programming',
+      description: 'Build optimal solutions bottom-up',
+      icon: <Brain className="w-5 h-5" />,
+      progress: 15,
+      totalModules: 20,
+      completedModules: 3,
+      timeEstimate: '8 hours',
+      difficulty: 'Advanced',
+    },
+  ];
 
+  const stats = [
+    { label: 'Problems Solved', value: '147', icon: CheckCircle2 },
+    { label: 'Current Streak', value: '12', icon: Flame, suffix: 'days' },
+    { label: 'Rank', value: '#2,847', icon: Trophy },
+    { label: 'XP Earned', value: '8.4K', icon: Star },
+  ];
+
+  const recommendedProblems = [
+    { id: '1', title: 'Two Sum', difficulty: 'Easy', tags: ['Array', 'Hash Table'], solved: true },
+    { id: '2', title: 'Add Two Numbers', difficulty: 'Medium', tags: ['Linked List', 'Math'], solved: false },
+    { id: '3', title: 'Longest Substring', difficulty: 'Medium', tags: ['String', 'Sliding Window'], solved: false },
+    { id: '4', title: 'Median of Two Arrays', difficulty: 'Hard', tags: ['Array', 'Binary Search'], solved: false },
+  ];
+
+  return (
+    <div className="relative flex flex-col h-screen bg-background text-foreground font-sans">
       <Navbar />
       <ApiOnboardingDialog open={showOnboarding} onClose={() => setShowOnboarding(false)} />
 
-      <div className="flex flex-1 overflow-hidden relative z-10">
+      <div className="flex flex-1 overflow-hidden">
         <Sidebar />
 
-        <main className="flex-1 overflow-y-auto border-l border-white/5 bg-transparent scroll-smooth">
-          <div className="max-w-4xl mx-auto px-8 py-16">
-            
-            {/* The "Energy Core" Post Creator */}
-            {status === 'authenticated' && (
-              <div className="mb-24 relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 via-fuchsia-500 to-orange-500 rounded-[2.5rem] blur opacity-20 group-focus-within:opacity-60 transition-all duration-1000 group-focus-within:animate-pulse" />
-                
-                <div className="relative bg-[#050507]/80 backdrop-blur-3xl border border-white/20 rounded-[2.2rem] p-10 shadow-[0_30px_100px_rgba(0,0,0,0.8)] overflow-hidden">
-                  <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-                  <div className="flex gap-8">
-                    <div className="shrink-0">
-                      <div className="relative p-[2px] rounded-2xl bg-gradient-to-br from-white/40 to-transparent group-focus-within:from-purple-400 transition-all duration-700 shadow-2xl">
-                        <img 
-                          src={session?.user?.image || "https://ui-avatars.com/api/?name=User"}
-                          className="w-14 h-14 rounded-[14px] bg-[#010103]"
-                          alt="Me"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex-1 space-y-8">
-                      <textarea 
-                        placeholder="Broadcast your technical perspective..."
-                        value={newPostContent}
-                        onChange={(e) => setNewPostContent(e.target.value)}
-                        className="w-full bg-transparent border-none outline-none text-white placeholder:text-zinc-800 resize-none font-sans text-2xl leading-relaxed tracking-tight font-light"
-                        rows={newPostContent ? 4 : 1}
-                      />
-                      <div className={`flex items-center justify-between transition-all duration-700 ${newPostContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 h-0 overflow-hidden'}`}>
-                        <div className="flex items-center gap-8">
-                          <button className="flex items-center gap-3 text-zinc-500 hover:text-purple-400 transition-all group/icon">
-                            <div className="p-3 rounded-xl bg-white/5 border border-white/10 group-hover/icon:bg-purple-500/20 group-hover/icon:border-purple-500/40 transition-all shadow-xl">
-                              <Terminal size={22} />
-                            </div>
-                            <span className="text-[11px] font-bold uppercase tracking-[0.3em] font-mono">Module</span>
-                          </button>
-                          <button className="flex items-center gap-3 text-zinc-500 hover:text-orange-400 transition-all group/icon">
-                            <div className="p-3 rounded-xl bg-white/5 border border-white/5 group-hover/icon:bg-orange-500/20 group-hover/icon:border-orange-500/40 transition-all shadow-xl">
-                              <Radio size={22} />
-                            </div>
-                            <span className="text-[11px] font-bold uppercase tracking-[0.3em] font-mono">Signal</span>
-                          </button>
+        <main className="flex-1 overflow-y-auto bg-background">
+          {/* Tab Navigation */}
+          <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border">
+            <div className="px-6 py-4">
+              <div className="flex items-center gap-2 p-1 bg-secondary rounded-xl w-fit">
+                {[
+                  { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
+                  { id: 'mentor', label: 'AI Mentor', icon: Brain },
+                  { id: 'feed', label: 'Community', icon: MessageSquare },
+                ].map((tab) => {
+                  const Icon = tab.icon;
+                  const isActive = activeTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id as any)}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                        isActive
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      <Icon size={16} />
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="px-6 py-8">
+            {activeTab === 'dashboard' && (
+              <div className="space-y-8">
+                {/* Welcome Section */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="text-3xl font-bold mb-2">
+                      Welcome back
+                    </h1>
+                    <p className="text-muted-foreground">
+                      Ready to continue your learning journey?
+                    </p>
+                  </div>
+                  <Button className="bg-primary hover:bg-primary/90">
+                    <Play className="w-4 h-4 mr-2" />
+                    Continue Learning
+                  </Button>
+                </div>
+
+                {/* Stats Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {stats.map((stat, index) => (
+                    <Card key={index} className="border-border">
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                              {stat.label}
+                            </p>
+                            <p className="text-3xl font-bold text-foreground">
+                              {stat.value}
+                              {stat.suffix && (
+                                <span className="text-lg font-medium text-muted-foreground ml-1">
+                                  {stat.suffix}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                          <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center">
+                            <stat.icon className="text-muted-foreground" size={24} />
+                          </div>
                         </div>
-                        <button 
-                          onClick={handleCreatePost}
-                          disabled={isCreatingPost}
-                          className="relative px-12 py-4 bg-white text-black rounded-2xl text-[11px] font-bold uppercase tracking-[0.4em] overflow-hidden group/btn hover:text-white transition-colors shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-purple-500/40"
-                        >
-                          <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-indigo-600 translate-y-full group-hover/btn:translate-y-0 transition-transform duration-500" />
-                          <span className="relative z-10">{isCreatingPost ? 'SYNCING...' : 'BROADCAST'}</span>
-                        </button>
-                      </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Main Content Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Learning Paths */}
+                  <div className="lg:col-span-2 space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-xl font-bold flex items-center gap-2">
+                        <BookOpen className="text-primary" size={22} />
+                        Your Learning Paths
+                      </h2>
+                      <Button variant="ghost" size="sm" className="text-muted-foreground">
+                        View All
+                        <ChevronRight size={16} className="ml-1" />
+                      </Button>
                     </div>
+
+                    <div className="space-y-4">
+                      {learningPaths.map((path) => (
+                        <Card key={path.id} className="border-border hover:border-border/80 transition-colors">
+                          <CardContent className="p-6">
+                            <div className="flex items-start gap-4">
+                              <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center">
+                                {path.icon}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-4 mb-3">
+                                  <div>
+                                    <h3 className="font-semibold text-foreground">
+                                      {path.title}
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground mt-0.5">
+                                      {path.description}
+                                    </p>
+                                  </div>
+                                  <Badge
+                                    variant="secondary"
+                                    className={`${
+                                      path.difficulty === 'Beginner'
+                                        ? 'bg-emerald-500/10 text-emerald-600'
+                                        : path.difficulty === 'Intermediate'
+                                        ? 'bg-amber-500/10 text-amber-600'
+                                        : 'bg-red-500/10 text-red-600'
+                                    }`}
+                                  >
+                                    {path.difficulty}
+                                  </Badge>
+                                </div>
+
+                                <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
+                                  <span className="flex items-center gap-1">
+                                    <Clock size={14} />
+                                    {path.timeEstimate}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <Layers size={14} />
+                                    {path.completedModules}/{path.totalModules} modules
+                                  </span>
+                                </div>
+
+                                <div className="relative h-2 bg-secondary rounded-full overflow-hidden">
+                                  <div
+                                    className="absolute inset-y-0 left-0 bg-primary rounded-full transition-all"
+                                    style={{ width: `${path.progress}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Recommended Problems */}
+                  <div className="space-y-6">
+                    <h2 className="text-xl font-bold flex items-center gap-2">
+                      <Target className="text-primary" size={22} />
+                      For You
+                    </h2>
+
+                    <Card className="border-border">
+                      <CardContent className="p-4 space-y-3">
+                        {recommendedProblems.map((problem) => (
+                          <div
+                            key={problem.id}
+                            className="flex items-center justify-between p-3 rounded-lg hover:bg-secondary transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              {problem.solved ? (
+                                <CheckCircle2 className="text-emerald-500 shrink-0" size={20} />
+                              ) : (
+                                <Circle className="text-muted-foreground/40 shrink-0" size={20} />
+                              )}
+                              <div className="min-w-0">
+                                <p className="font-medium text-foreground truncate">
+                                  {problem.title}
+                                </p>
+                                <Badge
+                                  variant="secondary"
+                                  className={`text-[10px] h-5 px-1.5 mt-1 rounded-md border-none ${
+                                    problem.difficulty === 'Easy'
+                                      ? 'bg-emerald-500/10 text-emerald-600'
+                                      : problem.difficulty === 'Medium'
+                                      ? 'bg-amber-500/10 text-amber-600'
+                                      : 'bg-red-500/10 text-red-600'
+                                  }`}
+                                >
+                                  {problem.difficulty}
+                                </Badge>
+                              </div>
+                            </div>
+                            <ChevronRight className="text-muted-foreground/40 shrink-0" size={18} />
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+
+                    {/* Quick Actions */}
+                    <Card className="bg-primary/5 border-border">
+                      <CardContent className="p-6">
+                        <h3 className="font-semibold mb-4 flex items-center gap-2">
+                          <Lightbulb className="text-primary" size={18} />
+                          Quick Actions
+                        </h3>
+                        <div className="space-y-2">
+                          <Button
+                            className="w-full justify-start bg-secondary hover:bg-secondary/80 text-foreground"
+                            variant="outline"
+                          >
+                            <Zap className="mr-3" size={18} />
+                            Daily Challenge
+                          </Button>
+                          <Button
+                            className="w-full justify-start bg-secondary hover:bg-secondary/80 text-foreground"
+                            variant="outline"
+                          >
+                            <Brain className="mr-3" size={18} />
+                            Ask Mentor
+                          </Button>
+                          <Button
+                            className="w-full justify-start bg-secondary hover:bg-secondary/80 text-foreground"
+                            variant="outline"
+                          >
+                            <BarChart3 className="mr-3" size={18} />
+                            View Analytics
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* High-End Cinematic Tabs */}
-            <div className="flex items-center gap-16 mb-24 px-4 border-b border-white/5 relative">
-              {[
-                { id: 'featured', label: 'Signal', icon: <Sparkles size={18} />, color: 'text-purple-400' },
-                { id: 'rising', label: 'Velocity', icon: <TrendingUp size={18} />, color: 'text-orange-400' },
-                { id: 'following', label: 'Network', icon: <Activity size={18} />, color: 'text-emerald-400' },
-              ].map((tab) => (
-                <button 
-                  key={tab.id}
-                  onClick={() => setActiveFeed(tab.id as any)}
-                  className={`group flex items-center gap-4 text-[13px] font-bold uppercase tracking-[0.4em] transition-all relative pb-10 ${
-                    activeFeed === tab.id ? 'text-white' : 'text-zinc-700 hover:text-zinc-400'
-                  }`}
-                >
-                  <span className={`${activeFeed === tab.id ? tab.color : 'group-hover:text-white'} transition-colors`}>{tab.icon}</span>
-                  {tab.label}
-                  {activeFeed === tab.id && (
-                    <>
-                      <div className="absolute bottom-[-1px] left-0 w-full h-[3px] bg-white shadow-[0_0_25px_rgba(255,255,255,1)] z-20" />
-                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-24 h-24 bg-white/5 blur-3xl rounded-full" />
-                    </>
-                  )}
-                </button>
-              ))}
-            </div>
+            {activeTab === 'mentor' && (
+              <div className="h-[calc(100vh-280px)] px-6">
+                <MentorChat
+                  problemId="sample-problem"
+                  problemTitle="Two Sum"
+                  problemStatementMd="# Problem Statement\n\nGiven an array of integers, find two numbers that add up to a specific target."
+                  problemConstraintsMd="- **Constraints**:\n- 2 <= nums.length <= 10^4\n- -10^9 <= nums[i] <= 10^9"
+                  publicTestCases={[
+                    { order: 1, input: '[2,7,11,15], target = 9', expected: '[0,1]' },
+                  ]}
+                  language="javascript"
+                  userCode=""
+                />
+              </div>
+            )}
 
-            {/* Kinetic "Data Module" Feed */}
-            <div className="space-y-20">
-              {loadingPosts ? (
-                <div className="flex flex-col items-center justify-center py-40 gap-8">
-                  <div className="relative w-16 h-16">
-                    <div className="absolute inset-0 border-4 border-purple-500/10 rounded-full" />
-                    <div className="absolute inset-0 border-t-4 border-purple-500 rounded-full animate-spin shadow-[0_0_20px_rgba(168,85,247,0.4)]" />
-                  </div>
-                  <span className="text-[12px] font-bold uppercase tracking-[0.6em] text-zinc-800 animate-pulse font-mono">Neural_Sync_Active</span>
+            {activeTab === 'feed' && (
+              <div className="space-y-6 pb-8">
+                {/* Feed Tabs */}
+                <div className="flex items-center gap-2 p-1 bg-secondary rounded-xl w-fit">
+                  {[
+                    { id: 'featured', label: 'Featured', icon: <Sparkles size={15} /> },
+                    { id: 'rising', label: 'Rising', icon: <TrendingUp size={15} /> },
+                    { id: 'following', label: 'Following', icon: <Activity size={15} /> },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveFeed(tab.id as any)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                        activeFeed === tab.id
+                          ? 'bg-primary text-primary-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {tab.icon}
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
-              ) : posts.map((post) => (
-                <article key={post.id} className="group relative bg-[#050507]/40 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-12 transition-all hover:bg-[#08080a]/60 hover:border-white/20 hover:shadow-[0_40px_100px_rgba(0,0,0,0.6)] duration-700">
-                  {/* Iridescent Light-Leak Effect */}
-                  <div className="absolute top-0 left-0 w-32 h-32 bg-purple-500/5 blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
-                  <div className="absolute bottom-0 right-0 w-32 h-32 bg-orange-500/5 blur-[60px] opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
-                  
-                  <div className="flex gap-12">
-                    <div className="shrink-0 pt-2">
-                      <div className="relative p-[1px] rounded-2xl bg-gradient-to-b from-white/20 to-transparent group-hover:from-purple-500/60 transition-all duration-700 shadow-2xl group-hover:scale-110">
-                        <img 
-                          src={post.user.image || `https://ui-avatars.com/api/?name=${post.user.name}`}
-                          className="w-16 h-16 rounded-[15px] bg-[#010103]"
-                          alt={post.user.name || ''}
-                        />
-                        <div className="absolute -top-2 -right-2 w-7 h-7 bg-[#050507] border border-white/10 rounded-full flex items-center justify-center shadow-2xl">
-                          <span className="text-[9px] font-bold text-emerald-400 font-mono">Lv.{Math.floor(Math.random()*50)}</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-10">
-                        <div className="flex flex-col gap-1">
-                          <span className="text-xl font-bold text-white tracking-tighter transition-all group-hover:text-purple-400 group-hover:translate-x-1 duration-500">
-                            {post.user.username || post.user.name}
-                          </span>
-                          <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-bold text-zinc-700 uppercase tracking-[0.4em] font-mono">
-                              Auth_ID: {post.id.slice(0, 8).toUpperCase()}
+
+                {/* Posts */}
+                {loadingPosts ? (
+                  <div className="py-24 flex flex-col items-center justify-center gap-4">
+                    <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                    <span className="text-sm text-muted-foreground">Loading feed...</span>
+                  </div>
+                ) : posts.length === 0 ? (
+                  <Card className="border-border">
+                    <CardContent className="py-16 text-center">
+                      <Sparkles className="w-12 h-12 text-muted-foreground/40 mx-auto mb-4" size={48} />
+                      <p className="text-foreground/60 font-medium mb-2">The feed is quiet right now</p>
+                      <p className="text-muted-foreground text-sm">Be the first to share your insights!</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  posts.map((post) => (
+                    <Card key={post.id} className="border-border">
+                      <CardHeader className="flex-row items-center justify-between space-y-0 p-6 pb-3">
+                        <div className="flex items-center gap-4">
+                          <Avatar className="w-10 h-10 rounded-xl">
+                            <AvatarImage src={post.user.image || ''} />
+                            <AvatarFallback className="bg-secondary text-foreground text-sm font-semibold">
+                              {post.user.name?.[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <span className="font-semibold text-foreground">
+                              {post.user.username || post.user.name}
                             </span>
-                            <div className="w-1 h-1 rounded-full bg-zinc-800" />
-                            <span className="text-[10px] font-bold text-purple-500/60 uppercase tracking-[0.2em] font-mono">
-                              {getTimeAgo(new Date(post.createdAt))}
-                            </span>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-xs text-muted-foreground">
+                                {getTimeAgo(new Date(post.createdAt))}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                        <button className="text-zinc-800 hover:text-zinc-400 transition-colors p-3 hover:bg-white/5 rounded-2xl">
-                          <MoreHorizontal size={24} />
-                        </button>
-                      </div>
+                        <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground">
+                          <MoreHorizontal size={18} />
+                        </Button>
+                      </CardHeader>
 
-                      <div className="space-y-12">
-                        <p className="text-[20px] text-zinc-200 font-sans leading-[1.8] font-light tracking-tight selection:bg-purple-500/40">
+                      <CardContent className="px-6 pb-4">
+                        <p className="text-base text-foreground leading-relaxed">
                           {post.content}
                         </p>
 
                         {post.codeSnippet && (
-                          <div className="relative rounded-[2rem] border border-white/10 bg-black shadow-2xl overflow-hidden group/code">
-                            <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-                            <div className="px-8 py-5 flex items-center justify-between border-b border-white/5 bg-white/[0.03]">
-                              <div className="flex items-center gap-6">
-                                <div className="flex gap-2">
-                                  <div className="w-3 h-3 rounded-full bg-rose-500/40 border border-rose-500/20 shadow-[0_0_10px_rgba(244,63,94,0.2)]" />
-                                  <div className="w-3 h-3 rounded-full bg-amber-500/40 border border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.2)]" />
-                                  <div className="w-3 h-3 rounded-full bg-emerald-500/40 border border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]" />
-                                </div>
-                                <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-[0.4em] font-mono">{post.language} module</span>
-                              </div>
-                              <Share2 size={16} className="text-zinc-700 hover:text-white transition-colors cursor-pointer" />
+                          <div className="mt-5 rounded-xl border border-border overflow-hidden">
+                            <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-secondary">
+                              <span className="text-xs text-muted-foreground font-medium">
+                                {post.language || 'Code'}
+                              </span>
+                              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
+                                Copy
+                              </Button>
                             </div>
-                            <pre className="p-12 text-[16px] text-zinc-400 overflow-x-auto font-mono leading-relaxed bg-gradient-to-b from-transparent to-purple-500/[0.03]">
-                              <code>{post.codeSnippet}</code>
+                            <pre className="p-4 text-sm overflow-x-auto">
+                              <code className="text-muted-foreground">{post.codeSnippet}</code>
                             </pre>
                           </div>
                         )}
+                      </CardContent>
 
-                        <div className="flex items-center gap-16 pt-4">
-                          <button className="flex items-center gap-5 group/btn transition-all text-zinc-700 hover:text-rose-500">
-                            <div className={`p-4 rounded-[1.5rem] border border-white/10 transition-all group-hover/btn:border-rose-500/40 group-hover/btn:bg-rose-500/10 group-hover/btn:shadow-[0_0_30px_rgba(244,63,94,0.2)] ${post.isLiked ? 'bg-rose-500/10 text-rose-500 border-rose-500/20 shadow-[0_0_30px_rgba(244,63,94,0.2)]' : 'bg-white/5'}`}>
-                              <Heart size={26} className={post.isLiked ? 'fill-rose-500' : 'group-hover/btn:scale-125 transition-transform'} />
-                            </div>
-                            <span className="text-sm font-bold font-mono group-hover/btn:text-white transition-colors">{post.likeCount}</span>
+                      <CardFooter className="px-6 py-3 border-t border-border">
+                        <div className="flex items-center gap-6 w-full">
+                          <button className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+                            <Heart size={18} />
+                            <span className="text-sm font-medium">{post.likeCount}</span>
                           </button>
-                          
-                          <button className="flex items-center gap-5 group/btn transition-all text-zinc-700 hover:text-purple-400">
-                            <div className="p-4 rounded-[1.5rem] border border-white/10 bg-white/5 transition-all group-hover/btn:border-purple-500/40 group-hover/btn:bg-purple-500/10 group-hover/btn:shadow-[0_0_30px_rgba(168,85,247,0.2)]">
-                              <MessageSquare size={26} className="group-hover/btn:scale-125 transition-transform" />
-                            </div>
-                            <span className="text-sm font-bold font-mono group-hover/btn:text-white transition-colors">{post.commentCount}</span>
+                          <button className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+                            <MessageSquare size={18} />
+                            <span className="text-sm font-medium">{post.commentCount}</span>
                           </button>
-                          
-                          <button className="flex items-center gap-5 group/btn transition-all text-zinc-700 hover:text-white ml-auto">
-                            <ArrowUpRight size={28} className="group-hover/btn:translate-x-1 group-hover/btn:-translate-y-1 transition-transform group-hover/btn:text-purple-400" />
-                            <span className="text-[12px] font-bold uppercase tracking-[0.4em] group-hover/btn:text-white transition-all">Link Signal</span>
+                          <button className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors ml-auto">
+                            <Share2 size={18} />
                           </button>
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
+                      </CardFooter>
+                    </Card>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </main>
       </div>

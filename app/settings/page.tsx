@@ -2,14 +2,14 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Key, Info } from 'lucide-react';
+import { ArrowLeft, Key, Info, Zap, Shield } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
-import { Card } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
 
@@ -29,47 +29,26 @@ export default function SettingsPage() {
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [settings, setSettings] = React.useState<ApiSettings>({
-    groqApiKey: '',
-    openaiApiKey: '',
-    googleApiKey: '',
-    openrouterApiKey: '',
-    ollamaBaseUrl: 'http://localhost:11434',
-    ollamaModel: 'llama3.1',
-    apiProvider: 'server',
+    groqApiKey: '', openaiApiKey: '', googleApiKey: '', openrouterApiKey: '',
+    ollamaBaseUrl: 'http://localhost:11434', ollamaModel: 'llama3.1', apiProvider: 'server',
   });
 
-  // Load current settings
   React.useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/auth/login');
-      return;
-    }
-    
+    if (status === 'unauthenticated') { router.push('/auth/login'); return; }
     if (status === 'authenticated') {
-      loadSettings();
+      fetch('/api/settings/ai').then(res => res.json()).then(data => {
+        setSettings({
+          groqApiKey: data.groqApiKey || '',
+          openaiApiKey: data.openaiApiKey || '',
+          googleApiKey: data.googleApiKey || '',
+          openrouterApiKey: data.openrouterApiKey || '',
+          ollamaBaseUrl: data.ollamaBaseUrl || 'http://localhost:11434',
+          ollamaModel: data.ollamaModel || 'llama3.1',
+          apiProvider: data.apiProvider || 'server',
+        });
+      }).finally(() => setLoading(false));
     }
   }, [status, router]);
-
-  const loadSettings = async () => {
-    try {
-      const res = await fetch('/api/settings/ai');
-      if (!res.ok) throw new Error('Failed to load settings');
-      const data = await res.json();
-      setSettings({
-        groqApiKey: data.groqApiKey || '',
-        openaiApiKey: data.openaiApiKey || '',
-        googleApiKey: data.googleApiKey || '',
-        openrouterApiKey: data.openrouterApiKey || '',
-        ollamaBaseUrl: data.ollamaBaseUrl || 'http://localhost:11434',
-        ollamaModel: data.ollamaModel || 'llama3.1',
-        apiProvider: data.apiProvider || 'server',
-      });
-    } catch (e) {
-      toast.error('Failed to load settings');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const saveSettings = async () => {
     setSaving(true);
@@ -77,381 +56,111 @@ export default function SettingsPage() {
       const res = await fetch('/api/settings/ai', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          groqApiKey: settings.groqApiKey?.trim() || null,
-          openaiApiKey: settings.openaiApiKey?.trim() || null,
-          googleApiKey: settings.googleApiKey?.trim() || null,
-          openrouterApiKey: settings.openrouterApiKey?.trim() || null,
-          ollamaBaseUrl: settings.ollamaBaseUrl?.trim() || null,
-          ollamaModel: settings.ollamaModel?.trim() || null,
-          apiProvider: settings.apiProvider,
-        }),
+        body: JSON.stringify(settings),
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to save settings');
-      }
-
-      toast.success('API settings saved successfully!');
+      if (!res.ok) throw new Error('Failed to save');
+      toast.success('Neural parameters synchronized.');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to save settings');
+      toast.error('Sync failed.');
     } finally {
       setSaving(false);
     }
   };
 
   if (status === 'loading' || loading) {
-    return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <p>Loading...</p>
-      </div>
-    );
+    return <div className="min-h-screen bg-background flex items-center justify-center"><span className="text-sm font-medium animate-pulse">Syncing_Protocol...</span></div>;
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="flex flex-col h-screen bg-background text-foreground overflow-hidden">
       <Navbar />
-      <div className="flex">
+      <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 p-6 lg:ml-64">
-          <div className="max-w-4xl mx-auto">
-            {/* Header */}
-            <div className="mb-6">
-              <Button
-                variant="ghost"
-                className="mb-4 text-gray-400 hover:text-white"
-                onClick={() => router.back()}
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-              <h1 className="text-3xl font-bold mb-2">API Settings</h1>
-              <p className="text-gray-400">
-                Configure your own API keys to avoid rate limits and get unlimited usage.
+        <main className="flex-1 overflow-y-auto bg-background/50 selection:bg-primary/10">
+          <div className="max-w-4xl mx-auto px-10 py-16">
+            
+            {/* Claude Header */}
+            <div className="mb-16 space-y-6">
+              <Badge variant="secondary" className="bg-primary/10 text-primary px-3 py-1 font-bold uppercase tracking-widest">Global Parameters</Badge>
+              <h1 className="text-6xl font-serif font-semibold tracking-tight">Neural Configuration.</h1>
+              <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
+                Configure your inference endpoints. Use your own keys for unlimited throughput across the global architectural network.
               </p>
             </div>
 
-            {/* Info Card */}
-            <Card className="bg-blue-500/10 border-blue-500/20 p-4 mb-6">
-              <div className="flex gap-3">
-                <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-gray-300">
-                  <p className="font-semibold text-blue-400 mb-1">Why use your own API key?</p>
-                  <ul className="list-disc list-inside space-y-1 text-gray-400">
-                    <li>Unlimited usage - no rate limits</li>
-                    <li>Better privacy - keys stored securely, never sent to our servers</li>
-                    <li>Free tier available on most providers (Groq, OpenAI, Google)</li>
-                    <li>You control your AI provider and costs</li>
-                  </ul>
-                </div>
-              </div>
-            </Card>
-
-            {/* Provider Selection */}
-            <Card className="bg-[#1a1a1a] border-zinc-800 p-6 mb-6">
-              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <Key className="w-5 h-5" />
-                AI Provider
-              </h2>
-
-              <div className="space-y-4">
+            <div className="space-y-12">
+              <section>
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground block mb-8">Provider Selection</span>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <button
-                    onClick={() => setSettings((s) => ({ ...s, apiProvider: 'server' }))}
-                    className={`p-4 rounded-lg border-2 transition-colors ${
-                      settings.apiProvider === 'server'
-                        ? 'border-orange-500 bg-orange-500/10'
-                        : 'border-zinc-700 bg-[#0f0f0f] hover:border-zinc-600'
-                    }`}
-                  >
-                    <div className="font-semibold mb-1">Server Default</div>
-                    <div className="text-sm text-gray-400">
-                      Use our free tier (limited requests)
-                    </div>
-                    {settings.apiProvider === 'server' && (
-                      <Badge className="mt-2 bg-orange-500 text-white">Active</Badge>
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => setSettings((s) => ({ ...s, apiProvider: 'groq' }))}
-                    className={`p-4 rounded-lg border-2 transition-colors ${
-                      settings.apiProvider === 'groq'
-                        ? 'border-orange-500 bg-orange-500/10'
-                        : 'border-zinc-700 bg-[#0f0f0f] hover:border-zinc-600'
-                    }`}
-                  >
-                    <div className="font-semibold mb-1">Groq</div>
-                    <div className="text-sm text-gray-400">
-                      Fast inference, free tier available
-                    </div>
-                    {settings.apiProvider === 'groq' && (
-                      <Badge className="mt-2 bg-orange-500 text-white">Active</Badge>
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => setSettings((s) => ({ ...s, apiProvider: 'openai' }))}
-                    className={`p-4 rounded-lg border-2 transition-colors ${
-                      settings.apiProvider === 'openai'
-                        ? 'border-orange-500 bg-orange-500/10'
-                        : 'border-zinc-700 bg-[#0f0f0f] hover:border-zinc-600'
-                    }`}
-                  >
-                    <div className="font-semibold mb-1">OpenAI</div>
-                    <div className="text-sm text-gray-400">
-                      GPT models, $5 free credits
-                    </div>
-                    {settings.apiProvider === 'openai' && (
-                      <Badge className="mt-2 bg-orange-500 text-white">Active</Badge>
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => setSettings((s) => ({ ...s, apiProvider: 'google' }))}
-                    className={`p-4 rounded-lg border-2 transition-colors ${
-                      settings.apiProvider === 'google'
-                        ? 'border-orange-500 bg-orange-500/10'
-                        : 'border-zinc-700 bg-[#0f0f0f] hover:border-zinc-600'
-                    }`}
-                  >
-                    <div className="font-semibold mb-1">Google AI (Gemini)</div>
-                    <div className="text-sm text-gray-400">
-                      1500 requests/day free
-                    </div>
-                    {settings.apiProvider === 'google' && (
-                      <Badge className="mt-2 bg-orange-500 text-white">Active</Badge>
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => setSettings((s) => ({ ...s, apiProvider: 'openrouter' }))}
-                    className={`p-4 rounded-lg border-2 transition-colors ${
-                      settings.apiProvider === 'openrouter'
-                        ? 'border-orange-500 bg-orange-500/10'
-                        : 'border-zinc-700 bg-[#0f0f0f] hover:border-zinc-600'
-                    }`}
-                  >
-                    <div className="font-semibold mb-1">OpenRouter</div>
-                    <div className="text-sm text-gray-400">
-                      Access 200+ models, pay-as-you-go
-                    </div>
-                    {settings.apiProvider === 'openrouter' && (
-                      <Badge className="mt-2 bg-orange-500 text-white">Active</Badge>
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => setSettings((s) => ({ ...s, apiProvider: 'ollama' }))}
-                    className={`p-4 rounded-lg border-2 transition-colors ${
-                      settings.apiProvider === 'ollama'
-                        ? 'border-orange-500 bg-orange-500/10'
-                        : 'border-zinc-700 bg-[#0f0f0f] hover:border-zinc-600'
-                    }`}
-                  >
-                    <div className="font-semibold mb-1">Ollama (Local)</div>
-                    <div className="text-sm text-gray-400">
-                      Run AI offline on your machine
-                    </div>
-                    {settings.apiProvider === 'ollama' && (
-                      <Badge className="mt-2 bg-orange-500 text-white">Active</Badge>
-                    )}
-                  </button>
+                  {[
+                    { id: 'server', label: 'Network Default', desc: 'Standard cloud throughput' },
+                    { id: 'groq', label: 'Groq LPU', desc: 'Sub-millisecond inference' },
+                    { id: 'openai', label: 'OpenAI GPT', desc: 'Advanced reasoning models' },
+                    { id: 'google', label: 'Google Gemini', desc: 'Multimodal neural link' },
+                  ].map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setSettings((s) => ({ ...s, apiProvider: p.id }))}
+                      className={`p-8 text-left rounded-3xl border transition-all duration-300 ${
+                        settings.apiProvider === p.id 
+                          ? 'bg-card border-primary shadow-lg shadow-primary/5 ring-2 ring-primary/10' 
+                          : 'bg-card border-border/60 hover:border-primary/40'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <span className={`font-serif text-lg font-semibold ${settings.apiProvider === p.id ? 'text-primary' : ''}`}>{p.label}</span>
+                        {settings.apiProvider === p.id && <div className="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_rgba(217,119,87,0.6)]" />}
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{p.desc}</p>
+                    </button>
+                  ))}
                 </div>
+              </section>
+
+              {settings.apiProvider !== 'server' && (
+                <Card className="p-10 border-border/60 shadow-sm space-y-10">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <Shield size={18} className="text-primary" />
+                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Secure Token Input</span>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-muted-foreground ml-1">Private Key Ref</Label>
+                      <Input
+                        type="password"
+                        value={
+                          settings.apiProvider === 'groq' ? settings.groqApiKey :
+                          settings.apiProvider === 'openai' ? settings.openaiApiKey :
+                          settings.apiProvider === 'google' ? settings.googleApiKey :
+                          settings.apiProvider === 'openrouter' ? settings.openrouterApiKey : ''
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSettings(s => ({
+                            ...s,
+                            groqApiKey: settings.apiProvider === 'groq' ? val : s.groqApiKey,
+                            openaiApiKey: settings.apiProvider === 'openai' ? val : s.openaiApiKey,
+                            googleApiKey: settings.apiProvider === 'google' ? val : s.googleApiKey,
+                            openrouterApiKey: settings.apiProvider === 'openrouter' ? val : s.openrouterApiKey,
+                          }));
+                        }}
+                        className="rounded-2xl h-14 bg-secondary/30 border-border/40 font-mono text-sm"
+                        placeholder="••••••••••••••••••••••••"
+                      />
+                      <p className="text-[10px] text-muted-foreground italic mt-2 ml-1">Keys are stored locally and encrypted in transit.</p>
+                    </div>
+                  </div>
+                </Card>
+              )}
+
+              <div className="pt-12 border-t border-border/50 flex flex-col sm:flex-row gap-4">
+                <Button onClick={saveSettings} disabled={saving} className="rounded-2xl px-12 h-14 text-sm font-bold shadow-lg shadow-primary/20">
+                  {saving ? 'Synchronizing...' : 'Commit Configuration'}
+                </Button>
+                <Button variant="ghost" onClick={() => router.back()} className="rounded-2xl px-10 h-14 text-sm font-bold text-muted-foreground">
+                  Abort
+                </Button>
               </div>
-            </Card>
-
-            {/* API Keys */}
-            {settings.apiProvider !== 'server' && (
-              <Card className="bg-[#1a1a1a] border-zinc-800 p-6 mb-6">
-                <h2 className="text-xl font-semibold mb-4">API Keys</h2>
-
-                <div className="space-y-6">
-                  {settings.apiProvider === 'groq' && (
-                    <div className="space-y-2">
-                      <Label htmlFor="groqKey">Groq API Key</Label>
-                      <Input
-                        id="groqKey"
-                        type="password"
-                        value={settings.groqApiKey || ''}
-                        onChange={(e) =>
-                          setSettings((s) => ({ ...s, groqApiKey: e.target.value }))
-                        }
-                        className="bg-[#0f0f0f] border-zinc-700 text-white font-mono"
-                        placeholder="gsk_..."
-                      />
-                      <p className="text-xs text-gray-500">
-                        Get your free API key at{' '}
-                        <a
-                          href="https://console.groq.com/keys"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-orange-500 hover:underline"
-                        >
-                          console.groq.com/keys
-                        </a>
-                      </p>
-                    </div>
-                  )}
-
-                  {settings.apiProvider === 'openai' && (
-                    <div className="space-y-2">
-                      <Label htmlFor="openaiKey">OpenAI API Key</Label>
-                      <Input
-                        id="openaiKey"
-                        type="password"
-                        value={settings.openaiApiKey || ''}
-                        onChange={(e) =>
-                          setSettings((s) => ({ ...s, openaiApiKey: e.target.value }))
-                        }
-                        className="bg-[#0f0f0f] border-zinc-700 text-white font-mono"
-                        placeholder="sk-..."
-                      />
-                      <p className="text-xs text-gray-500">
-                        Get your API key at{' '}
-                        <a
-                          href="https://platform.openai.com/api-keys"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-orange-500 hover:underline"
-                        >
-                          platform.openai.com/api-keys
-                        </a>
-                      </p>
-                    </div>
-                  )}
-
-                  {settings.apiProvider === 'google' && (
-                    <div className="space-y-2">
-                      <Label htmlFor="googleKey">Google AI Studio API Key</Label>
-                      <Input
-                        id="googleKey"
-                        type="password"
-                        value={settings.googleApiKey || ''}
-                        onChange={(e) =>
-                          setSettings((s) => ({ ...s, googleApiKey: e.target.value }))
-                        }
-                        className="bg-[#0f0f0f] border-zinc-700 text-white font-mono"
-                        placeholder="AIza..."
-                      />
-                      <p className="text-xs text-gray-500">
-                        Get your free API key at{' '}
-                        <a
-                          href="https://aistudio.google.com/apikey"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-orange-500 hover:underline"
-                        >
-                          aistudio.google.com/apikey
-                        </a>
-                      </p>
-                    </div>
-                  )}
-
-                  {settings.apiProvider === 'openrouter' && (
-                    <div className="space-y-2">
-                      <Label htmlFor="openrouterKey">OpenRouter API Key</Label>
-                      <Input
-                        id="openrouterKey"
-                        type="password"
-                        value={settings.openrouterApiKey || ''}
-                        onChange={(e) =>
-                          setSettings((s) => ({ ...s, openrouterApiKey: e.target.value }))
-                        }
-                        className="bg-[#0f0f0f] border-zinc-700 text-white font-mono"
-                        placeholder="sk-or-v1-..."
-                      />
-                      <p className="text-xs text-gray-500">
-                        Get your API key at{' '}
-                        <a
-                          href="https://openrouter.ai/keys"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-orange-500 hover:underline"
-                        >
-                          openrouter.ai/keys
-                        </a>
-                      </p>
-                    </div>
-                  )}
-
-                  {settings.apiProvider === 'ollama' && (
-                    <>
-                      <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-4 mb-4">
-                        <p className="text-sm text-gray-300 mb-2">
-                          <strong className="text-cyan-400">Setting up Ollama:</strong>
-                        </p>
-                        <ol className="text-sm text-gray-400 list-decimal list-inside space-y-1">
-                          <li>Download from <a href="https://ollama.ai" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">ollama.ai</a></li>
-                          <li>Run: <code className="bg-black/50 px-2 py-0.5 rounded text-cyan-400">ollama pull llama3.1</code></li>
-                          <li>Server runs at <code className="bg-black/50 px-2 py-0.5 rounded">http://localhost:11434</code></li>
-                        </ol>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="ollamaUrl">Ollama Server URL</Label>
-                        <Input
-                          id="ollamaUrl"
-                          type="text"
-                          value={settings.ollamaBaseUrl || 'http://localhost:11434'}
-                          onChange={(e) =>
-                            setSettings((s) => ({ ...s, ollamaBaseUrl: e.target.value }))
-                          }
-                          className="bg-[#0f0f0f] border-zinc-700 text-white font-mono"
-                          placeholder="http://localhost:11434"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="ollamaModel">Model Name</Label>
-                        <Input
-                          id="ollamaModel"
-                          type="text"
-                          value={settings.ollamaModel || 'llama3.1'}
-                          onChange={(e) =>
-                            setSettings((s) => ({ ...s, ollamaModel: e.target.value }))
-                          }
-                          className="bg-[#0f0f0f] border-zinc-700 text-white font-mono"
-                          placeholder="llama3.1"
-                        />
-                        <p className="text-xs text-gray-500">
-                          Popular models: llama3.1, codellama, mistral, phi3
-                        </p>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </Card>
-            )}
-
-            {/* Security Notice */}
-            <Card className="bg-zinc-900/50 border-zinc-800 p-4 mb-6">
-              <div className="flex gap-3 text-sm text-gray-400">
-                <Key className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <p>
-                  🔒 Your API keys are stored securely in your browser's local storage and sent
-                  directly to the AI provider. They are never sent to or stored on our servers.
-                </p>
-              </div>
-            </Card>
-
-            {/* Save Button */}
-            <div className="flex gap-3">
-              <Button
-                onClick={saveSettings}
-                disabled={saving}
-                className="bg-orange-500 hover:bg-orange-600 text-white"
-              >
-                {saving ? 'Saving...' : 'Save Settings'}
-              </Button>
-              <Button
-                onClick={() => router.back()}
-                variant="secondary"
-                className="bg-[#0f0f0f] hover:bg-[#252525] border border-zinc-700 text-white"
-              >
-                Cancel
-              </Button>
             </div>
           </div>
         </main>

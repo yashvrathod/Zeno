@@ -1,19 +1,29 @@
 /**
- * AI Handler — Full LLM Call Path
+ * AI Handler — Full LLM Call Path (Intent-First Architecture)
  *
- * Handles the AI_NEEDED decision path:
- *  1. Build context and system prompt
- *  2. Call LLM
- *  3. Apply guardrails
- *  4. Persist messages, cache, stage state, memory
+ * This is the CORE AI RESPONSE GENERATOR with multi-layer protection:
+ *   Layer 1: Intent classification (already done before this point)
+ *   Layer 2: Stage-based enforcement (already checked before AI call)
+ *   Layer 3: Prompt-level constraints (strict no-solution rules in system prompt)
+ *   Layer 4: Output validation (applied below to catch any violations)
+ *
+ * The handler assumes the intent has already been classified and the request
+ * has passed through the stage controller. This function generates the actual
+ * AI response while ensuring strict adherence to learning-stage constraints.
  */
 
 import type { TeachingStage } from "@/lib/mentorContext";
 import type { Verbosity } from "@/lib/aiPreferences";
+import type { IntentClassification } from "@/lib/mentor/intentClassifier";
+import type { ConversationIntent } from "@/lib/mentor/enhancedIntentClassifier";
+import type { StudentKnowledgeGraph, ConceptMastery } from "@/lib/mentor/personalizationEngine";
+import type { DebugAnalysis } from "@/lib/mentor/enhancedDebuggingAssistant";
+import { getWeakestConcepts } from "@/lib/mentor/personalizationEngine";
 import { buildContextualGuidance, getAdaptiveTemperature, detectLearningRung } from "@/lib/mentorContext";
+import { features } from "@/lib/features";
 import { inferVerbosityFromText, verbosityToModelMaxTokens, verbosityToStylePrompt } from "@/lib/aiPreferences";
 import { extractProblemContext, selectGuideQuestion } from "@/lib/mentorQuestions";
-import { getOrCreateSession, saveMessage, tryAdvanceStage, type TransitionContext } from "@/lib/mentor/stageEngine";
+import { getOrCreateSession, saveMessage, tryAdvanceStage, type TransitionContext, type MentorSession } from "@/lib/mentor/stageEngine";
 import { saveToCache } from "@/lib/mentor/interactionRouter";
 import { getWeakPatternReport, type WeakPatternTag } from "@/lib/mentor/patternTracker";
 import prisma from "@/lib/prisma";
@@ -24,6 +34,7 @@ import {
   buildStatsContext,
   buildConversationHistory,
   buildAnimationContext,
+  inferUnderstandingFromHistory,
 } from "../contextBuilder";
 import type { HistoryMsg, UserStats } from "../contextBuilder";
 import { detectTone, buildMentorSystemPrompt } from "../promptBuilder";
@@ -36,10 +47,35 @@ import {
   parseAnimationMarker,
   parseMentorMemory,
 } from "../responseGuardrails";
+import { parseVisualizations, removeVisualizationMarkers, autoGenerateVisualization } from "../visualizationParser";
 import { findPausePoints, generateDebuggerPrompt } from "../traceDebugger";
 import { detectVisualizationType, injectVisualizationMarker } from "../visualScaffolding";
 import { triggerArchitectReview, formatArchitectFeedback } from "../seniorArchitect";
 import type { MentorRequest, MentorResponse } from "../mentorService";
+import {
+  validateAIResponse,
+  type ValidationResult,
+  extractStageAssessment,
+  isSolutionRequest,
+  detectFrustration,
+} from "../../responseValidator";
+import { bigramJaccard } from '@/lib/embeddings';
+
+function detectLoop(history: HistoryMsg[]): boolean {
+  const userMessages = history.filter((msg) => msg.role === "user");
+  if (userMessages.length < 2) return false;
+  // Look at the last 3 user messages (or all if fewer)
+  const recent = userMessages.slice(-3);
+  for (let i = 0; i < recent.length; i++) {
+    for (let j = i + 1; j < recent.length; j++) {
+      const similarity = bigramJaccard(recent[i].content, recent[j].content);
+      if (similarity > 0.7) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 async function logInteraction(data: {
   userId: string;
@@ -59,36 +95,6 @@ async function logInteraction(data: {
   ).catch(() => {});
 }
 
-export type MentorSession = {
-  id: string;
-  stage: string;
-  messages: Array<{ role: string; content: string }>;
-};
-
-function detectLoop(history: HistoryMsg[]): boolean {
-  if (history.length < 6) return false;
-  const recentUserMessages = history
-    .filter((h) => h.role === "user")
-    .slice(-3)
-    .map((h) => h.content.toLowerCase());
-
-  if (recentUserMessages.length !== 3) return false;
-
-  const [msg1, msg2, msg3] = recentUserMessages;
-  const words1 = new Set(msg1.split(/\s+/).filter((w) => w.length > 3));
-  const words2 = new Set(msg2.split(/\s+/).filter((w) => w.length > 3));
-  const words3 = new Set(msg3.split(/\s+/).filter((w) => w.length > 3));
-
-  const overlap12 = [...words1].filter((w) => words2.has(w)).length;
-  const overlap23 = [...words2].filter((w) => words3.has(w)).length;
-  const overlap13 = [...words1].filter((w) => words3.has(w)).length;
-
-  const avgOverlap = (overlap12 + overlap23 + overlap13) / 3;
-  const avgSize = (words1.size + words2.size + words3.size) / 3;
-
-  return avgSize > 0 && avgOverlap / avgSize > 0.6;
-}
-
 export async function handleAiNeeded(params: {
   body: MentorRequest;
   userId: string;
@@ -99,8 +105,12 @@ export async function handleAiNeeded(params: {
   userAiSettings: any;
   existingSummary: any;
   apiConfig: ApiConfig;
+  intent?: IntentClassification;
+  conversationIntent?: ConversationIntent | null;
+  knowledgeGraph?: StudentKnowledgeGraph | null;
+  debugAnalysis?: DebugAnalysis | null;
 }): Promise<MentorResponse> {
-  const { body, userId, problemId, mentorSession, history, stats, userAiSettings, existingSummary, apiConfig } = params;
+  const { body, userId, problemId, mentorSession, history, stats, userAiSettings, existingSummary, apiConfig, intent, conversationIntent, knowledgeGraph, debugAnalysis } = params;
   const stage = mentorSession.stage as TeachingStage;
 
   // ── Verbosity ──
@@ -152,16 +162,6 @@ export async function handleAiNeeded(params: {
   const loopDetected = detectLoop(history);
   const allowFullSolution = isSolutionRequest(body.userMessage);
 
-  if (!allowFullSolution && stage !== "REFLECT") {
-    const isSuspicious =
-      /just show|just tell|skip|shortcut|cheat|i give up|forget it|just|directly/i.test(body.userMessage) &&
-      /code|solution|answer|implement|write/i.test(body.userMessage);
-
-    if (isSuspicious) {
-      return { ok: true, message: buildSolutionResponse(stage), animation: null, metadata: { verbosity, stage, tone, wasGated: true } };
-    }
-  }
-
   // ── Build context ──
   const stylePrompt = verbosityToStylePrompt(verbosity);
   const contextualGuidance = buildContextualGuidance(body, stats, history);
@@ -173,6 +173,15 @@ export async function handleAiNeeded(params: {
   const guideQuestion = selectGuideQuestion(rung, stage, probContext);
   const triggerAnimation = shouldTriggerAnimation(body.userMessage);
   const animationContext = buildAnimationContext(body.animationType, body.animationData, triggerAnimation);
+
+  // ── UNDERSTANDING INFERENCE ──
+  const understanding = inferUnderstandingFromHistory(history, stage);
+  const understandingContext = understanding.demonstrated.length > 0 || understanding.gaps.length > 0
+    ? `STUDENT UNDERSTANDING ASSESSMENT:
+${understanding.demonstrated.length > 0 ? `✓ Demonstrated: ${understanding.demonstrated.join(", ")}` : "✗ No clear demonstrations yet"}
+${understanding.gaps.length > 0 ? `⚠ Gaps to verify: ${understanding.gaps.join(", ")}` : ""}
+${understanding.suggestedFocus}`
+    : "";
 
   let loopAlert = "";
   if (loopDetected) {
@@ -195,10 +204,30 @@ Change your approach completely. Try:
   const existingMem = rollingSummaryMd?.trim() || null;
 
   // Combine all contexts
+  let knowledgeContext = "";
+  if (knowledgeGraph && features.personalization) {
+    const weakConcepts = getWeakestConcepts(knowledgeGraph);
+    if (weakConcepts.length > 0) {
+      knowledgeContext = `STUDENT KNOWLEDGE GRAPH: Student shows weaker mastery (${weakConcepts.map((wc: any) => `${wc.concept}@${wc.mastery}`).join(", ")}). Focus explanations on building up ${weakConcepts[0]?.concept}. Personalize hints and scaffolding for these areas.`;
+    }
+  }
+
+  const intentContext = conversationIntent ? `CONVERSATION INTENT: ${conversationIntent.primaryIntent} (confidence: ${conversationIntent.confidence}). ${conversationIntent.secondaryIntents.length > 0 ? `Secondary: ${conversationIntent.secondaryIntents.join(", ")}` : ""}. ${conversationIntent.shouldEnforceStage ? "Enforce stage progression." : "Flexible stage allowed."} ${conversationIntent.reason}` : "";
+
+  let debugContext = "";
+  if (debugAnalysis && features.debugAnalysis) {
+    debugContext = `DEBUG ANALYSIS: ${debugAnalysis.bugHypotheses.map(bh => `${bh.type} (${bh.confidence})`).join("; ")}. Key issues: ${debugAnalysis.rootCause ? debugAnalysis.rootCause.whyItHappened : "pending"}. Suggested fixes: ${debugAnalysis.fixSuggestions.map(fs => fs.description).join("; ")}. Generate targeted test cases.`;
+  }
+
+  // Combine all contexts
   const enhancedGuidance = [
+    intentContext,
+    understandingContext,
     contextualGuidance,
     weaknessContext,
     debuggerContext,
+    debugContext,
+    knowledgeContext,
     vizType ? `VISUAL SCAFFOLDING: This problem involves ${vizType}. Consider using ASCII visualization to explain the algorithm state. Use {{VISUALIZATION}} marker when appropriate.` : "",
   ].filter(Boolean).join("\n\n");
 
@@ -217,13 +246,15 @@ Change your approach completely. Try:
     loopAlert,
     existingMem,
     animationContext,
+    intent?.intent,
+    history.length,
   );
 
   const messages: LlmMessage[] = [{ role: "system", content: systemMessage }];
 
   const recentTurns = history.slice(-4).map((h) => ({
     role: h.role,
-    content: h.content.length > 600 ? h.content.slice(0, 600) + "\n[truncated]" : h.content,
+    content: h.content.length > 600 ? h.content.slice(0, 600) + "[truncated]" : h.content,
   }));
   for (const msg of recentTurns) {
     messages.push({ role: msg.role as "user" | "assistant", content: msg.content });
@@ -257,12 +288,45 @@ Change your approach completely. Try:
     return { ok: false, error: "Received empty response from AI service" };
   }
 
-  // ── Output guardrails ──
-  const { text: sanitized, wasViolation } = sanitizeResponse(assistantMessage, allowFullSolution);
-  assistantMessage = sanitized;
-  if (wasViolation && !allowFullSolution) {
-    assistantMessage = buildSolutionResponse(stage);
+  // ── LAYER 4: Output Validation ──
+  // Validate response against stage constraints BEFORE returning to student
+  let validatedMessage = assistantMessage;
+  const validationResult = validateAIResponse(assistantMessage, stage, intent);
+
+  let wasViolation = false;
+  let stageAdvanceFromValidation = false;
+
+  if (!validationResult.isValid) {
+    wasViolation = true;
+    // Use rewritten response if available
+    if (validationResult.rewrittenResponse) {
+      validatedMessage = validationResult.rewrittenResponse;
+    } else {
+      // Fallback to legacy sanitizer
+      const { text: sanitized } = sanitizeResponse(assistantMessage, allowFullSolution);
+      validatedMessage = sanitized;
+      if (!allowFullSolution) {
+        validatedMessage = buildSolutionResponse(stage);
+      }
+    }
+  } else {
+    // Even if no violation, check if validation suggests stage advancement
+    if (validationResult.stageAssessment.readyToAdvance) {
+      stageAdvanceFromValidation = true;
+    }
   }
+
+  // Also apply legacy sanitizer for defense in depth (only if not already rewritten)
+  if (validatedMessage === assistantMessage) {
+    const { text: sanitized, wasViolation: legacyViolation } = sanitizeResponse(assistantMessage, allowFullSolution);
+    validatedMessage = sanitized;
+    if (legacyViolation && !allowFullSolution) {
+      validatedMessage = buildSolutionResponse(stage);
+      wasViolation = true;
+    }
+  }
+
+  assistantMessage = validatedMessage;
 
   // ── Parse animation marker ──
   const { text: afterAnim, wantsAnimation } = parseAnimationMarker(assistantMessage);
@@ -272,34 +336,29 @@ Change your approach completely. Try:
     animationData = { type: body.animationType, data: body.animationData, title: body.problemTitle || "Algorithm Visualization" };
   }
 
-  // ── VISUAL SCAFFOLDING injection ──
-  let vizData: object | null = null;
-  if (vizType && (stage === "STRATEGIZE" || stage === "EXPLORE")) {
-    // Check if AI already included visualization marker, if not, we might inject one
-    const hasVizMarker = assistantMessage.includes("{{VISUALIZATION}}");
-    if (!hasVizMarker && /visualize|imagine|picture|look at this/i.test(assistantMessage)) {
-      assistantMessage = injectVisualizationMarker(assistantMessage, vizType, {
-        type: vizType,
-        data: body.publicTestCases?.[0]?.input?.split(",").map(Number) || [1, 2, 3, 4, 5],
-      });
-      vizData = { type: vizType };
-    }
-  }
-
   // ── STAGE ENGINE PERSISTENCE ──
   await saveMessage(mentorSession.id, "assistant", assistantMessage, stage);
 
-  // ── SAVE TO CACHE (fire-and-forget) ──
-  saveToCache({ problemId, question: body.userMessage, response: assistantMessage, stage, rung }).catch(() => {});
+  // ── SAVE TO CACHE (conditional) ──
+  saveToCache({ problemId, question: body.userMessage, response: assistantMessage, stage, rung, intent }).catch(() => {});
 
-  // ── STAGE ADVANCEMENT ──
-  const lowerResponse = assistantMessage.toLowerCase();
+ // ── STRUCTURED STAGE ASSESSMENT (replaces fragile string matching) ──
+  // Parse the AI's actual assessment intent instead of looking for specific phrases
+  const stageAssessment = extractStageAssessment(assistantMessage, stage);
+  const frustrationLevel = detectFrustration(body.userMessage);
+
   const transitionCtx: TransitionContext = {
-    approachCorrect: lowerResponse.includes("approach is correct") || lowerResponse.includes("great strategy") || (stage === "STRATEGIZE" && lowerResponse.includes("exactly")),
-    codeCorrect: lowerResponse.includes("code looks good") || lowerResponse.includes("solved it") || (stage === "IMPLEMENT" && Boolean(stats?.acceptedCount)),
-    isOptimal: lowerResponse.includes("optimal") || lowerResponse.includes("most efficient"),
-    hasErrors: !!body.syntaxError || Boolean(stats?.wrongAnswerCount),
-    isFrustrated: /frustrat|give up|don't understand/i.test(body.userMessage.toLowerCase()),
+    approachCorrect:
+      stage === "STRATEGIZE"
+        ? stageAssessment.readyToAdvance && stageAssessment.confidence !== "low"
+        : false,
+    codeCorrect:
+      stage === "IMPLEMENT"
+        ? stageAssessment.readyToAdvance && stageAssessment.confidence !== "low"
+        : false,
+    isOptimal: stageAssessment.confidence === "high" && stageAssessment.readyToAdvance,
+    hasErrors: !!body.syntaxError || Boolean(stats?.wrongAnswerCount) || !stageAssessment.readyToAdvance,
+    isFrustrated: frustrationLevel === "high" || frustrationLevel === "medium",
   };
 
   let architectReviewData = null;
@@ -312,7 +371,6 @@ Change your approach completely. Try:
     await tryAdvanceStage(mentorSession.id, "REFLECT", transitionCtx);
 
     // ── TRIGGER SENIOR ARCHITECT REVIEW ──
-    // This is the "second agent" that reviews production quality after solution works
     if (body.userCode) {
       try {
         const architectReview = await triggerArchitectReview({
@@ -358,6 +416,29 @@ Change your approach completely. Try:
   assistantMessage = cleanText;
   const newMessageCount = currentMessageCount + 2;
 
+  // Parse visualizations from AI response
+  const visualizations = parseVisualizations(assistantMessage);
+  let vizData = null;
+
+  if (visualizations.length > 0) {
+    // Remove visualization markers from the displayed text
+    assistantMessage = removeVisualizationMarkers(assistantMessage);
+    // Pass first visualization to frontend
+    vizData = {
+      type: visualizations[0].type,
+      data: visualizations[0].data
+    };
+  } else if (vizType && (stage === "STRATEGIZE" || stage === "EXPLORE")) {
+    // Auto-generate visualization if AI didn't include one but should have
+    const autoViz = autoGenerateVisualization(assistantMessage, vizType, {
+      array: body.publicTestCases?.[0]?.input?.split(",").map(Number) || [2, 7, 11, 15],
+      target: 9
+    });
+    if (autoViz) {
+      vizData = { type: autoViz.type, data: autoViz.data };
+    }
+  }
+
   if (memoryJson) {
     prisma.mentorConversationSummary
       .upsert({
@@ -382,6 +463,24 @@ Change your approach completely. Try:
     animation: animationData,
     architectReview: architectReviewData,
     visualization: vizData,
-    metadata: { verbosity, temperature, model: apiConfig.model, stage, rung, tone, wasViolation, wantsAnimation, hasArchitectReview: !!architectReviewData, hasVisualization: !!vizData },
+    metadata: {
+      verbosity,
+      temperature,
+      model: apiConfig.model,
+      stage,
+      rung,
+      tone,
+      wasViolation,
+      wantsAnimation,
+      hasArchitectReview: !!architectReviewData,
+      hasVisualization: !!vizData,
+      validationPassed: validationResult.isValid,
+ stageAssessment: {
+ readyToAdvance: stageAssessment.readyToAdvance,
+ confidence: stageAssessment.confidence,
+ assessedStage: stageAssessment.assessedStage,
+ },
+ frustrationLevel,
+    },
   };
 }

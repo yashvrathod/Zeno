@@ -430,6 +430,98 @@ model MentorMessage {
   @@index([sessionId, createdAt])
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PERSONALIZATION ENGINE MODELS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model UserKnowledgeGraph {
+  id                String           @id @default(cuid())
+  userId            String           @unique
+  learningStyle     Json
+  strengths         String[]
+  weaknesses        String[]
+  learningTrajectory Json
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  conceptMasteries  ConceptMastery[]
+  learningPatterns  LearningPattern[]
+  problemAttempts   ProblemAttempt[]
+  misconceptions    Misconception[]
+}
+
+model ConceptMastery {
+  id                String           @id @default(cuid())
+  userId            String
+  conceptId         String
+  mastery           Float
+  lastPracticed     DateTime?
+  practiceCount     Int
+  successRate       Float
+  averageTimeToSolve Float?
+  commonErrors      Json
+  prerequisites     String[]
+  dependents        String[]
+  nextReviewDue     DateTime?
+  difficultyRating  Int
+  confidenceRating  Int
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  user              UserKnowledgeGraph @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, conceptId])
+}
+
+model LearningPattern {
+  id                String           @id @default(cuid())
+  userId            String
+  patternType       String
+  strength          Float
+  lastUsed          DateTime?
+  successRate       Float
+  preferredContext  String[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  user              UserKnowledgeGraph @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ProblemAttempt {
+  id                String           @id @default(cuid())
+  userId            String
+  problemId         String
+  problemSlug       String
+  concepts          String[]
+  patterns          String[]
+  attempts          Int
+  solved            Boolean
+  timeSpent         Int
+  firstAttemptSuccess Boolean
+  hintCount         Int
+  stageReached      String
+  rungReached       Int
+  date              DateTime
+  errors            Json
+
+  user              UserKnowledgeGraph @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime         @default(now())
+}
+
+model Misconception {
+  id                String           @id @default(cuid())
+  userId            String
+  conceptId         String
+  description       String
+  detectedDate      DateTime
+  corrected         Boolean          @default(false)
+  correctionDate    DateTime?
+  relatedProblems   String[]
+
+  user              UserKnowledgeGraph @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime         @default(now())
+}
+
 enum Difficulty {
   EASY
   MEDIUM

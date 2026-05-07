@@ -188,3 +188,114 @@ export function buildConversationHistory(history: HistoryMsg[], rollingSummaryMd
 
   return ctx;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UNDERSTANDING INFERENCE (heuristic-based)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type InferredUnderstanding = {
+  demonstrated: string[];
+  gaps: string[];
+  suggestedFocus: string;
+};
+
+export function inferUnderstandingFromHistory(
+  history: HistoryMsg[],
+  stage: TeachingStage,
+): InferredUnderstanding {
+  const userMessages = history.filter((m) => m.role === "user").map((m) => m.content.toLowerCase());
+  const demonstrated: string[] = [];
+  const gaps: string[] = [];
+
+  // EXPLORE stage indicators
+  if (stage === "EXPLORE") {
+    const explainedProblem = userMessages.some((m) =>
+      /explain|break.*down|what.*asking|restat/.test(m),
+    );
+    const tracedExample = userMessages.some((m) =>
+      /trace|walk.*through|step.*by|example|if.*then/.test(m),
+    );
+
+    if (explainedProblem) demonstrated.push("Can restate problem");
+    else gaps.push("Has not restated problem in own words");
+
+    if (tracedExample) demonstrated.push("Can trace examples manually");
+    else gaps.push("Has not demonstrated manual tracing");
+  }
+
+  // STRATEGIZE stage indicators
+  if (stage === "STRATEGIZE") {
+    const mentionedPattern = userMessages.some((m) =>
+      /pattern|approach|algorithm|strategy|technique/.test(m),
+    );
+    const explainedWhy = userMessages.some((m) =>
+      /because|reason|why|fit|works.*here/.test(m),
+    );
+
+    if (mentionedPattern) demonstrated.push("Identified pattern/approach");
+    else gaps.push("Has not identified approach");
+
+    if (explainedWhy) demonstrated.push("Explained why approach fits");
+    else gaps.push("Has not explained rationale");
+  }
+
+  // IMPLEMENT stage indicators
+  if (stage === "IMPLEMENT") {
+    const hasCodeStructure = userMessages.some((m) =>
+      /function|def|class|var|let|const/.test(m),
+    );
+    const explainedLogic = userMessages.some((m) =>
+      /loop|iterate|compare|update|increment/.test(m),
+    );
+
+    if (hasCodeStructure) demonstrated.push("Started code structure");
+    else gaps.push("No code attempt yet");
+
+    if (explainedLogic) demonstrated.push("Explained implementation logic");
+    else gaps.push("Has not explained implementation approach");
+  }
+
+  // DEBUG stage indicators
+  if (stage === "DEBUG") {
+    const identifiedFailing = userMessages.some((m) =>
+      /fails?|wrong|error|bug|doesn.t work|test.*case/.test(m),
+    );
+    const tracedCode = userMessages.some((m) =>
+      /line|trace|value|variable.*is|at.*point/.test(m),
+    );
+
+    if (identifiedFailing) demonstrated.push("Identified failing case");
+    else gaps.push("Has not identified what's failing");
+
+    if (tracedCode) demonstrated.push("Can trace code execution");
+    else gaps.push("Has not demonstrated code tracing");
+  }
+
+  // REFLECT stage indicators
+  if (stage === "REFLECT") {
+    const mentionedComplexity = userMessages.some((m) =>
+      /o\(|time|space|complexity|big o/.test(m),
+    );
+    const namedPattern = userMessages.some((m) =>
+      /sliding window|two pointer|hash map|dp|recursion|greedy/.test(m),
+    );
+
+    if (mentionedComplexity) demonstrated.push("Understands complexity");
+    else gaps.push("Has not discussed complexity");
+
+    if (namedPattern) demonstrated.push("Named the pattern");
+    else gaps.push("Has not named/identified pattern");
+  }
+
+  // Build suggested focus
+  let suggestedFocus = "";
+  if (gaps.length > 0) {
+    suggestedFocus = `PRIORITY: Verify ${gaps[0]}`;
+  } else if (demonstrated.length > 0) {
+    suggestedFocus = `Student has demonstrated: ${demonstrated.join(", ")}. Ready to advance.`;
+  } else {
+    suggestedFocus = "INSUFFICIENT DATA: Ask specific verification question";
+  }
+
+  return { demonstrated, gaps, suggestedFocus };
+}

@@ -13,6 +13,7 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rateLimit";
+import { checkAIQuota } from "@/lib/executor/aiQuota";
 import { execute, type MentorRequest, type MentorResponse } from "@/lib/mentor/services/mentorService";
 
 export const runtime = "nodejs";
@@ -49,7 +50,11 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: rateLimit.message }, { status: 429 });
     }
 
-    // ── 5. Execute mentor flow ──
+    if (!quota.allowed) {
+  return Response.json({ error: quota.reason || "Daily AI message limit reached" }, { status: 429 });
+}
+
+// ── 5. Execute mentor flow ──
     const result = await execute({ body, userId: session.user.id });
 
     // ── 6. Return response ──

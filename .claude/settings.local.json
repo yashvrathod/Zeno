@@ -1,9 +1,8 @@
 {
   "env": {
-    "ANTHROPIC_BASE_URL": "https://openrouter.ai/api/v1",
-    "ANTHROPIC_AUTH_TOKEN": "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",
-    "ANTHROPIC_API_KEY": "",
-    "ANTHROPIC_MODEL": "qwen/qwen3-coder:free"
+    "ANTHROPIC_BASE_URL": "http://0.0.0.0:8082",
+    "ANTHROPIC_AUTH_TOKEN": "freecc",
+    "ANTHROPIC_API_KEY": ""
   },
   "permissions": {
     "allow": [
@@ -13,7 +12,33 @@
       "Bash(ls -la /c/Users/yashv/Desktop/New-ai/code.zone/.understand-anything/intermediate/batch-*.json)",
       "Bash(python3:*)",
       "Bash(python:*)",
-      "Bash(ls -la *.config.* *.config.ts *.config.js)"
+      "Bash(ls -la *.config.* *.config.ts *.config.js)",
+      "Bash(ls *)",
+      "Bash(npx tsx *)",
+      "Bash(npm list *)",
+      "Bash(./node_modules/.bin/tsc *)",
+      "Bash(nsed *)",
+      "Bash(cat C:\\\\\\\\Users\\\\\\\\yashv\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\claude\\\\\\\\C--Users-yashv-Desktop-FInal-code-zone\\\\\\\\78774e49-911b-44f9-85be-51af402fe5e8\\\\\\\\tasks\\\\\\\\bp8q4vwxi.output)",
+      "Bash(npm test *)",
+      "Bash(npx jest *)",
+      "Bash(export)",
+      "Bash(echo *)",
+      "Bash(npm install *)",
+      "Bash(node *)",
+      "Bash(npm run *)",
+      "Bash(powershell *)",
+      "Bash(Select-Object -Last 50)",
+      "Bash(set DATABASE_URL=postgresql://neondb_owner:npg_fFCRz9kGYB4b@ep-holy-shadow-an1b6zir.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require)",
+      "Bash(Select-Object -First 100)",
+      "Bash(Select-Object -First 300)",
+      "Bash(Select-String -Pattern \"error|warning|success|Compiled\")",
+      "Bash(Select-Object -First 20)",
+      "Bash(Select-Object -First 30)",
+      "Bash(Select-Object -First 10)",
+      "Bash(findstr /N \"^\" \"C:\\\\Users\\\\yashv\\\\Desktop\\\\FInal\\\\code.zone\\\\app\\\\problems\\\\[id]\\\\page.tsx\")",
+      "Bash(select-string -Pattern \"133:|134:|135:|136:|137:|138:|139:|140:|141:|142:|143:|144:|145:|146:|147:|148:|149:|150:|151:|152:|153:\")",
+      "Bash(findstr /s /i \"api/run\" \"app\")",
+      "Bash(findstr \"POST\")"
     ]
   }
 }

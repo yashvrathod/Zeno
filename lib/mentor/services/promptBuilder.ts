@@ -9,6 +9,7 @@ import type { TeachingStage } from "@/lib/mentorContext";
 import type { Verbosity } from "@/lib/aiPreferences";
 import { getMentorSystemPrompt } from "@/lib/mentorSystemPrompt";
 import type { HistoryMsg } from "./contextBuilder";
+import type { IntentType } from "@/lib/mentor/intentClassifier";
 
 export type ConversationTone = "encouraging" | "analytical" | "challenging" | "empathetic";
 
@@ -53,47 +54,46 @@ export function buildMentorSystemPrompt(
   loopAlert: string,
   existingMemory: string | null,
   animationContext?: string,
+  intent?: IntentType,
+  messageCount?: number,
 ): string {
-  const stageInstructions: Record<TeachingStage, string> = {
-    EXPLORE: "Ask user to restate the problem, trace examples by hand. No code yet.",
-    STRATEGIZE: "Guide toward the right pattern through questions. Don't name the algorithm.",
-    IMPLEMENT: "Translate approach to code one piece at a time. Max 3 lines of example code.",
-    DEBUG: "Ask them to trace the failing test case through their code.",
-    STUCK: "Show empathy. Shrink to a 2-3 element concrete example from the problem itself. Ask one small, answerable question to rebuild momentum.",
-    REFLECT: "Ask why it works. Check complexity understanding. Name the pattern.",
-  };
-
-  const toneInstructions: Record<ConversationTone, string> = {
-    encouraging: "Warm and enthusiastic — 'Good instinct!', 'You're close!'",
-    analytical: "Precise and methodical — trace logic step by step.",
-    challenging: "Respectful but stretching — push harder.",
-    empathetic: "Warm and grounding — acknowledge the struggle first.",
-  };
-
   const basePrompt = getMentorSystemPrompt();
-  const memoryLine = existingMemory
-    ? `PREVIOUS MEMORY (build on this, update as needed): ${existingMemory}\n\n`
-    : "";
+
+  // Build progress indicator
+  const stageNumber = ["EXPLORE", "STRATEGIZE", "IMPLEMENT", "DEBUG", "REFLECT"].indexOf(stage) + 1;
+  const totalStages = 5;
+  const progressMsg = messageCount && messageCount > 0
+    ? `Progress: Step ${stageNumber}/${totalStages} (${stage}) - You've had ${messageCount} messages on this problem.`
+    : `Progress: Step ${stageNumber}/${totalStages} (${stage}) - Starting fresh!`;
+
+  // Detect student frustration for adaptive teaching
+  const frustrationLevel = tone === "empathetic" ? "HIGH" : tone === "challenging" ? "LOW" : "NORMAL";
 
   return `${basePrompt}
 
-CURRENT SESSION:
-Stage: ${stage} — ${stageInstructions[stage]}
-Tone: ${toneInstructions[tone]}
-Rung: ${rung}/6
-Response style: ${verbosity} (${stylePrompt})
+CURRENT CONTEXT:
+${progressMsg}
+Student Level: Rung ${rung}/6
+Frustration Level: ${frustrationLevel}
+Current Stage: ${stage}
 
 ${loopAlert}
 
-${contextualGuidance}
-
-${memoryLine}${problemContext}
+PROBLEM DETAILS:
+${problemContext}
 
 ${codeContext}
 
 ${statsContext}
 
+${contextualGuidance}
+
+CONVERSATION HISTORY:
 ${conversationHistory}
 
-${animationContext ? animationContext + "\n" : ""}If a natural question fits, use this fallback: "${guideQuestion}"`;
+${existingMemory ? `PREVIOUS SESSION: ${existingMemory}` : ""}
+
+${animationContext || ""}
+
+If no clear direction emerges, use: "${guideQuestion}"`;
 }

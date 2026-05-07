@@ -2,7 +2,7 @@
  * Stage Engine Unit Tests
  *
  * Tests the core state machine logic:
- * - Transition rule validation
+ * - Transition rule validation   
  * - Context-based allow/block decisions
  * - Edge cases and invalid transitions
  */
