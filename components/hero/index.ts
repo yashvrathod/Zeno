@@ -1,0 +1,13 @@
+export { default as Background } from './Background';
+export { default as Navbar } from './Navbar';
+export { default as Banner } from './Banner';
+export { default as TrustBadges } from './TrustBadges';
+export { default as HeroHeadline } from './HeroHeadline';
+export { default as HeroStats } from './HeroStats';
+export { default as HeroDescription } from './HeroDescription';
+export { default as EmailForm } from './EmailForm';
+export { default as PlatformLogos } from './PlatformLogos';
+export { default as HeroGIF } from './HeroGIF';
+export { default as ChatWidget } from './ChatWidget';
+export { default as ScrollReveal } from './ScrollReveal';
+export { default as HeroVideo } from './HeroVideo';

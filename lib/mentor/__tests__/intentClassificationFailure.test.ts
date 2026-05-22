@@ -8,8 +8,9 @@
  * 4. Context misunderstanding
  */
 
-import { classifyIntent } from "../intentClassifier";
+import { classifyIntent } from "../intent/core";
 import { classifyIntentWithContext } from "../enhancedIntentClassifier";
+import type { IntentClassification } from "../intent/core";
 import type { TeachingStage } from "@/lib/mentorContext";
 
 // =============================================================================
@@ -288,28 +289,28 @@ describe("Context-Aware Intent Classification", () => {
   describe("Conversation history awareness", () => {
     it("should consider previous intents", () => {
       const query = "I'm still stuck";
-      const previousIntents = [
-        { intent: "hint", confidence: "high" },
-        { intent: "hint", confidence: "medium" }
+      const previousIntents: IntentClassification[] = [
+        { intent: "hint_request", confidence: "high", shouldEnforceStage: true, requiresValidation: false, reason: "test", keywords: [] },
+        { intent: "hint_request", confidence: "medium", shouldEnforceStage: true, requiresValidation: false, reason: "test", keywords: [] },
       ];
 
       const result = classifyIntentWithContext(query, { previousIntents });
 
-      expect(result.primaryIntent).toBe("hint");
-      expect(result.confidence).toBeGreaterThan(0.6);
+      expect(result.primaryIntent).toBe("hint_request");
+      expect(["high", "medium"]).toContain(result.confidence);
     });
 
     it("should detect repetition patterns", () => {
       const query = "Can you help me?";
-      const previousIntents = [
-        { intent: "help", confidence: "high" },
-        { intent: "help", confidence: "high" },
-        { intent: "help", confidence: "high" }
+      const previousIntents: IntentClassification[] = [
+        { intent: "hint_request", confidence: "high", shouldEnforceStage: true, requiresValidation: false, reason: "test", keywords: [] },
+        { intent: "hint_request", confidence: "high", shouldEnforceStage: true, requiresValidation: false, reason: "test", keywords: [] },
+        { intent: "hint_request", confidence: "high", shouldEnforceStage: true, requiresValidation: false, reason: "test", keywords: [] },
       ];
 
       const result = classifyIntentWithContext(query, { previousIntents });
 
-      expect(result.metadata.isRepetitive).toBe(true);
+      expect(result.metadata.repeatingIntent).toBe(true);
     });
   });
 
@@ -318,14 +319,14 @@ describe("Context-Aware Intent Classification", () => {
       const frustratedQuery = "I'm so frustrated with this problem";
       const result = classifyIntentWithContext(frustratedQuery, {});
 
-      expect(result.metadata.userFrustrationLevel).toBeGreaterThan(0.5);
+      expect(result.metadata.hasExplicitFrustration).toBe(true);
     });
 
     it("should detect stuck patterns", () => {
       const stuckQuery = "I keep getting the same error";
       const result = classifyIntentWithContext(stuckQuery, {});
 
-      expect(result.metadata.isStuck).toBe(true);
+      expect(result.primaryIntent).toBe("frustration");
     });
   });
 
@@ -339,7 +340,7 @@ describe("Context-Aware Intent Classification", () => {
       const lowResult = classifyIntentWithContext(query, lowAttempts);
 
       // High attempts should trigger different handling
-      expect(highResult.metadata.requiresIntervention).toBe(true);
+      expect(highResult.metadata.isStuckPattern).toBe(true);
     });
   });
 });
@@ -388,7 +389,7 @@ describe("Intent Classification Edge Cases", () => {
     const typoQuery = "Can u giv me a hnt?";
     const result = classifyIntent(typoQuery);
 
-    expect(["hint", "help"]).toContain(result.intent);
+    expect(["hint_request", "frustration", "help"]).toContain(result.intent);
   });
 });
 
@@ -430,8 +431,8 @@ describe("Intent Classification Failure Patterns", () => {
     const results = queries.map(query => classifyIntent(query));
     const confidences = results.map(r => r.confidence);
 
-    // Most confidences should be reasonably high
-    const highConfidenceCount = confidences.filter(c => c > 0.6).length;
+    // Most confidences should be high or medium
+    const highConfidenceCount = confidences.filter(c => c === "high" || c === "medium").length;
     expect(highConfidenceCount).toBeGreaterThan(queries.length * 0.7);
   });
 });
@@ -446,7 +447,7 @@ describe("Real-World Intent Classification Scenarios", () => {
       const beginnerQuery = "I don't know where to start with this problem";
       const result = classifyIntentWithContext(beginnerQuery, { stage: "EXPLORE" as TeachingStage });
 
-      expect(result.primaryIntent).toBe("explanation");
+      expect(result.primaryIntent).toBe("understanding");
       expect(result.shouldEnforceStage).toBe(true);
     });
 

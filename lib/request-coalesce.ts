@@ -1,46 +1,39 @@
-/**
- * Request Coalescing for Global Cache
- *
- * When identical requests arrive concurrently, only the first one calls the AI.
- * All others wait for the result instead of hitting the API.
- *
- * Example: Users A and B both ask "what does this mean?" at the same time.
- * Without coalescing: 2 AI calls.
- * With coalescing: 1 AI call, both get the same result.
- *
- * Usage:
- *   const { result, isNew } = await coalesce(
- *     `cache-key:${problemId}:${questionMd5}`,
- *     () => callAIAndCache(...)
- *   );
- */
+const inFlight = new Map<string, { promise: Promise<unknown>; createdAt: number }>();
 
-// Active in-flight promises keyed by dedup hash
-const inFlight = new Map<string, Promise<{
-  ok: boolean;
-  data?: unknown;
-  error?: string;
-}>>();
+const MAX_STALE_AGE_MS = 30_000;
 
-/**
- * Execute a function with request deduplication.
- * If the same key is already in-flight, return the same promise.
- *
- * @param key - Deduplication key (typically problemId + question hash)
- * @param fn - The async function to execute if not already in-flight
- * @returns Result from the function execution
- */
+let cleanupInterval: ReturnType<typeof setInterval> | null = null;
+function ensureCleanup() {
+  if (cleanupInterval) return;
+  cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of inFlight) {
+      if (now - entry.createdAt > MAX_STALE_AGE_MS) {
+        inFlight.delete(key);
+      }
+    }
+    if (inFlight.size === 0 && cleanupInterval) {
+      clearInterval(cleanupInterval);
+      cleanupInterval = null;
+    }
+  }, 60_000);
+}
+
 export async function coalesce<T>(
   key: string,
   fn: () => Promise<T>
 ): Promise<boolean> {
-  // Already in-flight? Return false (caller was deduped)
-  if (inFlight.has(key)) {
-    await inFlight.get(key);
-    return false;
+  const existing = inFlight.get(key);
+  if (existing) {
+    if (Date.now() - existing.createdAt < MAX_STALE_AGE_MS) {
+      await existing.promise;
+      return false;
+    }
+    inFlight.delete(key);
   }
 
-  // Create in-flight entry
+  ensureCleanup();
+
   const promise = fn().then(
     (result) => {
       inFlight.delete(key);
@@ -52,7 +45,7 @@ export async function coalesce<T>(
     }
   );
 
-  inFlight.set(key, promise as Promise<any>);
+  inFlight.set(key, { promise, createdAt: Date.now() });
 
-  return true; // Caller should execute (it's a new request)
+  return true;
 }

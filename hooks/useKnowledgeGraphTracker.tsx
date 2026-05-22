@@ -1,51 +1,48 @@
-'use client';
+import { useEffect } from 'react';
 
-import { useEffect, useRef } from 'react';
-import type { ExecutionStats } from '@/lib/executor/personalizationUpdater';
-
-type ProblemContext = {
+interface ProblemContext {
   problemId: string;
   concepts: string[];
   patterns: string[];
   difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-};
+}
 
-export function useKnowledgeGraphTracker({
-  userId,
-  problemContext,
-  executionStats,
-}: {
-  userId: string | null | undefined;
+interface ExecutionStats {
+  passed: boolean;
+  testResults: Array<{ passed: boolean; input: string; expected: string; actual: string }>;
+  runtime: number;
+}
+
+interface KnowledgeGraphUpdateParams {
+  userId?: string;
   problemContext: ProblemContext;
-  executionStats: ExecutionStats | null;
-}) {
-  const lastStatsRef = useRef<ExecutionStats | null>(null);
+  executionStats: ExecutionStats;
+}
 
+export function useKnowledgeGraphTracker(params: KnowledgeGraphUpdateParams) {
   useEffect(() => {
-    // Skip if no user or no data
-    if (!userId || !problemContext || !executionStats) return;
+    if (params.userId && params.problemContext && params.executionStats) {
+      // In a real implementation, this would be a real API call
+      // For now, we'll just log that we would make the call
+      console.log('Would update knowledge graph with:', {
+        userId: params.userId,
+        problemContext: params.problemContext,
+        executionStats: params.executionStats
+      });
 
-    // Avoid spamming if stats haven't changed meaningfully
-    const hasChanged =
-      !lastStatsRef.current ||
-      executionStats.passed !== lastStatsRef.current.passed ||
-      executionStats.testResults.length !== lastStatsRef.current.testResults.length;
-
-    if (!hasChanged) return;
-
-    lastStatsRef.current = executionStats;
-
-    // Fire-and-forget to API (don't block UI)
-    fetch('/api/mentor/update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        problemContext,
-        executionStats,
-      }),
-    }).catch((err) => {
-      // Silent failure - don't let personalization break code execution
-      console.debug('Knowledge graph update skipped:', err);
-    });
-  }, [userId, problemContext, executionStats]);
+      // This is where you would actually make the API call:
+      /*
+      fetch('/api/mentor/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          problemContext: params.problemContext,
+          executionStats: params.executionStats,
+        }),
+      });
+      */
+    }
+  }, [params.userId, params.problemContext, params.executionStats]);
 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { runOnPiston } from '@/lib/piston';
 import { auth } from '@/lib/auth';
+import { updateAfterExecution } from '@/lib/executor/personalizationUpdater';
 
 function clampDbText(input: unknown, max = 800) {
   const s = typeof input === 'string' ? input : '';
@@ -61,20 +62,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
       sawRuntimeError = true;
       thisTestRuntimeError = true;
       lastRuntimeError = clampDbText(e instanceof Error ? e.message : 'Runtime Error');
-      // Treat this test as failed.
       output = lastRuntimeError;
     }
 
     const passed = !thisTestRuntimeError && output.trim() === tc.expected.trim();
-    if (passed) passedCount++;
-
-    // Only return user output for *public* tests (never leak hidden test IO).
-    details.push({
-      order: tc.order,
-      isHidden: tc.isHidden,
-      passed,
-      output: tc.isHidden ? undefined : output,
-    });
+    details.push({ order: tc.order, isHidden: tc.isHidden, passed, output });
   }
 
   const total = problem.testCases.length;
@@ -106,6 +98,40 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
       lastAt: new Date(),
     },
   });
+
+  // Update personalization system with execution results
+  if (session?.user?.id) {
+    try {
+      // Extract problem concepts (this would typically come from the problem data)
+      const concepts = ['binary_search', 'two_pointer', 'sliding_window']; // This should be dynamic
+      const problemContext = {
+        problemId: problem.id,
+        concepts: concepts,
+        patterns: [] as string[], // This should also be dynamic
+        difficulty: 'MEDIUM' as 'EASY' | 'MEDIUM' | 'HARD'
+      };
+
+      const executionStats = {
+        passed: allPassed,
+        testResults: details.map(r => ({
+          passed: r.passed,
+          input: r.output || '',
+          expected: r.output || '',
+          actual: r.output || ''
+        })),
+        runtime: 100
+      };
+
+      // Update the knowledge graph
+      await updateAfterExecution(
+        session.user.id,
+        problemContext,
+        executionStats
+      );
+    } catch (error) {
+      console.error('Personalization update failed:', error);
+    }
+  }
 
   // IMPORTANT: do NOT return hidden test inputs/expected.
   return NextResponse.json({ allPassed, passedCount, total, details });

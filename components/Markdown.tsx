@@ -41,7 +41,7 @@ export function Markdown({ md }: { md: string | null | undefined }) {
         } else {
           inCode = false;
           const code = escapeHtml(codeBuf.join('\n'));
-          out.push(`<pre class=\"overflow-auto rounded-md bg-muted border border-border p-3\"><code class=\"text-xs text-foreground\">${code}</code></pre>`);
+          out.push(`<pre class=\"overflow-auto rounded-md bg-[#0f0f0f] border border-zinc-800 p-3\"><code class=\"text-xs text-gray-100\">${code}</code></pre>`);
           codeLang = '';
         }
         continue;
@@ -57,7 +57,7 @@ export function Markdown({ md }: { md: string | null | undefined }) {
         const level = h[1].length;
         const text = escapeHtml(h[2]);
         const cls = level === 1 ? 'text-xl font-semibold' : level === 2 ? 'text-lg font-semibold' : 'text-base font-semibold';
-        out.push(`<h${level} class=\"${cls} text-foreground mt-4 mb-2\">${text}</h${level}>`);
+        out.push(`<h${level} class=\"${cls} text-white mt-4 mb-2\">${text}</h${level}>`);
         continue;
       }
 
@@ -66,7 +66,7 @@ export function Markdown({ md }: { md: string | null | undefined }) {
         continue;
       }
 
-      out.push(`<p class=\"text-sm text-foreground/90 leading-relaxed\">${escapeHtml(line)}</p>`);
+      out.push(`<p class=\"text-sm text-gray-100 leading-relaxed\">${escapeHtml(line)}</p>`);
     }
 
     return out.join('\n');

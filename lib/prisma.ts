@@ -18,14 +18,23 @@ const globalForPrisma = global as unknown as {
 function createPrismaClient() {
   const connectionString = process.env.DATABASE_URL;
 
-  // If DATABASE_URL is missing, fall back to default PrismaClient construction.
-  // Requests that hit DB will still fail at query-time with a clearer error, but
-  // the build won't crash while evaluating modules.
   if (!connectionString) {
     return new PrismaClient();
   }
 
-  const adapter = new PrismaPg({ connectionString });
+  const poolConfig: Record<string, unknown> = {};
+  const poolStr = process.env.DATABASE_POOL_SIZE;
+  if (poolStr) {
+    const size = parseInt(poolStr, 10);
+    if (size > 0) poolConfig.connection_limit = size;
+  }
+  const timeoutStr = process.env.DATABASE_POOL_TIMEOUT;
+  if (timeoutStr) {
+    const timeout = parseInt(timeoutStr, 10);
+    if (timeout > 0) poolConfig.pool_timeout = timeout;
+  }
+
+  const adapter = new PrismaPg({ connectionString, ...poolConfig });
   return new PrismaClient({ adapter });
 }
 

@@ -9,6 +9,7 @@
  */
 
 import type { TeachingStage } from "@/lib/mentorContext";
+import { isSolutionRequest as consolidatedIsSolutionRequest } from "@/lib/mentor/validation/solutionPatterns";
 
 export type ValidationResult = {
   isValid: boolean;
@@ -26,7 +27,8 @@ export type ViolationType =
   | "PRECIOUS_HINT"
   | "CODE_GIVEAWAY"
   | "ALGORITHM_NAMING"
-  | "STAGE_MISMATCH";
+  | "STAGE_MISMATCH"
+  | "LOW_QUALITY";
 
 /**
  * Solution leakage patterns per stage - NO OVERLAP between layers.
@@ -278,6 +280,64 @@ function detectViolation(
     }
   }
 
+  // LAYER 7: Stage-specific behavioral violations
+  if (stage === "EXPLORE") {
+    const stepByStep = /\bstep\s+\d+[:\s]/i;
+    if (stepByStep.test(response)) {
+      return "STAGE_MISMATCH";
+    }
+    const implementationAdvice = /\b(implement|code\s+this|using a for loop|using a hash)/i;
+    if (implementationAdvice.test(response)) {
+      return "STAGE_MISMATCH";
+    }
+  }
+
+  if (stage === "STRATEGIZE") {
+    const debugAdvice = /\b(bug in line|a bug in|debugging|fix the|off-by-one|syntax error)\b/i;
+    if (debugAdvice.test(response)) {
+      return "STAGE_MISMATCH";
+    }
+  }
+
+  if (stage === "IMPLEMENT") {
+    const backtracking = /\b(step back|think about what.*problem.*asking|let's explore|understand.*problem)/i;
+    if (backtracking.test(response)) {
+      return "STAGE_MISMATCH";
+    }
+  }
+
+  // LAYER 8: Response quality checks
+  const trimmed = response.trim();
+  if (!trimmed) {
+    return "LOW_QUALITY";
+  }
+
+  if (trimmed.length > 5000) {
+    return "LOW_QUALITY";
+  }
+
+  const briefPatterns = [
+    /^(yes|no|maybe|okay|sure)[,.\s]*(that['"]?s\s+)?(correct|right|true)[,.\s]*$/i,
+    /^that['"]s (correct|right|true)[,.\s]*$/i,
+    /^good[,\s]luck/i,
+    /not sure/i,
+  ];
+  for (const pattern of briefPatterns) {
+    if (pattern.test(trimmed)) {
+      return "LOW_QUALITY";
+    }
+  }
+
+  const nonCommittal = /\b(maybe|perhaps|not sure|could be|try something)\b.*\b(not sure|don't know|maybe|perhaps)\b/i;
+  if (nonCommittal.test(response)) {
+    return "LOW_QUALITY";
+  }
+
+  const unhelpful = /\b(good luck|you['"]?ll figure it out|try something|i don['"]t know)\b/i;
+  if (unhelpful.test(response) && response.length < 100) {
+    return "LOW_QUALITY";
+  }
+
   return null;
 }
 
@@ -430,7 +490,6 @@ export function extractStageAssessment(
     }
   }
 
-  // Determine readiness and confidence
   let readyToAdvance = false;
   let confidence: "high" | "medium" | "low" = "low";
   let assessedStage: TeachingStage | null = null;
@@ -441,9 +500,6 @@ export function extractStageAssessment(
   } else if (score === 2) {
     readyToAdvance = true;
     confidence = "medium";
-  } else if (score === 1) {
-    readyToAdvance = true;
-    confidence = "low";
   } else {
     readyToAdvance = false;
     confidence = score <= -1 ? "high" : "low";
@@ -597,34 +653,10 @@ function rewriteResponse(
 
 /**
  * Check if user explicitly requests a solution.
- *
- * FIXED: No more false positives on partial matches like "won't give up".
+ * Delegates to consolidated pattern list in validation/solutionPatterns.ts
  */
 export function isSolutionRequest(userMessage: string): boolean {
-  const lower = userMessage.toLowerCase();
-
-  // Require full phrase matches - no partials
-  const solutionRequestPatterns = [
-    /\bjust (?:give me|tell me|show me) (?:the|this) (?:answer|solution)\b/i,
-    /\bi (?:need|want) (?:the|this) (?:code|solution)\b/i,
-    /\bcan you (?:write|show) (?:me|us) the full (?:code|solution)\b/i,
-    /\bjust (?:tell me|show me) how (?:it|this) goes\b/i,
-    /\bwhat['"]s the solution\b/i,
-    /\bwhat['"]s the answer\b/i,
-    /\bi['"]m giving up\b/i,
-    /\bi['"]ll give up\b/i,
-    /\bgive up on this\b/i,
-    /\bi can['"]t do this anymore\b/i,
-    /\bi['"]m stuck and need the answer\b/i,
-  ];
-
-  for (const pattern of solutionRequestPatterns) {
-    if (pattern.test(lower)) {
-      return true;
-    }
-  }
-
-  return false;
+  return consolidatedIsSolutionRequest(userMessage);
 }
 
 /**

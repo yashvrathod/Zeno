@@ -9,8 +9,8 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { resolveApiConfig } from "@/lib/mentor/services/llmClient";
-import { routeInteraction, saveToCache } from "@/lib/mentor/interactionRouter";
+import { resolveApiConfig } from "@/lib/mentor/llm";
+import { routeInteraction, saveToCache } from "@/lib/mentor/routing";
 import { saveMessage, tryAdvanceStage } from "@/lib/mentor/stageEngine";
 import { detectPatternsStatically, trackWeakPatterns } from "@/lib/mentor/patternTracker";
 import { checkRateLimit } from "@/lib/rateLimit";

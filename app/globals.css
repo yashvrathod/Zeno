@@ -3,13 +3,21 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@font-face {
+  font-family: "Blacksword";
+  src: url("/fonts/Blacksword.otf") format("opentype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
-  --font-serif: var(--font-lora);
+  --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
-
+  --font-roboto-slab: var(--font-roboto-slab);
+  --font-cursive: "Blacksword", cursive;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -18,7 +26,11 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
-
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -35,102 +47,82 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-
-  --radius-sm: 6px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
-
-  --animate-accordion-down: accordion-down 0.2s ease-out;
-  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
 }
 
 :root {
-  --radius: 12px;
-
-  /* Elegant Light Theme */
-  --background: #FFFFFF;
-  --foreground: #1A1A1A;
-
-  --card: #FFFFFF;
-  --card-foreground: #1A1A1A;
-
-  --popover: #FFFFFF;
-  --popover-foreground: #1A1A1A;
-
-  /* Primary: Deep Navy Blue - professional, trustworthy */
-  --primary: #0F172A;
-  --primary-foreground: #FFFFFF;
-
-  /* Secondary: Warm Gray */
-  --secondary: #F5F5F4;
-  --secondary-foreground: #1A1A1A;
-
-  --muted: #F5F5F4;
-  --muted-foreground: #78716C;
-
-  /* Accent: Subtle Bronze */
-  --accent: #D4C4B7;
-  --accent-foreground: #1A1A1A;
-
-  --destructive: #DC2626;
-
-  --border: #E5E5E5;
-  --input: #E5E5E5;
-  --ring: #0F172A;
-
-  --sidebar: #FAFAFA;
-  --sidebar-foreground: #1A1A1A;
-  --sidebar-primary: #0F172A;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F5F5F4;
-  --sidebar-accent-foreground: #1A1A1A;
-  --sidebar-border: #E5E5E5;
-  --sidebar-ring: #0F172A;
-
-  /* Shadows - subtle, elegant */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
-  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.1);
+  --radius: 0.75rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
-  --background: #0A0A0A;
-  --foreground: #FAFAFA;
-
-  --card: #121212;
-  --card-foreground: #FAFAFA;
-
-  --popover: #121212;
-  --popover-foreground: #FAFAFA;
-
-  --primary: #FAFAFA;
-  --primary-foreground: #0A0A0A;
-
-  --secondary: #1A1A1A;
-  --secondary-foreground: #FAFAFA;
-
-  --muted: #1A1A1A;
-  --muted-foreground: #A0A0A0;
-
-  --accent: #2A2A2A;
-  --accent-foreground: #FAFAFA;
-
-  --destructive: #DC2626;
-
-  --border: #262626;
-  --input: #262626;
-  --ring: #FAFAFA;
-
-  --sidebar: #0F0F0F;
-  --sidebar-foreground: #FAFAFA;
-  --sidebar-primary: #FAFAFA;
-  --sidebar-primary-foreground: #0A0A0A;
-  --sidebar-accent: #1A1A1A;
-  --sidebar-accent-foreground: #FAFAFA;
-  --sidebar-border: #262626;
-  --sidebar-ring: #FAFAFA;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
@@ -138,131 +130,311 @@
     @apply border-border outline-ring/50;
   }
 
-  html {
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+  html.lenis,
+  html.lenis body {
+    height: auto;
+  }
+
+  .lenis.lenis-smooth {
+    scroll-behavior: auto !important;
+  }
+
+  .lenis.lenis-smooth [data-lenis-prevent] {
+    overscroll-behavior: contain;
+  }
+
+  .lenis.lenis-stopped {
+    overflow: hidden;
+  }
+
+  .lenis.lenis-scrolling iframe {
+    pointer-events: none;
+  }
+
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
-    @apply bg-background text-foreground transition-colors duration-300;
-    font-feature-settings: "ss01", "ss02", "cv01", "cv02", "calt";
-    text-rendering: optimizeLegibility;
+    @apply bg-background text-foreground;
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-serif tracking-tight text-foreground font-medium;
-  }
-}
-
-@layer utilities {
-  /* Elegant card style */
-  .elegant-card {
-    @apply bg-card border border-border rounded-2xl shadow-sm hover:shadow-md transition-all duration-300;
-  }
-
-  /* Clean input style */
-  .elegant-input {
-    @apply bg-background border border-border rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary/10 focus:border-primary outline-none transition-all duration-200;
-  }
-
-  /* Bold button */
-  .elegant-button {
-    @apply bg-primary text-primary-foreground px-6 py-2.5 rounded-lg font-semibold hover:bg-primary/90 active:scale-[0.98] transition-all duration-200;
-  }
-
-  /* Text utilities */
-  .text-balance {
-    text-wrap: balance;
-  }
-
-  /* Smooth gradient for surfaces */
-  .subtle-gradient {
-    @apply bg-gradient-to-b from-white to-secondary/30;
-  }
-
-  /* Elegant divider */
-  .elegant-divider {
-    @apply h-px bg-border my-8;
-  }
-
-  /* Premium shadow for important elements */
-  .premium-shadow {
-    @apply shadow-[0_2px_8px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.06)];
+  img,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
+    height: auto;
   }
 }
 
-/* Refined scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
-::-webkit-scrollbar-track {
+.animate-gradient-shift {
+  animation: gradient-shift 3s linear infinite;
+  background-size: 200% auto;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 100%
+  );
+  background-size: 1000px 100%;
+}
+
+/* Custom scrollbar for content areas */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
 
-::-webkit-scrollbar-thumb {
-  background: #D4D4D4;
-  border-radius: 4px;
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #A0A0A0;
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
-.dark ::-webkit-scrollbar-thumb {
-  background: #404040;
+/* Hide scrollbar for Chrome, Safari and Opera */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: #5A5A5A;
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-/* Animations */
-@keyframes accordion-down {
-  from {
-    height: 0;
-  }
-  to {
-    height: var(--radix-accordion-content-height);
-  }
+.zone-card {
+  @apply bg-[#0a0a0c] border border-white/[0.03] rounded-xl;
 }
 
-@keyframes accordion-up {
-  from {
-    height: var(--radix-accordion-content-height);
-  }
-  to {
-    height: 0;
-  }
+.zone-card-elevated {
+  @apply bg-[#0a0a0c] border border-white/[0.05] rounded-xl shadow-sm;
 }
 
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
+.zone-label {
+  @apply text-xs font-semibold tracking-widest uppercase;
+}
+
+.zone-label-sm {
+  @apply text-[10px] font-semibold tracking-widest uppercase;
+}
+
+/* Monaco Editor Premium Enhancements */
+.monaco-editor .cursor {
+  animation: cursorPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes cursorPulse {
+  0%, 100% {
     opacity: 1;
-    transform: translateY(0);
+  }
+  50% {
+    opacity: 0.7;
   }
 }
 
-@keyframes fade-out {
-  from {
-    opacity: 1;
-    transform: translateY(0);
+/* Smooth line highlighting */
+.monaco-editor .current-line {
+  transition: background-color 0.15s ease;
+}
+
+/* Custom scrollbar for Monaco */
+.monaco-editor .decorationsOverviewRuler {
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+
+.monaco-editor .decorationsOverviewRuler:hover {
+  opacity: 1;
+}
+
+/* Smooth bracket pair highlighting */
+.monaco-editor .bracket-match {
+  transition: all 0.2s ease;
+  animation: bracketGlow 0.3s ease;
+}
+
+@keyframes bracketGlow {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
   }
-  to {
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Suggestion widget animations */
+.monaco-editor .suggest-widget {
+  animation: slideInDown 0.2s ease;
+}
+
+@keyframes slideInDown {
+  from {
     opacity: 0;
     transform: translateY(-10px);
   }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.animate-fade-in {
-  animation: fade-in 0.3s ease-out;
+/* Parameter hints widget */
+.monaco-editor .parameter-hints-widget {
+  animation: fadeInUp 0.2s ease;
 }
 
-.animate-fade-out {
-  animation: fade-out 0.3s ease-out;
+/* Minimap shadow effect */
+.monaco-editor .minimap {
+  box-shadow: -4px 0 8px rgba(0, 0, 0, 0.2);
 }
+
+/* Smooth selection highlighting */
+.monaco-editor .selected-text {
+  transition: background-color 0.15s ease;
+}
+
+/* Line numbers fade effect */
+.monaco-editor .line-numbers {
+  transition: color 0.2s ease, opacity 0.2s ease;
+}
+
+.monaco-editor .line-numbers.active-line-number {
+  color: #E0DEF4 !important;
+  font-weight: 600;
+}
+
+/* Code lens smooth appearance */
+.monaco-editor .codelens-decoration {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Indent guides smooth appearance */
+.monaco-editor .indent-guide {
+  transition: opacity 0.2s ease;
+  opacity: 0.3;
+}
+
+.monaco-editor .indent-guide.active {
+  opacity: 0.6;
+}
+
+/* Find widget smooth appearance */
+.monaco-editor .find-widget {
+  animation: slideInFromTop 0.2s ease;
+}
+
+@keyframes slideInFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Smooth hover widget */
+.monaco-editor .monaco-hover {
+  animation: fadeInScale 0.2s ease;
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Typing ripple effect - subtle glow on active line */
+.monaco-editor .view-line {
+  transition: text-shadow 0.1s ease;
+}
+
+.monaco-editor .view-line:hover {
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.1);
+}
+
+/* Robot Loading Animations */
+@keyframes blink {
+  0%, 100% { transform: scaleY(1); }
+  3% { transform: scaleY(0.1); }
+  6% { transform: scaleY(1); }
+}
+
+@keyframes wave {
+  0%, 100% { transform: rotate(-5deg); }
+  25% { transform: rotate(15deg); }
+  50% { transform: rotate(-5deg); }
+  75% { transform: rotate(15deg); }
+}
+
+@keyframes progress {
+  0% { width: 0%; }
+  50% { width: 80%; }
+  100% { width: 100%; }
+}
+
+@keyframes bar1 {
+  0%, 100% { height: 0.5rem; }
+  50% { height: 1.5rem; }
+}
+
+@keyframes bar2 {
+  0%, 100% { height: 1.25rem; }
+  50% { height: 2.5rem; }
+}
+
+@keyframes bar3 {
+  0%, 100% { height: 1rem; }
+  50% { height: 0.5rem; }
+}
+

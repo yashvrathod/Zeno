@@ -8,7 +8,7 @@
  * between competitive programming and software engineering.
  */
 
-import { resolveApiConfig, callLlmAndExtract, type ApiConfig } from "./llmClient";
+import { resolveApiConfig, callLlmAndExtract, type ApiConfig } from "../llm";
 import prisma from "@/lib/prisma";
 
 export type ArchitectReview = {
@@ -59,6 +59,7 @@ Output JSON format:
 
 /**
  * Trigger Senior Architect review after successful solution.
+ * Deduplicates: if the same code hash was already reviewed, returns the cached review.
  */
 export async function triggerArchitectReview(params: {
   userId: string;
@@ -66,8 +67,28 @@ export async function triggerArchitectReview(params: {
   code: string;
   language: string;
   problemTitle?: string;
+  codeHash?: string;
 }): Promise<ArchitectReview | null> {
-  const { userId, problemId, code, language, problemTitle } = params;
+  const { userId, problemId, code, language, problemTitle, codeHash } = params;
+
+  // Dedup: if code hash matches a previous review, return the cached result
+  if (codeHash) {
+    try {
+      const summary = await prisma.mentorConversationSummary.findUnique({
+        where: { userId_problemId: { userId, problemId } },
+        select: { summaryMd: true },
+      });
+      if (summary?.summaryMd) {
+        try {
+          const parsed = JSON.parse(summary.summaryMd);
+          if (parsed.architectReview && parsed.codeHash === codeHash) {
+            console.debug("[ARCHITECT_REVIEW] Code unchanged since last review — returning cached result");
+            return parsed.architectReview as ArchitectReview;
+          }
+        } catch {}
+      }
+    } catch {}
+  }
 
   // Resolve AI provider
   const userAiSettings = await prisma.userAiSettings.findUnique({
@@ -107,8 +128,8 @@ export async function triggerArchitectReview(params: {
     // Parse JSON response
     const review = parseArchitectResponse(response);
 
-    // Persist review for analytics
-    await persistArchitectReview(userId, problemId, review);
+    // Persist review with code hash for dedup
+    await persistArchitectReview(userId, problemId, review, codeHash);
 
     return review;
   } catch (error) {
@@ -223,17 +244,26 @@ function parseArchitectResponse(response: string): ArchitectReview {
 async function persistArchitectReview(
   userId: string,
   problemId: string,
-  review: ArchitectReview
+  review: ArchitectReview,
+  codeHash?: string,
 ): Promise<void> {
   try {
+    const existingSummary = await prisma.mentorConversationSummary.findUnique({
+      where: { userId_problemId: { userId, problemId } },
+      select: { summaryMd: true },
+    });
+
+    let parsed: Record<string, unknown> = {};
+    if (existingSummary?.summaryMd) {
+      try { parsed = JSON.parse(existingSummary.summaryMd); } catch {}
+    }
+    parsed.architectReview = review;
+    parsed.reviewedAt = new Date().toISOString();
+    if (codeHash) parsed.codeHash = codeHash;
+
     await prisma.mentorConversationSummary.update({
       where: { userId_problemId: { userId, problemId } },
-      data: {
-        summaryMd: JSON.stringify({
-          architectReview: review,
-          reviewedAt: new Date().toISOString(),
-        }),
-      },
+      data: { summaryMd: JSON.stringify(parsed) },
     });
   } catch {
     // Non-critical: don't fail if persistence fails

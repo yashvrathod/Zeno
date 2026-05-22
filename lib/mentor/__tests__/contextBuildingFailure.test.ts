@@ -15,8 +15,13 @@ import {
   buildConversationHistory,
   buildAnimationContext,
   inferUnderstandingFromHistory
-} from "../services/contextBuilder";
-import type { MentorRequest, UserStats } from "../services/mentorService";
+} from "../context";
+import type { MentorRequest } from "../orchestrator";
+import type { UserStats } from "../context/user";
+
+function expectContainsAny(str: string, ...substrings: string[]): void {
+  expect(substrings.some(s => str.includes(s))).toBe(true);
+}
 
 // =============================================================================
 // TEST DATA: Real-world scenarios
@@ -73,7 +78,7 @@ describe("Context Building Failure Detection: Problem Context", () => {
     it("should include constraints when relevant", () => {
       const context = buildAdaptiveProblemContext(MOCK_PROBLEM, "STRATEGIZE");
 
-      expect(context).toContain("10^4") || expect(context).toContain("constraint");
+      expectContainsAny(context, "10^4", "constraint");
     });
 
     it("should handle missing problem data gracefully", () => {
@@ -160,7 +165,7 @@ describe("Context Building Failure Detection: User Code Context", () => {
       };
       const context = buildUserCodeContext(syntaxErrorProblem);
 
-      expect(context).toContain("error") || expect(context).toContain("syntax");
+      expectContainsAny(context, "error", "syntax");
     });
 
     it("should identify code patterns", () => {
@@ -191,7 +196,7 @@ describe("Context Building Failure Detection: User Code Context", () => {
 
       const context = buildUserCodeContext(mapProblem);
 
-      expect(context).toContain("Map") || expect(context).toContain("hash");
+      expectContainsAny(context, "Map", "hash");
     });
 
     it("should detect edge case handling", () => {
@@ -202,7 +207,7 @@ describe("Context Building Failure Detection: User Code Context", () => {
 
       const context = buildUserCodeContext(edgeCaseProblem);
 
-      expect(context).toContain("edge") || expect(context).toContain("empty");
+      expectContainsAny(context, "edge", "empty");
     });
   });
 });
@@ -216,13 +221,13 @@ describe("Context Building Failure Detection: Statistics Context", () => {
     it("should include attempt history", () => {
       const context = buildStatsContext(MOCK_STATS, MOCK_PROBLEM.userMessage, "IMPLEMENT");
 
-      expect(context).toContain("attempt") || expect(context).toContain("submit");
+      expectContainsAny(context, "attempt", "submit");
     });
 
     it("should include error information", () => {
       const context = buildStatsContext(MOCK_STATS, MOCK_PROBLEM.userMessage, "DEBUG");
 
-      expect(context).toContain("error") || expect(context).toContain("wrong");
+      expectContainsAny(context, "error", "wrong");
     });
 
     it("should adapt based on current stage", () => {
@@ -234,7 +239,7 @@ describe("Context Building Failure Detection: Statistics Context", () => {
     });
 
     it("should handle missing stats gracefully", () => {
-      const context = buildStatsContext(undefined, "Help me", "EXPLORE");
+      const context = buildStatsContext(null as any, "Help me", "EXPLORE");
 
       expect(context).toBeTruthy();
     });
@@ -248,7 +253,7 @@ describe("Context Building Failure Detection: Statistics Context", () => {
 
       const context = buildStatsContext(frustratedStats, "I'm stuck", "STUCK");
 
-      expect(context).toContain("frustrat") || expect(context).toContain("stuck") || expect(context).toContain("attempt");
+      expectContainsAny(context, "frustrat", "stuck", "attempt");
     });
   });
 
@@ -263,7 +268,7 @@ describe("Context Building Failure Detection: Statistics Context", () => {
 
       const context = buildStatsContext(tleStats, "Still timing out", "IMPLEMENT");
 
-      expect(context).toContain("optim") || expect(context).toContain("time") || expect(context).toContain("complexity");
+      expectContainsAny(context, "optim", "time", "complexity");
     });
 
     it("should suggest debugging after multiple WA", () => {
@@ -275,7 +280,7 @@ describe("Context Building Failure Detection: Statistics Context", () => {
 
       const context = buildStatsContext(waStats, "Why wrong answer?", "DEBUG");
 
-      expect(context).toContain("debug") || expect(context).toContain("test") || expect(context).toContain("edge");
+      expectContainsAny(context, "debug", "test", "edge");
     });
   });
 });
@@ -299,7 +304,7 @@ describe("Context Building Failure Detection: Conversation History", () => {
 
     it("should handle long conversations with summarization", () => {
       const longHistory = Array(20).fill(null).map((_, i) => ({
-        role: (i % 2 === 0 ? "user" : "assistant") as const,
+        role: (i % 2 === 0 ? "user" : "assistant") as "user" | "assistant",
         content: `Message ${i}: Some discussion about the problem`
       }));
 
@@ -317,7 +322,7 @@ describe("Context Building Failure Detection: Conversation History", () => {
       const summary = "Student discussed brute force approach and is now considering optimization";
       const context = buildConversationHistory(history, summary);
 
-      expect(context).toContain("brute force") || expect(context).toContain("optimization");
+      expectContainsAny(context, "brute force", "optimization");
     });
 
     it("should handle empty history", () => {
@@ -337,7 +342,7 @@ describe("Context Building Failure Detection: Conversation History", () => {
 
       const context = buildConversationHistory(history, null);
 
-      expect(context).toContain("time") && expect(context).toContain("space");
+      expect(context).toContain("time"); expect(context).toContain("space");
     });
 
     it("should detect stuck patterns", () => {
@@ -351,7 +356,7 @@ describe("Context Building Failure Detection: Conversation History", () => {
 
       const context = buildConversationHistory(stuckHistory, null);
 
-      expect(context).toContain("stuck") || expect(context).toContain("still");
+      expectContainsAny(context, "stuck", "still");
     });
   });
 });
@@ -467,7 +472,7 @@ describe("Context Building Failure Detection: Animation Context", () => {
     it("should respect trigger animation flag", () => {
       const noTriggerContext = buildAnimationContext("array_traversal", "data", false);
 
-      expect(noTriggerContext).toContain("animation") || noTriggerContext.length === 0;
+      expect(noTriggerContext.includes("animation") || noTriggerContext.length === 0).toBe(true);
     });
   });
 });
@@ -504,7 +509,7 @@ describe("Context Building Failure Detection: Integration", () => {
 
     const problemContext = buildAdaptiveProblemContext(minimalProblem, "EXPLORE");
     const codeContext = buildUserCodeContext(minimalProblem);
-    const statsContext = buildStatsContext(undefined, minimalProblem.userMessage, "EXPLORE");
+    const statsContext = buildStatsContext(null as any, minimalProblem.userMessage, "EXPLORE");
     const historyContext = buildConversationHistory([], null);
 
     // Should still build valid context
@@ -528,3 +533,4 @@ describe("Context Building Failure Detection: Integration", () => {
     });
   });
 });
+

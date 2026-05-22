@@ -23,19 +23,8 @@ type MentorRequest = {
   history?: HistoryMsg[];
 };
 
-/**
- * Learning Ladder - 6 Rungs of Mastery
- * Maps student's current understanding level to teaching approach
- */
-export type LearningRung = 1 | 2 | 3 | 4 | 5 | 6;
-
-export type TeachingStage =
-  | "EXPLORE" // User hasn't started thinking yet
-  | "STRATEGIZE" // User is figuring out approach
-  | "IMPLEMENT" // User is coding
-  | "DEBUG" // User has errors / wrong answers
-  | "STUCK" // User is frustrated / looping
-  | "REFLECT"; // User solved it — deepen understanding
+// Re-export canonical types from types/mentor.ts to avoid duplication
+export type { LearningRung, TeachingStage } from "@/types/mentor";
 
 export type ConversationTone =
   | "encouraging"
@@ -258,6 +247,8 @@ export function getAdaptiveTemperature(
  * RUNG 4 — IMPLEMENTATION: Right idea, buggy code
  * RUNG 5 — OPTIMIZATION: Solves brute force, can't optimize
  * RUNG 6 — MASTERY: Solved it
+ * 
+ * Uses a multi-signal approach to avoid single-keyword over-sensitivity.
  */
 export function detectLearningRung(
   history: HistoryMsg[],
@@ -268,49 +259,62 @@ export function detectLearningRung(
 ): LearningRung {
   const msg = userMessage.toLowerCase();
   const hasCode = !!userCode && userCode.trim().length > 50;
+  const hasSubstantialCode = !!userCode && userCode.trim().length > 200;
   const hasSubmitted = stats && stats.submitCount > 0;
   const isAccepted = stats && stats.acceptedCount > 0;
   const hasErrors = stats && (stats.wrongAnswerCount > 0 || stats.runtimeErrorCount > 0);
   
-  // Use previousRung as a baseline - students generally progress forward
-  // This helps maintain continuity across page refreshes
   const lastKnownRung = previousRung ?? 1;
 
-  // Rung 6: MASTERY - Solved it, complexity discussed
+  const userMessageCount = history.filter(h => h.role === "user").length;
+
+  // ── Rung 6: MASTERY ──
   if (isAccepted) {
     const complexityDiscussed = history.some((h) =>
       /time complexity|space complexity|big o|o\(n\)|o\(log n\)|optimization/i.test(h.content)
     );
-    if (complexityDiscussed) return 6;
-    return 5; // Accepted but not yet discussed complexity
+    return complexityDiscussed ? 6 : 5;
   }
 
-  // Rung 5: OPTIMIZATION - Has working solution but slow/needs optimization
+  // ── Rung 5: OPTIMIZATION ──
   if (stats && stats.acceptedCount > 0) return 5;
 
-  // Rung 4: IMPLEMENTATION - Has code with errors or wrong answers
-  if (hasCode && (hasErrors || hasSubmitted)) return 4;
+  // ── Rung 4: IMPLEMENTATION ──
+  if (hasSubstantialCode && (hasErrors || hasSubmitted)) return 4;
+  if (hasCode && userMessageCount >= 2) return 4;
 
-  // Rung 3: STRATEGY FORMATION - Confident pattern + concrete approach, no code yet
+  // ── Pattern Analysis (used by Rungs 1-3) ──
   const patternKeywords = [
     'two pointer', 'sliding window', 'binary search', 'dynamic programming', 'dp',
     'greedy', 'backtrack', 'dfs', 'bfs', 'hash map', 'hash table', 'heap',
-    'stack', 'queue', 'trie', 'union find', 'graph', 'tree'
+    'stack', 'queue', 'trie', 'union find', 'graph', 'tree',
+    'divide and conquer', 'memoization', 'recursion',
   ];
+
   const mentionsPattern = patternKeywords.some((p) => msg.includes(p));
-  const uncertainWords = ['think', 'maybe', 'probably', 'might', 'could', 'perhaps', 'not sure'];
-  const soundsUncertain = uncertainWords.some((w) => msg.includes(w));
 
-  // Rung 3 requires pattern + confidence + some articulation of HOW to apply it
-  const confidentPatternUse = mentionsPattern && !soundsUncertain && msg.length > 40;
-  if (confidentPatternUse && !hasCode) return 3;
+  const approachVerbs = ['use', 'apply', 'implement', 'iterate', 'traverse', 'compare', 'sort'];
+  const mentionsApproach = approachVerbs.some(v => msg.includes(v)) && msg.length > 30;
 
-  // Rung 2: PATTERN RECOGNITION - Mentions pattern but uncertain, or short/confident pattern mention
-  if (mentionsPattern) return 2;
+  const uncertaintyWords = ['think', 'maybe', 'probably', 'might', 'could', 'perhaps', 'not sure', 'guess'];
+  const soundsUncertain = uncertaintyWords.some((w) => msg.includes(w));
 
-  // Rung 1: PATTERN BLINDNESS - Just started, no approach mentioned
-  if (history.length < 2 && !hasCode && !mentionsPattern) return 1;
+  const hasConfidence = !soundsUncertain && msg.length > 20;
 
-  // Default: respect previous rung to maintain continuity, default to early exploration
-  return Math.max(lastKnownRung, 2) as LearningRung;
+  // ── Rung 3: STRATEGY FORMATION ──
+  const hasStrategySignal = mentionsPattern && mentionsApproach && hasConfidence;
+  if (hasStrategySignal && !hasCode) return 3;
+
+  // ── Rung 2: PATTERN RECOGNITION ──
+  if (mentionsPattern && hasConfidence) return 2;
+  if (mentionsApproach && !mentionsPattern) return 2;
+  if (hasCode && !hasSubmitted) return 2;
+
+  // ── Rung 1: PATTERN BLINDNESS ──
+  if (userMessageCount < 2 && !hasCode && !mentionsPattern) return 1;
+
+  // ── Default: gradual progression from previous rung ──
+  if (hasErrors && lastKnownRung > 2) return Math.max(2, lastKnownRung - 1) as LearningRung;
+
+  return Math.min(lastKnownRung, 3) as LearningRung;
 }

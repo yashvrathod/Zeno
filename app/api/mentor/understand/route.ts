@@ -9,7 +9,7 @@
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { routeInteraction } from "@/lib/mentor/interactionRouter";
+import { routeInteraction } from "@/lib/mentor/routing";
 import { saveMessage } from "@/lib/mentor/stageEngine";
 
 export const runtime = "nodejs";

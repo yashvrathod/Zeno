@@ -1,4 +1,4 @@
-import { validateAIResponse } from './lib/mentor/responseValidator';
+import { validateAIResponse } from '@/lib/responseValidator';
 
 const response = `Here's the complete solution:
 
@@ -19,6 +19,7 @@ This works perfectly.`;
 const result = validateAIResponse(response, 'EXPLORE');
 console.log(JSON.stringify({
   isValid: result.isValid,
-  severity: result.severity,
-  violations: result.violations.map(v => ({ type: v.type, severity: v.severity, message: v.message }))
+  violationType: result.violationType,
+  rewrittenResponse: result.rewrittenResponse,
+  stageAssessment: result.stageAssessment,
 }, null, 2));

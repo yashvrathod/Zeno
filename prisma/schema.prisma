@@ -8,226 +8,235 @@ datasource db {
   provider = "postgresql"
 }
 
-// Add pgvector extension to the database
-// Run: npx prisma migrate dev --create-only --name add_pgvector
-// Then add to migration SQL: CREATE EXTENSION IF NOT EXISTS vector;
+// ─────────────────────────────────────────────────────────────────────────────
+// CORE MODELS
+// ─────────────────────────────────────────────────────────────────────────────
 
 model User {
-  id                 String             @id @default(cuid())
-  name               String?
-  username           String?            @unique
-  email              String             @unique
-  emailVerified      DateTime?
-  image              String?
-  password           String?
-  avatar             String?
-  lastLoginAt        DateTime?
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  currentStreak      Int                @default(0)
-  longestStreak      Int                @default(0)
-  lastSolvedDate     DateTime?
-  totalSolved        Int                @default(0)
-  interviewReadiness Int                @default(0)
-  bio                String?
-  location           String?
-  websiteUrl         String?
-  linkedinUrl        String?
-  githubUrl          String?
-  languages          Json?
-  skills             Json?
-  quote              Json?
-  accounts           Account[]
-  channelFollows     ChannelFollow[]
-  comments           Comment[]
-  following          Follow[]           @relation("Follower")
-  followers          Follow[]           @relation("Following")
-  posts              Post[]
-  postLikes          PostLike[]
-  sessions           Session[]
-  StudentProfile     StudentProfile?
-  Subscription       Subscription?
-  aiSettings         UserAiSettings?
-  problemStats       UserProblemStats[]
+  id String @id @default(cuid())
+  name String?
+  username String? @unique
+  email String @unique
+  emailVerified DateTime?
+  image String?
+  password String?
+  avatar String?
+  lastLoginAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  currentStreak Int @default(0)
+  longestStreak Int @default(0)
+  lastSolvedDate DateTime?
+  totalSolved Int @default(0)
+  interviewReadiness Int @default(0)
+  bio String?
+  location String?
+  websiteUrl String?
+  linkedinUrl String?
+  githubUrl String?
+  languages Json?
+  skills Json?
+  quote Json?
+  accounts Account[]
+  channelFollows ChannelFollow[]
+  comments Comment[]
+  following Follow[] @relation("Follower")
+  followers Follow[] @relation("Following")
+  posts Post[]
+  postLikes PostLike[]
+  sessions Session[]
+  StudentProfile StudentProfile?
+  Subscription Subscription?
+  aiSettings UserAiSettings?
+  problemStats UserProblemStats[]
+  userKnowledgeGraph UserKnowledgeGraph?
 }
 
 model UserAiSettings {
-  id                     String   @id @default(cuid())
-  userId                 String   @unique
+  id String @id @default(cuid())
+  userId String @unique
 
-  // 🔥 Core settings
-  apiProvider            String?  @default("server")
-  verbosity              String   @default("normal")
-  preferredFreeModel     String?  @default("deepseek/deepseek-chat-v3-0324:free")
+  apiProvider String? @default("server")
+  verbosity String @default("normal")
+  preferredFreeModel String? @default("deepseek/deepseek-chat-v3-0324:free")
 
-  // 🔑 API Keys (BYOK)
-  groqApiKey             String?
-  openaiApiKey           String?   
-  googleApiKey           String?   
-  openrouterApiKey       String?   
+  groqApiKey String?
+  openaiApiKey String?
+  googleApiKey String?
+  openrouterApiKey String?
 
-  // 🧠 Local LLM (Ollama)
-  ollamaBaseUrl          String?   
-  ollamaModel            String?   
+  ollamaBaseUrl String?
+  ollamaModel String?
 
-  // 📦 Extra config
-  groqModel              String?
-  preferencesJson        Json?
-  hasCompletedOnboarding Boolean  @default(false)
+  groqModel String?
+  preferencesJson Json?
+  hasCompletedOnboarding Boolean @default(false)
 
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model UserProblemStats {
-  id                String    @id @default(cuid())
-  userId            String
-  problemId         String
-  runCount          Int       @default(0)
-  submitCount       Int       @default(0)
-  acceptedCount     Int       @default(0)
-  wrongAnswerCount  Int       @default(0)
-  runtimeErrorCount Int       @default(0)
-  firstAttemptAt    DateTime?
-  solvedAt          DateTime?
-  timeSpentSeconds  Int       @default(0)
-  hintsUsed         Int       @default(0)
-  escalationReached Int       @default(1)
-  lastStatus        String?
-  lastError         String?
-  lastAt            DateTime  @default(now())
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  Problem           Problem   @relation(fields: [problemId], references: [id], onDelete: Cascade)
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id String @id @default(cuid())
+  userId String
+  problemId String
+  runCount Int @default(0)
+  submitCount Int @default(0)
+  acceptedCount Int @default(0)
+  wrongAnswerCount Int @default(0)
+  runtimeErrorCount Int @default(0)
+  firstAttemptAt DateTime?
+  solvedAt DateTime?
+  timeSpentSeconds Int @default(0)
+  hintsUsed Int @default(0)
+  escalationReached Int @default(1)
+  lastStatus String?
+  lastError String?
+  lastAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, problemId])
   @@index([problemId, updatedAt])
 }
 
 model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
+  id String @id @default(cuid())
+  userId String
+  type String
+  provider String
   providerAccountId String
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refresh_token String?
+  access_token String?
+  expires_at Int?
+  token_type String?
+  scope String?
+  id_token String?
+  session_state String?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
 
 model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id String @id @default(cuid())
+  sessionToken String @unique
+  userId String
+  expires DateTime
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model VerificationToken {
   identifier String
-  token      String   @unique
-  expires    DateTime
+  token String @unique
+  expires DateTime
 
   @@unique([identifier, token])
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PROBLEMS & PATTERNS
+// ─────────────────────────────────────────────────────────────────────────────
+
 model Pattern {
-  id                                                              String                @id @default(cuid())
-  name                                                            String                @unique
-  description                                                     String?
-  createdAt                                                       DateTime              @default(now())
-  updatedAt                                                       DateTime              @updatedAt
-  PatternPrerequisite_PatternPrerequisite_patternIdToPattern      PatternPrerequisite[] @relation("PatternPrerequisite_patternIdToPattern")
-  PatternPrerequisite_PatternPrerequisite_prerequisiteIdToPattern PatternPrerequisite[] @relation("PatternPrerequisite_prerequisiteIdToPattern")
-  problems                                                        ProblemPattern[]
+  id String @id @default(cuid())
+  name String @unique
+  description String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  prerequisites PatternPrerequisite[] @relation("PatternPrerequisite_patternIdToPattern")
+  dependents PatternPrerequisite[] @relation("PatternPrerequisite_prerequisiteIdToPattern")
+  problems ProblemPattern[]
 }
 
 model Problem {
-  id               String             @id @default(cuid())
-  slug             String             @unique
-  title            String
-  statementMd      String
-  constraintsMd    String?
-  difficulty       Difficulty         @default(EASY)
-  isPublished      Boolean            @default(false)
-  orderInPattern   Int?
-  isFree           Boolean            @default(false)
-  expectedTimeMin  Int?
-  tags             Json?
-  starterCode      Json?
-  animationType    String?            // "svg" | "canvas" | "lottie"
-  animationData    String?            // SVG markup, Canvas JS code, or Lottie JSON URL
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  hints            Hint[]
-  patterns         ProblemPattern[]
-  testCases        TestCase[]
-  UserProblemStats UserProblemStats[]
+  id String @id @default(cuid())
+  slug String @unique
+  title String
+  statementMd String
+  constraintsMd String?
+  difficulty Difficulty @default(EASY)
+  isPublished Boolean @default(false)
+  orderInPattern Int?
+  isFree Boolean @default(false)
+  expectedTimeMin Int?
+  tags Json?
+  starterCode Json?
+  animationType String?
+  animationData String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  hints Hint[]
+  patterns ProblemPattern[]
+  testCases TestCase[]
+  userProblemStats UserProblemStats[]
 }
 
 model ProblemPattern {
   problemId String
   patternId String
-  pattern   Pattern @relation(fields: [patternId], references: [id], onDelete: Cascade)
-  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  pattern Pattern @relation(fields: [patternId], references: [id], onDelete: Cascade)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 
   @@id([problemId, patternId])
 }
 
 model Hint {
-  id              String  @id @default(cuid())
-  problemId       String
-  order           Int
-  textMd          String
-  hintType        String  @default("constraint")
-  escalationLevel Int     @default(1)
-  problem         Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  id String @id @default(cuid())
+  problemId String
+  order Int
+  textMd String
+  hintType String @default("constraint")
+  escalationLevel Int @default(1)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 
   @@unique([problemId, order])
 }
 
 model TestCase {
-  id        String  @id @default(cuid())
+  id String @id @default(cuid())
   problemId String
-  order     Int
-  input     String
-  expected  String
-  isHidden  Boolean @default(false)
-  problem   Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  order Int
+  input String
+  expected String
+  isHidden Boolean @default(false)
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 
   @@unique([problemId, order, isHidden])
   @@index([problemId])
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MENTORING
+// ─────────────────────────────────────────────────────────────────────────────
+
 model MentorInteractionLog {
-  id             String   @id @default(cuid())
-  userId         String
-  problemId      String
-  eventType      String
+  id String @id @default(cuid())
+  userId String
+  problemId String
+  eventType String
   mentorQuestion String
-  createdAt      DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([userId, problemId, createdAt])
   @@index([problemId, createdAt])
 }
 
 model MentorConversationMessage {
-  id        String   @id @default(cuid())
-  userId    String
+  id String @id @default(cuid())
+  userId String
   problemId String
-  role      String
-  content   String
-  metadata  Json?
+  role String
+  content String
+  metadata Json?
   createdAt DateTime @default(now())
 
   @@index([userId, problemId, createdAt])
@@ -235,183 +244,34 @@ model MentorConversationMessage {
 }
 
 model MentorConversationSummary {
-  id              String    @id @default(cuid())
-  userId          String
-  problemId       String
-  status          String
-  solvedAt        DateTime?
-  summaryMd       String
+  id String @id @default(cuid())
+  userId String
+  problemId String
+  status String
+  solvedAt DateTime?
+  summaryMd String
   approachNotesMd String?
-  pitfallsMd      String?
-  keyInsightsMd   String?
-  messageCount    Int       @default(0)
-  lastRung        Int       @default(1)
-  breakthroughs   String[]
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  pitfallsMd String?
+  keyInsightsMd String?
+  messageCount Int @default(0)
+  lastRung Int @default(1)
+  breakthroughs String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, problemId])
   @@index([problemId, updatedAt])
 }
 
-model Post {
-  id           String     @id @default(cuid())
-  userId       String
-  content      String
-  codeSnippet  String?
-  language     String?
-  imageUrl     String?
-  tags         String[]
-  likeCount    Int        @default(0)
-  commentCount Int        @default(0)
-  shareCount   Int        @default(0)
-  featured     Boolean    @default(false)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  comments     Comment[]
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  likes        PostLike[]
-
-  @@index([userId, createdAt])
-  @@index([featured, createdAt])
-  @@index([createdAt])
-}
-
-model PostLike {
-  id        String   @id @default(cuid())
-  postId    String
-  userId    String
-  createdAt DateTime @default(now())
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([postId, userId])
-  @@index([userId])
-}
-
-model Comment {
-  id        String   @id @default(cuid())
-  postId    String
-  userId    String
-  content   String
-  likeCount Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([postId, createdAt])
-  @@index([userId])
-}
-
-model Follow {
-  id          String   @id @default(cuid())
-  followerId  String
-  followingId String
-  createdAt   DateTime @default(now())
-  follower    User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
-  following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
-
-  @@unique([followerId, followingId])
-  @@index([followerId])
-  @@index([followingId])
-}
-
-model ChannelFollow {
-  id        String   @id @default(cuid())
-  userId    String
-  channelId String
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, channelId])
-  @@index([userId])
-  @@index([channelId])
-}
-
-model TrendingTopic {
-  id        String   @id @default(cuid())
-  tag       String   @unique
-  postCount Int      @default(1)
-  weekCount Int      @default(0)
-  updatedAt DateTime @updatedAt
-
-  @@index([postCount])
-  @@index([weekCount])
-}
-
-model PatternPrerequisite {
-  patternId                                           String
-  prerequisiteId                                      String
-  Pattern_PatternPrerequisite_patternIdToPattern      Pattern @relation("PatternPrerequisite_patternIdToPattern", fields: [patternId], references: [id])
-  Pattern_PatternPrerequisite_prerequisiteIdToPattern Pattern @relation("PatternPrerequisite_prerequisiteIdToPattern", fields: [prerequisiteId], references: [id])
-
-  @@id([patternId, prerequisiteId])
-}
-
-model StudentProfile {
-  id                String    @id
-  userId            String    @unique
-  learningStyle     String?
-  peakHour          Int?
-  avgTimePerProblem Int       @default(0)
-  giveUpRate        Float     @default(0)
-  hintDependency    Float     @default(0)
-  weakPatterns      Json?
-  strongPatterns    Json?
-  targetCompany     String?
-  placementGoalDate DateTime?
-  hasBeenPlaced     Boolean   @default(false)
-  placedAt          String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime
-  User              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Subscription {
-  id                 String    @id
-  userId             String    @unique
-  plan               String    @default("free")
-  status             String    @default("active")
-  razorpaySubId      String?
-  razorpayCustomerId String?
-  currentPeriodEnd   DateTime?
-  cancelAtPeriodEnd  Boolean   @default(false)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime
-  User               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model CacheEntry {
-  id           String    @id @default(cuid())
-  problemId    String
-  questionMd5  String
-  questionText String    @default("")
-  embedding    Json      // Kept for backwards compatibility during migration
-  embeddingVector Bytes? // pgvector binary format for fast similarity search
-  response     String
-  stage        String
-  rung         Int
-  usedCount    Int       @default(0)
-  similarity   Float?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  @@unique([problemId, questionMd5])
-  @@index([problemId])
-  @@index([usedCount])
-  @@index([embeddingVector])
-}
-
 model MentorSession {
-  id             String          @id @default(cuid())
-  userId         String
-  problemId      String
-  stage          String          @default("EXPLORE")
-  currentRung    Int             @default(1)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  messages       MentorMessage[]
+  id String @id @default(cuid())
+  userId String
+  problemId String
+  stage String @default("EXPLORE")
+  currentRung Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  messages MentorMessage[]
 
   @@unique([userId, problemId])
   @@index([userId])
@@ -419,15 +279,182 @@ model MentorSession {
 }
 
 model MentorMessage {
-  id          String         @id @default(cuid())
-  sessionId   String
-  role        String
-  content     String
-  stage       String
-  createdAt   DateTime       @default(now())
-  session     MentorSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id String @id @default(cuid())
+  sessionId String
+  role String
+  content String
+  stage String
+  createdAt DateTime @default(now())
+  session MentorSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SOCIAL
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Post {
+  id String @id @default(cuid())
+  userId String
+  content String
+  codeSnippet String?
+  language String?
+  imageUrl String?
+  tags String[]
+  likeCount Int @default(0)
+  commentCount Int @default(0)
+  shareCount Int @default(0)
+  featured Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comments Comment[]
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  likes PostLike[]
+
+  @@index([userId, createdAt])
+  @@index([featured, createdAt])
+  @@index([createdAt])
+}
+
+model PostLike {
+  id String @id @default(cuid())
+  postId String
+  userId String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId])
+}
+
+model Comment {
+  id String @id @default(cuid())
+  postId String
+  userId String
+  content String
+  likeCount Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@index([userId])
+}
+
+model Follow {
+  id String @id @default(cuid())
+  followerId String
+  followingId String
+  createdAt DateTime @default(now())
+
+  follower User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+model ChannelFollow {
+  id String @id @default(cuid())
+  userId String
+  channelId String
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channelId])
+  @@index([userId])
+  @@index([channelId])
+}
+
+model TrendingTopic {
+  id String @id @default(cuid())
+  tag String @unique
+  postCount Int @default(1)
+  weekCount Int @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@index([postCount])
+  @@index([weekCount])
+}
+
+model PatternPrerequisite {
+  patternId String
+  prerequisiteId String
+
+  pattern Pattern @relation("PatternPrerequisite_patternIdToPattern", fields: [patternId], references: [id])
+  prerequisite Pattern @relation("PatternPrerequisite_prerequisiteIdToPattern", fields: [prerequisiteId], references: [id])
+
+  @@id([patternId, prerequisiteId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// USER PROFILES
+// ─────────────────────────────────────────────────────────────────────────────
+
+model StudentProfile {
+  id String @id
+  userId String @unique
+  learningStyle String?
+  peakHour Int?
+  avgTimePerProblem Int @default(0)
+  giveUpRate Float @default(0)
+  hintDependency Float @default(0)
+  weakPatterns Json?
+  strongPatterns Json?
+  targetCompany String?
+  placementGoalDate DateTime?
+  hasBeenPlaced Boolean @default(false)
+  placedAt String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id String @id
+  userId String @unique
+  plan String @default("free")
+  status String @default("active")
+  razorpaySubId String?
+  razorpayCustomerId String?
+  currentPeriodEnd DateTime?
+  cancelAtPeriodEnd Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CACHE
+// ─────────────────────────────────────────────────────────────────────────────
+
+model CacheEntry {
+  id String @id @default(cuid())
+  problemId String
+  questionMd5 String
+  questionText String @default("")
+  embedding Json
+  embeddingVector Bytes?
+  response String
+  stage String
+  rung Int
+  usedCount Int @default(0)
+  similarity Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([problemId, questionMd5])
+  @@index([problemId])
+  @@index([usedCount])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -435,91 +462,120 @@ model MentorMessage {
 // ─────────────────────────────────────────────────────────────────────────────
 
 model UserKnowledgeGraph {
-  id                String           @id @default(cuid())
-  userId            String           @unique
-  learningStyle     Json
-  strengths         String[]
-  weaknesses        String[]
+  id String @id @default(cuid())
+  userId String @unique  // References User.id
+  learningStyle Json
+  strengths String[]
+  weaknesses String[]
   learningTrajectory Json
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  conceptMasteries  ConceptMastery[]
-  learningPatterns  LearningPattern[]
-  problemAttempts   ProblemAttempt[]
-  misconceptions    Misconception[]
+  // Relation to User
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  conceptMasteries ConceptMastery[] @relation("KnowledgeGraphConcepts")
+  learningPatterns LearningPattern[] @relation("KnowledgeGraphPatterns")
+  problemAttempts ProblemAttempt[] @relation("KnowledgeGraphAttempts")
+  misconceptions Misconception[] @relation("KnowledgeGraphMisconceptions")
 }
 
 model ConceptMastery {
-  id                String           @id @default(cuid())
-  userId            String
-  conceptId         String
-  mastery           Float
-  lastPracticed     DateTime?
-  practiceCount     Int
-  successRate       Float
+  id String @id @default(cuid())
+  userId String  // This references UserKnowledgeGraph.id
+  conceptId String
+  mastery Float
+  lastPracticed DateTime?
+  practiceCount Int
+  successRate Float
   averageTimeToSolve Float?
-  commonErrors      Json
-  prerequisites     String[]
-  dependents        String[]
-  nextReviewDue     DateTime?
-  difficultyRating  Int
-  confidenceRating  Int
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  commonErrors Json
+  prerequisites String[]
+  dependents String[]
+  nextReviewDue DateTime?
+  difficultyRating Int
+  confidenceRating Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user              UserKnowledgeGraph @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userKnowledgeGraph UserKnowledgeGraph @relation("KnowledgeGraphConcepts", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, conceptId])
+  @@index([userId])
 }
 
 model LearningPattern {
-  id                String           @id @default(cuid())
-  userId            String
-  patternType       String
-  strength          Float
-  lastUsed          DateTime?
-  successRate       Float
-  preferredContext  String[]
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  id String @id @default(cuid())
+  userId String  // This references UserKnowledgeGraph.id
+  patternType String
+  strength Float
+  lastUsed DateTime?
+  successRate Float
+  preferredContext String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user              UserKnowledgeGraph @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userKnowledgeGraph UserKnowledgeGraph @relation("KnowledgeGraphPatterns", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model ProblemAttempt {
-  id                String           @id @default(cuid())
-  userId            String
-  problemId         String
-  problemSlug       String
-  concepts          String[]
-  patterns          String[]
-  attempts          Int
-  solved            Boolean
-  timeSpent         Int
+  id String @id @default(cuid())
+  userId String  // This references UserKnowledgeGraph.id
+  problemId String
+  problemSlug String
+  concepts String[]
+  patterns String[]
+  attempts Int
+  solved Boolean
+  timeSpent Int
   firstAttemptSuccess Boolean
-  hintCount         Int
-  stageReached      String
-  rungReached       Int
-  date              DateTime
-  errors            Json
+  hintCount Int
+  stageReached String
+  rungReached Int
+  date DateTime
+  errors Json
+  createdAt DateTime @default(now())
 
-  user              UserKnowledgeGraph @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt         DateTime         @default(now())
+  userKnowledgeGraph UserKnowledgeGraph @relation("KnowledgeGraphAttempts", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Misconception {
-  id                String           @id @default(cuid())
-  userId            String
-  conceptId         String
-  description       String
-  detectedDate      DateTime
-  corrected         Boolean          @default(false)
-  correctionDate    DateTime?
-  relatedProblems   String[]
+  id String @id @default(cuid())
+  userId String  // This references UserKnowledgeGraph.id
+  conceptId String
+  description String
+  detectedDate DateTime
+  corrected Boolean @default(false)
+  correctionDate DateTime?
+  relatedProblems String[]
+  createdAt DateTime @default(now())
 
-  user              UserKnowledgeGraph @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt         DateTime         @default(now())
+  userKnowledgeGraph UserKnowledgeGraph @relation("KnowledgeGraphMisconceptions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model MentorFeedback {
+  id String @id @default(cuid())
+  sessionId String
+  userId String
+  problemId String
+  messageId String
+  studentReaction String
+  helpfulScore Int
+  codeBefore String?
+  codeAfter String?
+  executionTraceAvailable Boolean @default(false)
+  rung Int?
+  stage String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([problemId])
 }
 
 enum Difficulty {

@@ -1,36 +1,14 @@
-/**
- * Soft Cache Hit Handler
- *
- * Handles CACHE_HIT with quality "SOFT" — refines cached response via AI.
- */
-
 import type { TeachingStage } from "@/lib/mentorContext";
 import type { Verbosity } from "@/lib/aiPreferences";
 import { getAdaptiveTemperature, detectLearningRung } from "@/lib/mentorContext";
 import { inferVerbosityFromText, verbosityToModelMaxTokens } from "@/lib/aiPreferences";
-import { saveMessage } from "@/lib/mentor/stageEngine";
-import { resolveApiConfig, callLlmAndExtract, type LlmMessage, type ApiConfig } from "../llmClient";
-import { clampText } from "../contextBuilder";
-import type { HistoryMsg, UserStats } from "../contextBuilder";
-import type { MentorRequest, MentorResponse } from "../mentorService";
-
-async function logInteraction(data: {
-  userId: string;
-  problemId: string;
-  userMessage: string;
-  decisionType: "STATIC" | "CACHE_HIT" | "AI_NEEDED";
-  responseData: string;
-  stage: string;
-  rung: number;
-  aiCalled?: boolean;
-  cacheHitData?: { similarity: string; cacheEntryId: string };
-  error?: string;
-}) {
-  fetch(
-    new URL("/api/debug/mentor-log", process.env.NEXTAUTH_URL || "http://localhost:3000"),
-    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) },
-  ).catch(() => {});
-}
+import { saveMessage } from "../../stage";
+import { resolveApiConfig, callLlmAndExtract, type LlmMessage, type ApiConfig } from "../../llm";
+import { clampText } from "../../context";
+import type { HistoryMsg, UserStats } from "../../context";
+import type { MentorRequest, MentorResponse } from "../../orchestrator";
+import { logMentorInteraction, logDbError } from "../../logging";
+import { isCacheCompatible } from "../../cache/eligibility";
 
 export type MentorSession = {
   id: string;
@@ -49,8 +27,17 @@ export async function handleSoftCacheHit(params: {
   existingSummary: any;
   problemRecord: any;
   decision: any;
+  currentRung: number;
 }): Promise<MentorResponse> {
-  const { body, userId, problemId, mentorSession, history, stats, userAiSettings, existingSummary, decision } = params;
+  const { body, userId, problemId, mentorSession, history, stats, userAiSettings, existingSummary, decision, currentRung } = params;
+
+  const cachedStage: string = decision.entry?.stage ?? "";
+  if (!isCacheCompatible(cachedStage, decision.entry?.rung ?? 1, mentorSession.stage, currentRung)) {
+    return {
+      ok: false,
+      error: "No AI provider available. Please configure your API key in Settings.",
+    };
+  }
 
   let apiConfig: ApiConfig;
   try {
@@ -62,7 +49,6 @@ export async function handleSoftCacheHit(params: {
   const verb = inferVerbosityFromText(body.userMessage);
   const verbosity: Verbosity = (userAiSettings?.verbosity as Verbosity) || "normal";
 
-  const currentRung = existingSummary?.lastRung ?? 1;
   const refinementRung = detectLearningRung(history, stats, body.userMessage, body.userCode, currentRung);
 
   const refinedSystemPrompt = `You are a helpful Socratic mentor for DSA.
@@ -109,24 +95,17 @@ Do NOT repeat that answer verbatim. Instead:
 
   await saveMessage(mentorSession.id, "assistant", refinedMessage, mentorSession.stage as TeachingStage);
 
-  logInteraction({
-    userId,
-    problemId,
-    userMessage: body.userMessage,
-    decisionType: "CACHE_HIT",
-    responseData: refinedMessage,
-    stage: mentorSession.stage as string,
-    rung: refinementRung,
+  logMentorInteraction({
+    userId, problemId, userMessage: body.userMessage, decisionType: "CACHE_HIT",
+    responseData: refinedMessage, stage: mentorSession.stage, rung: refinementRung,
     cacheHitData: {
       similarity: (decision.similarity as any)?.toFixed(4) ?? "0",
       cacheEntryId: (decision.entry as any).id,
     },
-  });
+  }).catch(logDbError);
 
   return {
-    ok: true,
-    message: refinedMessage,
-    animation: null,
+    ok: true, message: refinedMessage, animation: null,
     metadata: { stage: mentorSession.stage, type: "cache_hit_soft", similarity: decision.similarity },
   };
 }

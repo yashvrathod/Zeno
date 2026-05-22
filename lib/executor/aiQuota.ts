@@ -7,8 +7,8 @@
 
 import prisma from '../prisma';
 
-const DAILY_LIMIT = parseInt(process.env.AI_DAILY_LIMIT || '50', 10);
-const MONTHLY_BUDGET = parseFloat(process.env.AI_MONTHLY_BUDGET || '20', 10);
+const DAILY_LIMIT = parseInt(process.env.AI_DAILY_LIMIT || "50");
+const MONTHLY_BUDGET = parseFloat(process.env.AI_MONTHLY_BUDGET || "20");
 
 export async function checkAIQuota(userId: string): Promise<{ allowed: boolean; reason?: string; remaining: number }> {
   const now = new Date();

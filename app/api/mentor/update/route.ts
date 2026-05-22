@@ -1,9 +1,3 @@
-/**
- * Personalization Update API
- *
- * Called after code execution to update the student's knowledge graph.
- */
-
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { updateAfterExecution, type ProblemContext, type ExecutionStats } from "@/lib/executor/personalizationUpdater";

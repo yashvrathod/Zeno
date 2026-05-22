@@ -4,176 +4,65 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  LayoutDashboard,
-  BookOpen,
-  Compass,
-  MessageSquare,
-  Target,
-  Award,
+  LayoutGrid,
   Settings,
-  UserCircle,
-  ChevronDown,
-  Terminal
+  Brain,
+  Layers,
+  BarChart3,
+  User,
+  Award,
 } from 'lucide-react';
 
 export default function Sidebar() {
   const pathname = usePathname();
 
-  const SidebarItem = ({
-    href,
-    icon,
-    label,
-    active = false,
-    badge,
-    hasSubItems = false,
-    isSubItem = false,
-  }: {
-    href: string;
-    icon?: React.ReactNode;
-    label: string;
-    active?: boolean;
-    badge?: string;
-    hasSubItems?: boolean;
-    isSubItem?: boolean;
-  }) => (
+  const SidebarIcon = ({ href, icon, label, active = false }: { href: string, icon: React.ReactNode, label: string, active?: boolean }) => (
     <Link
       href={href}
-      className={`group/item flex items-center gap-3 px-4 py-3 transition-all duration-200 relative ${
+      className={`w-full flex items-center justify-center py-4 transition-all duration-300 group/icon relative ${
         active
           ? 'text-white'
-          : 'text-zinc-400 hover:text-zinc-200'
-      } ${isSubItem ? 'pl-12 py-2' : ''}`}
+          : 'text-zinc-700 hover:text-zinc-400'
+      }`}
     >
-      {active && !isSubItem && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-[#4ade80] rounded-r-full shadow-[0_0_10px_rgba(74,222,128,0.5)]" />
-      )}
-      
-      {!isSubItem && icon && (
-        <div className={`transition-transform duration-200 ${active ? 'text-white' : ''}`}>
-          {React.cloneElement(icon as React.ReactElement, { size: 18 })}
-        </div>
-      )}
+      <div className={`shrink-0 w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-500 ${active ? 'bg-white/5 shadow-[0_0_20px_rgba(255,255,255,0.05)] border border-white/10' : ''}`}>
+        {icon}
+      </div>
 
-      {isSubItem && (
-        <div className={`w-1.5 h-1.5 rounded-full mr-2 ${active ? 'bg-[#4ade80]' : 'bg-zinc-600'}`} />
-      )}
-
-      <span className={`text-[13px] font-medium flex-1 ${isSubItem ? 'text-[12px]' : ''}`}>
+      <span className="absolute left-16 px-3 py-1 bg-white text-black text-[10px] font-bold tracking-widest uppercase rounded opacity-0 group-hover/icon:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-[100]">
         {label}
       </span>
 
-      {badge && (
-        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">
-          {badge}
-        </span>
-      )}
-
-      {hasSubItems && (
-        <ChevronDown size={14} className={`text-zinc-500 transition-transform ${active ? 'rotate-180' : ''}`} />
-      )}
+      {active && <div className="absolute left-0 w-1 h-6 bg-purple-500 rounded-r-full shadow-[0_0_10px_rgba(168,85,247,0.5)]" />}
     </Link>
   );
 
   return (
-    <aside className="w-64 flex flex-col h-full bg-[#000000] border-r border-zinc-900 hidden lg:flex">
-      {/* Logo */}
-      <div className="h-20 flex items-center px-6">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded bg-white flex items-center justify-center">
-            <Terminal className="text-black" size={18} />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[14px] font-bold text-white leading-tight uppercase tracking-wider">
-              Core
-            </span>
-            <span className="text-[14px] font-bold text-white leading-tight uppercase tracking-wider">
-              Developer
-            </span>
-          </div>
-        </Link>
+    <aside
+      className="w-20 flex flex-col items-center py-8 border-r border-white/5 bg-[#050505] h-full z-50 group/sidebar overflow-hidden"
+    >
+      <div className="mb-12">
+         <Link href="/" className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center border border-white/10 italic font-serif text-white text-xl hover:border-white/40 transition-colors shrink-0">
+           C
+         </Link>
       </div>
 
-      {/* Navigation */}
-      <div className="flex-1 py-4 overflow-y-auto no-scrollbar">
-        <nav className="space-y-1">
-          <SidebarItem
-            href="/dashboard"
-            icon={<LayoutDashboard />}
-            label="Dashboard"
-            active={pathname === '/dashboard'}
-          />
-          
-          <div>
-            <SidebarItem
-              href="/problems"
-              icon={<BookOpen />}
-              label="My Courses"
-              active={pathname.startsWith('/problems')}
-              hasSubItems={true}
-            />
-            {pathname.startsWith('/problems') && (
-              <div className="mt-1">
-                <SidebarItem
-                  href="/problems?tag=ios"
-                  label="iOS & Swift: Become..."
-                  active={false}
-                  isSubItem={true}
-                />
-                <SidebarItem
-                  href="/problems"
-                  label="Swift for Intermediate..."
-                  active={true}
-                  isSubItem={true}
-                />
-              </div>
-            )}
-          </div>
+      <nav className="flex-1 flex flex-col gap-2 w-full">
+        <SidebarIcon href="/" icon={<LayoutGrid size={20} strokeWidth={1.5} />} label="WORKBENCH" active={pathname === '/'} />
+        <SidebarIcon href="/dashboard" icon={<BarChart3 size={20} strokeWidth={1.5} />} label="DASHBOARD" active={pathname === '/dashboard'} />
+        <SidebarIcon href="/problems" icon={<Layers size={20} strokeWidth={1.5} />} label="CURRICULUM" active={pathname.startsWith('/problems')} />
+        <SidebarIcon href="/profile" icon={<User size={20} strokeWidth={1.5} />} label="PROFILE" active={pathname === '/profile'} />
+        <SidebarIcon href="/profile/skills" icon={<Brain size={20} strokeWidth={1.5} />} label="SKILL TREE" active={pathname === '/profile/skills'} />
+        <SidebarIcon href="/leaderboard" icon={<Award size={20} strokeWidth={1.5} />} label="LEADERBOARD" active={pathname === '/leaderboard'} />
+      </nav>
 
-          <SidebarItem
-            href="/explore"
-            icon={<Compass />}
-            label="Explore"
-            active={pathname === '/explore'}
-          />
-          
-          <SidebarItem
-            href="/messages"
-            icon={<MessageSquare />}
-            label="Messages"
-            active={pathname === '/messages'}
-            badge="2"
-          />
-
-          <SidebarItem
-            href="/skill-tests"
-            icon={<Target />}
-            label="Skill Tests"
-            active={pathname === '/skill-tests'}
-          />
-
-          <SidebarItem
-            href="/certificates"
-            icon={<Award />}
-            label="Certificates"
-            active={pathname === '/certificates'}
-          />
-        </nav>
-      </div>
-
-      {/* Bottom Section */}
-      <div className="py-4 border-t border-zinc-900">
-        <SidebarItem
+      <div className="mt-auto w-full">
+        <Link
           href="/settings"
-          icon={<Settings />}
-          label="Settings"
-          active={pathname === '/settings'}
-        />
-        <SidebarItem
-          href="/profile"
-          icon={<UserCircle />}
-          label="Account"
-          active={pathname === '/profile'}
-        />
+          className="w-full flex items-center justify-center py-4 text-zinc-700 hover:text-white transition-all duration-300"
+        >
+          <Settings size={20} strokeWidth={1.5} />
+        </Link>
       </div>
     </aside>
   );

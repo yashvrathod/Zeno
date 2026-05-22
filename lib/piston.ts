@@ -103,6 +103,14 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit & { 
   }
 }
 
+function getPistonUrls(): string[] {
+  const localUrl = process.env.PISTON_LOCAL_URL || 'http://localhost:2000/api/v2';
+  const primaryUrl = process.env.PISTON_API_URL || process.env.NEXT_PUBLIC_PISTON_API_URL || 'https://emkc.org/api/v2/piston';
+  const fallbackUrl = process.env.PISTON_API_URL_FALLBACK || 'https://piston.rs/api/v2/piston';
+
+  return [...new Set([localUrl, primaryUrl, fallbackUrl].filter(Boolean))];
+}
+
 export async function runOnPiston({
   code,
   language,
@@ -115,10 +123,7 @@ export async function runOnPiston({
   const langConfig = LANGUAGE_CONFIG[language];
   if (!langConfig) throw new Error(`Language ${language} not supported`);
 
-  const apiUrlPrimary = process.env.PISTON_API_URL || process.env.NEXT_PUBLIC_PISTON_API_URL || 'https://emkc.org/api/v2/piston';
-  const apiUrlFallback = process.env.PISTON_API_URL_FALLBACK || 'https://piston.rs/api/v2/piston';
-
-  const tryUrls = [apiUrlPrimary, apiUrlFallback].filter(Boolean);
+  const tryUrls = getPistonUrls();
 
   let lastErr: Error | null = null;
   for (const apiUrl of tryUrls) {

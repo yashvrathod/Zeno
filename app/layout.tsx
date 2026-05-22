@@ -1,26 +1,27 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Mono, Inter, Lora } from "next/font/google";
+import { JetBrains_Mono, Plus_Jakarta_Sans, Roboto_Slab } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { Background } from "@/components/hero";
 
-const ibmPlexMono = IBM_Plex_Mono({
+const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-mono",
   display: "swap",
 });
 
-const inter = Inter({
+const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700", "800"],
-  variable: "--font-inter",
+  variable: "--font-sans",
   display: "swap",
 });
 
-const lora = Lora({
+const robotoSlab = Roboto_Slab({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-lora",
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-roboto-slab",
   display: "swap",
 });
 
@@ -41,8 +42,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} ${ibmPlexMono.variable} ${lora.variable} antialiased bg-background text-foreground font-sans selection:bg-primary/20 selection:text-foreground`}>
+      <body className={`${plusJakartaSans.variable} ${jetbrainsMono.variable} ${robotoSlab.variable} antialiased font-sans`}>
         <Providers>
+          <Background/>
+          {/* <CursorGradient /> */}
           {children}
         </Providers>
       </body>

@@ -262,26 +262,33 @@ export function detectVisualizationType(
 ): VisualizationType | null {
   const text = (problemTitle + " " + problemStatement).toLowerCase();
 
-  if (/two sum|pair|sum.*target|sorted.*array/.test(text)) {
+  // Two pointers — requires explicit pair/sum/two-pointer keywords, not just "sorted"
+  if (/two sum|two pointer|pair.*sum|sum.*pair|target sum|find.*pair/.test(text)) {
     return "two-pointers";
   }
-  if (/binary search|search.*sorted|find.*position|log.*n/.test(text)) {
+  // Binary search — requires explicit binary search or position-finding
+  if (/binary search|search.*sorted.*targe|find.*position|log.*n/.test(text)) {
     return "binary-search";
   }
+  // Sliding window — substring/subarray problems
   if (/sliding window|substring|subarray|consecutive|contiguous/.test(text)) {
     return "sliding-window";
   }
+  // Linked list
   if (/linked list|reverse.*list|merge.*list|list.*node/.test(text)) {
     return "linked-list";
   }
+  // Tree
   if (/tree|binary tree|bst|traverse.*tree/.test(text)) {
     return "tree";
   }
+  // Graph
   if (/graph|dfs|bfs|path|node.*edge/.test(text)) {
     return "graph";
   }
 
-  return "array";
+  // Don't default to a specific type — return null so no algorithm hint is given
+  return null;
 }
 
 /**

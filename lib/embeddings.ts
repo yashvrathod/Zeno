@@ -128,68 +128,18 @@ const memStore: MemEntry[] = [];
 const STORE_MAX = 5000;
 
 // ─────────────────────────────────────────────────────────────────────────
-// TRANSFORMER PIPELINE (Singleton)
+// EMBEDDING WORKER (offloaded to worker thread to avoid event loop blocking)
 // ─────────────────────────────────────────────────────────────────────────
 
-// Pipeline type from @xenova/transformers
-type PipelineType = {
-  (text: string, options?: { pooling?: string; normalize?: boolean }): Promise<{
-    embeddings: Float32Array;
-  }>;
-};
+let embeddingWorker: {
+  getEmbedding: (text: string) => Promise<number[]>;
+  terminateWorker: () => void;
+} | null = null;
 
-let embeddingPipeline: PipelineType | null = null;
-let pipelineLoadPromise: Promise<PipelineType> | null = null;
-
-/**
- * Gets or creates the embedding pipeline singleton.
- * Uses @xenova/transformers with all-MiniLM-L6-v2 model.
- *
- * The pipeline is cached at module level to avoid reloading on each request.
- * First call downloads/loads the model (~80MB), subsequent calls are instant.
- */
-async function getPipeline(): Promise<PipelineType> {
-  // Return cached pipeline if already loaded
-  if (embeddingPipeline) {
-    return embeddingPipeline;
-  }
-
-  // Return pending promise if already loading (prevent duplicate loads)
-  if (pipelineLoadPromise) {
-    return pipelineLoadPromise;
-  }
-
-  // Start loading the pipeline
-  pipelineLoadPromise = (async () => {
-    const timer = createTimer("Model loading");
-
-    try {
-      // Dynamically import @xenova/transformers (not a hard dependency)
-      const { pipeline } = await import("@xenova/transformers").catch((e) => {
-        debugLog("⚠️ @xenova/transformers not installed. Install with: npm install @xenova/transformers");
-        throw e;
-      });
-
-      // Load the embedding model
-      // all-MiniLM-L6-v2: 384 dimensions, fast inference, good quality
-      const pipe = await pipeline("feature-extraction", EMBEDDING_MODEL, {
-        // Optional: specify quantized model for faster loading
-        // quantized: true,
-      });
-
-      embeddingPipeline = pipe as unknown as PipelineType;
-
-      timer.end();
-      debugLog("✅ Embedding pipeline loaded:", EMBEDDING_MODEL);
-
-      return embeddingPipeline;
-    } catch (error) {
-      debugLog("❌ Failed to load embedding pipeline:", error);
-      throw error;
-    }
-  })();
-
-  return pipelineLoadPromise;
+async function getWorker(): Promise<typeof embeddingWorker extends null ? never : typeof embeddingWorker> {
+  if (embeddingWorker) return embeddingWorker;
+  embeddingWorker = await import("@/lib/embedding-worker");
+  return embeddingWorker;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -217,42 +167,17 @@ async function getPipeline(): Promise<PipelineType> {
 export async function getEmbedding(text: string): Promise<number[]> {
   const timer = createTimer("getEmbedding");
 
-  // Preprocess text
   const normalizedText = text
     .toLowerCase()
     .trim()
     .replace(/\s+/g, " ")
-    .slice(0, 512); // Model max length
+    .slice(0, 512);
 
   debugLog("📝 Generating embedding for:", normalizedText.slice(0, 50) + "...");
 
   try {
-    // Get or load the pipeline
-    const pipe = await getPipeline();
-
-    // Generate embedding
-    // Options: pooling='mean', normalize=true for cosine similarity
-    const result = await pipe(normalizedText, {
-      pooling: "mean",
-      normalize: true,
-    });
-
-    // Handle output format differences between @xenova/transformers versions
-    // Old versions: { embeddings: Float32Array }
-    // New versions: { last_hidden_state: Tensor }
-    let tensor: Float32Array;
-    if (result && typeof result === "object" && "embeddings" in result) {
-      tensor = result.embeddings as Float32Array;
-    } else if (result && typeof result === "object" && "last_hidden_state" in result) {
-      tensor = (result as any).last_hidden_state.data;
-    } else if (result && typeof result === "object") {
-      tensor = (result as any).data;
-    } else {
-      throw new Error(`Unexpected pipeline output structure: ${Object.keys(result || {})}`);
-    }
-
-    // Convert Float32Array to number[]
-    const embedding = Array.from(tensor);
+    const worker = await getWorker();
+    const embedding = await worker.getEmbedding(normalizedText);
 
     timer.end();
     debugLog(`📊 Embedding generated: ${embedding.length} dimensions`);
@@ -260,9 +185,10 @@ export async function getEmbedding(text: string): Promise<number[]> {
     return embedding;
   } catch (error) {
     debugLog("❌ getEmbedding failed:", error);
-    throw new Error(
-      `Failed to generate embedding. Ensure @xenova/transformers is installed: npm install @xenova/transformers`
-    );
+
+    // Fallback: return zero vector so cache lookups gracefully miss
+    console.warn("[EMBEDDINGS] Worker inference failed, using fallback zero vector");
+    return new Array(384).fill(0);
   }
 }
 
@@ -638,20 +564,20 @@ export async function getCacheStats(): Promise<{
 
 /**
  * Initializes the embedding system.
- * Call this at server startup to pre-load the model.
+ * Call this at server startup to pre-load the model via worker thread.
  */
 export async function initEmbeddings(): Promise<void> {
   debugLog("🚀 Initializing embeddings system...");
 
-  // Pre-load the model (warm start)
-  await getPipeline().catch((e) => {
-    console.warn("[EMBEDDINGS] Model pre-load failed:", e);
-  });
-
-  debugLog("✅ Embeddings system initialized");
+  try {
+    const worker = await getWorker();
+    await worker.getEmbedding("warmup");
+    debugLog("✅ Embeddings system initialized (worker thread active)");
+  } catch (e) {
+    console.warn("[EMBEDDINGS] Worker init failed:", e);
+  }
 }
 
-// Auto-initialize if DEBUG_EMBEDDINGS is enabled
 if (DEBUG_ENABLED) {
   initEmbeddings().catch(console.error);
 }

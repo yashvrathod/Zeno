@@ -8,9 +8,13 @@
  * 4. Multi-problem sessions
  */
 
-import { execute } from "../mentorService";
-import { getOrCreateSession, saveMessage } from "../stageEngine";
+import { execute } from "../orchestrator";
+import { getOrCreateSession, saveMessage } from "../stage/core";
 import prisma from "@/lib/prisma";
+
+function expectContainsAny(str: string, ...substrings: string[]): void {
+  expect(substrings.some(s => str.includes(s))).toBe(true);
+}
 
 // =============================================================================
 // TEST HELPERS
@@ -76,7 +80,7 @@ describe("Integration Tests: Complete Learning Journeys", () => {
 
       expect(exploreResponse.ok).toBe(true);
       expect(exploreResponse.message).toBeTruthy();
-      expect(exploreResponse.message.length).toBeGreaterThan(50);
+      expect(exploreResponse.message?.length ?? 0).toBeGreaterThan(50);
 
       // STRATEGIZE stage
       const strategizeRequest = createMockProblem({
@@ -161,7 +165,7 @@ describe("Integration Tests: Complete Learning Journeys", () => {
 
       // Should discuss optimization without giving solution
       const lowerMessage = response.message?.toLowerCase() || "";
-      expect(lowerMessage).toContain("optim") || expect(lowerMessage).toContain("time");
+      expectContainsAny(lowerMessage, "optim", "time");
       expect(lowerMessage).not.toContain("function twoSum");
     });
 
@@ -181,7 +185,7 @@ describe("Integration Tests: Complete Learning Journeys", () => {
 
       // Should discuss edge cases
       const lowerMessage = response.message?.toLowerCase() || "";
-      expect(lowerMessage).toContain("edge") || expect(lowerMessage).toContain("case");
+      expectContainsAny(lowerMessage, "edge", "case");
     });
   });
 });
@@ -218,7 +222,7 @@ describe("Integration Tests: Frustration and Stuck Scenarios", () => {
 
       // Should provide empathetic response
       const lowerMessage = response.message?.toLowerCase() || "";
-      expect(lowerMessage).toContain("frustrat") || expect(lowerMessage).toContain("understand");
+      expectContainsAny(lowerMessage, "frustrat", "understand");
     });
 
     it("should detect stuck patterns", async () => {
@@ -237,7 +241,7 @@ describe("Integration Tests: Frustration and Stuck Scenarios", () => {
 
       // Should provide debugging help
       const lowerMessage = response.message?.toLowerCase() || "";
-      expect(lowerMessage).toContain("wrong") || expect(lowerMessage).toContain("test");
+      expectContainsAny(lowerMessage, "wrong", "test");
     });
 
     it("should provide alternative approaches when stuck", async () => {
@@ -256,7 +260,7 @@ describe("Integration Tests: Frustration and Stuck Scenarios", () => {
 
       // Should suggest different approach
       const lowerMessage = response.message?.toLowerCase() || "";
-      expect(lowerMessage).toContain("different") || expect(lowerMessage).toContain("approach") || expect(lowerMessage).toContain("try");
+      expectContainsAny(lowerMessage, "different", "approach", "try");
     });
   });
 
@@ -296,7 +300,7 @@ describe("Integration Tests: Frustration and Stuck Scenarios", () => {
       );
 
       // All should succeed
-      responses.forEach(response => {
+      responses.forEach((response: any) => {
         expect(response.ok).toBe(true);
         expect(response.message).toBeTruthy();
       });
@@ -630,7 +634,7 @@ describe("Integration Tests: Performance and Reliability", () => {
       );
 
       // All should succeed
-      responses.forEach(response => {
+      responses.forEach((response: any) => {
         expect(response.ok).toBe(true);
         expect(response.message).toBeTruthy();
       });
@@ -693,7 +697,7 @@ describe("Integration Tests: Real-World Scenarios", () => {
 
       // Should provide optimization guidance
       const lowerMessage = response.message?.toLowerCase() || "";
-      expect(lowerMessage).toContain("optim") || expect(lowerMessage).toContain("time");
+      expectContainsAny(lowerMessage, "optim", "time");
     });
   });
 
@@ -739,7 +743,7 @@ describe("Integration Tests: Real-World Scenarios", () => {
 
       // Should provide clear explanation
       const lowerMessage = response.message?.toLowerCase() || "";
-      expect(lowerMessage).toContain("o(1)") || expect(lowerMessage).toContain("constant");
+      expectContainsAny(lowerMessage, "o(1)", "constant");
     });
   });
 });

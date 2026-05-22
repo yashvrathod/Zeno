@@ -102,7 +102,9 @@ export function generateVisualizationFromCode(
   }
 
   // Sliding Window pattern
-  if (lowerCode.includes('window') || lowerCode.includes('substring') && context?.array) {
+  if (!context?.array) {
+    // Skip if no context
+  } else if (lowerCode.includes('window') || lowerCode.includes('substring')) {
     const array = context.array;
     const left = context.left ?? 0;
     const right = context.right ?? Math.min(2, array.length - 1);
@@ -122,22 +124,22 @@ export function generateVisualizationFromCode(
 }
 
 /**
- * Auto-generate visualization for common algorithm explanations.
+ * Auto-generate visualization based solely on the detected problem type (not AI text).
+ * Uses problemType to decide, ignoring what the AI wrote — prevents amplifying hallucinations.
  */
 export function autoGenerateVisualization(
-  explanation: string,
+  _explanation: string,
   problemType?: string,
   exampleData?: any
 ): ParsedVisualization | null {
-  const lowerExplanation = explanation.toLowerCase();
+  if (!problemType) return null;
 
-  // Detect algorithm type from explanation
-  if (lowerExplanation.includes('two pointer') || lowerExplanation.includes('two sum') || problemType === 'two-pointers') {
+  if (problemType === 'two-pointers') {
     const arr = exampleData?.array || [2, 7, 11, 15];
     const left = exampleData?.left || 0;
     const right = exampleData?.right || arr.length - 1;
     const target = exampleData?.target || 9;
-    
+
     return {
       type: 'two-pointers',
       data: [arr, left, right, target, arr[left] + arr[right]],
@@ -147,13 +149,13 @@ export function autoGenerateVisualization(
     };
   }
 
-  if (lowerExplanation.includes('binary search') || problemType === 'binary-search') {
+  if (problemType === 'binary-search') {
     const arr = exampleData?.array || [1, 3, 5, 7, 9, 11, 13];
     const target = exampleData?.target || 7;
     const left = 0;
     const right = arr.length - 1;
     const mid = Math.floor((left + right) / 2);
-    
+
     return {
       type: 'binary-search',
       data: [arr, left, right, mid, target],
@@ -163,11 +165,11 @@ export function autoGenerateVisualization(
     };
   }
 
-  if (lowerExplanation.includes('sliding window') || problemType === 'sliding-window') {
+  if (problemType === 'sliding-window') {
     const str = exampleData?.string || "abcde";
     const start = exampleData?.start || 0;
     const end = exampleData?.end || 2;
-    
+
     return {
       type: 'sliding-window',
       data: [str, start, end],

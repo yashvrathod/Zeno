@@ -8,15 +8,24 @@
  * 2. Global cache — reuse answers across ALL users
  * 3. Request coalescing — deduplicate concurrent identical requests
  * 4. API key pool — round-robin rotation with per-key cooldown
+ *
+ * Streaming: Pass `stream: true` in the body to receive SSE (Server-Sent Events).
+ * Events:
+ *   event: delta  → {"token": "..."} (streaming token)
+ *   event: done   → {"ok": true, "message": "...", ...} (full response after guardrails)
+ *   event: error  → {"error": "..."}
  */
 
 import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rateLimit";
-import { checkAIQuota } from "@/lib/executor/aiQuota";
-import { execute, type MentorRequest, type MentorResponse } from "@/lib/mentor/services/mentorService";
+import { execute, type MentorRequest } from "@/lib/mentor/services/mentorService";
 
 export const runtime = "nodejs";
+
+function sseEvent(event: string, data: unknown): string {
+  return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -50,19 +59,61 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: rateLimit.message }, { status: 429 });
     }
 
-    if (!quota.allowed) {
-  return Response.json({ error: quota.reason || "Daily AI message limit reached" }, { status: 429 });
-}
+    // ── 5. Streaming mode ──
+    if (body.stream) {
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        async start(controller) {
+          try {
+            const result = await execute({
+              body,
+              userId: session.user.id,
+              onChunk: (chunk: string) => {
+                controller.enqueue(encoder.encode(sseEvent("delta", { token: chunk })));
+              },
+            });
 
-// ── 5. Execute mentor flow ──
+            if (result.ok) {
+              controller.enqueue(encoder.encode(sseEvent("done", {
+                ok: true,
+                message: result.message,
+                animation: result.animation,
+                visualization: result.visualization ?? null,
+                architectReview: result.architectReview ?? null,
+                metadata: result.metadata,
+              })));
+            } else {
+              controller.enqueue(encoder.encode(sseEvent("error", { error: result.error })));
+            }
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : "Internal server error";
+            controller.enqueue(encoder.encode(sseEvent("error", { error: msg })));
+          } finally {
+            controller.close();
+          }
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      });
+    }
+
+    // ── 6. Non-streaming: execute mentor flow ──
     const result = await execute({ body, userId: session.user.id });
 
-    // ── 6. Return response ──
+    // ── 7. Return response ──
     if (result.ok) {
       return Response.json({
         ok: true,
         message: result.message,
         animation: result.animation,
+        visualization: result.visualization ?? null,
+        architectReview: result.architectReview ?? null,
         metadata: result.metadata,
       });
     }

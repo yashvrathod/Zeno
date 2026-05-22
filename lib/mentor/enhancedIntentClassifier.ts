@@ -9,8 +9,8 @@
  * 5. Cross-message pattern recognition
  */
 
-import type { IntentClassification, IntentType } from "./intentClassifier";
-import { classifyIntent as baseClassify } from "./intentClassifier";
+import type { IntentClassification, IntentType } from "./intent";
+import { classifyIntent as baseClassify } from "./intent";
 import { bigramJaccard } from '@/lib/embeddings';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -127,21 +127,10 @@ function checkRepeatingIntent(
 ): boolean {
   if (previousIntents.length === 0) return false;
 
-  const recent = previousIntents.slice(-2);
+  const recent = previousIntents.slice(-3);
+  const matchingCount = recent.filter(prev => prev.intent === currentIntent.intent).length;
 
-  for (const prev of recent) {
-    // Check semantic similarity of the intent keywords/reason
-    const similarity = bigramJaccard(
-      prev.reason + ' ' + prev.keywords.join(' '),
-      currentIntent.reason + ' ' + currentIntent.keywords.join(' ')
-    );
-
-    if (similarity > 0.6 && prev.intent === currentIntent.intent) {
-      return true;
-    }
-  }
-
-  return false;
+  return matchingCount >= 2;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -186,7 +175,7 @@ export function classifyIntentWithContext(
       isConfusionLoop: contextAnalysis.isConfusionLoop,
       isSolutionEscalation: contextAnalysis.isSolutionEscalation,
       isStuckPattern: contextAnalysis.isStuckPattern,
-      repeatingIntent: contextAnalysis.isStuckPattern
+      repeatingIntent: contextAnalysis.repeatingIntent
     }
   };
 }
@@ -204,6 +193,7 @@ function analyzeContext(
   isConfusionLoop: boolean;
   isSolutionEscalation: boolean;
   isStuckPattern: boolean;
+  repeatingIntent: boolean;
 } {
   const secondaryIntents: IntentType[] = [];
   const inputLower = input.toLowerCase();
@@ -234,18 +224,6 @@ function analyzeContext(
     });
   }
 
-  // Detect patterns
-  let isConfusionLoop = false;
-  let isSolutionEscalation = false;
-  let isStuckPattern = false;
-
-  if (context?.previousIntents) {
-    const patterns = analyzeIntentPattern(context.previousIntents, baseIntent);
-    isConfusionLoop = patterns.isConfusionLoop;
-    isSolutionEscalation = patterns.isSolutionEscalation;
-    isStuckPattern = patterns.isStuckPattern;
-  }
-
   // Context-specific adjustments
   if (context?.userFrustrationLevel && context.userFrustrationLevel > 0.7) {
     if (!secondaryIntents.includes('frustration')) {
@@ -257,12 +235,21 @@ function analyzeContext(
     secondaryIntents.push('frustration');
   }
 
+  const patternAnalysis = context?.previousIntents
+    ? analyzeIntentPattern(context.previousIntents, baseIntent)
+    : null;
+
+  const isStuckPattern = (patternAnalysis?.isStuckPattern ?? false) ||
+    (context?.attemptCount && context.attemptCount > 3) ||
+    (context?.userFrustrationLevel && context.userFrustrationLevel > 0.7);
+
   return {
     secondaryIntents,
     intentHistory,
-    isConfusionLoop,
-    isSolutionEscalation,
-    isStuckPattern
+    isConfusionLoop: patternAnalysis?.isConfusionLoop ?? false,
+    isSolutionEscalation: patternAnalysis?.isSolutionEscalation ?? false,
+    isStuckPattern,
+    repeatingIntent: patternAnalysis?.repeatingIntent ?? false,
   };
 }
 
@@ -303,7 +290,7 @@ function adjustConfidence(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type InterventionSignal = {
-  type: 'confusion' | 'frustration' | 'stuck' | 'escalation' | 'repetition';
+  type: 'confusion' | 'frustration' | 'stuck' | 'escalation';
   severity: 'low' | 'medium' | 'high';
   description: string;
   suggestedAction: string;
@@ -351,22 +338,6 @@ export function detectInterventionNeed(
       description: 'User escalating toward solution request after hints',
       suggestedAction: 'Acknowledge frustration, offer minimal targeted help'
     };
-  }
-
-  // Repeating similar questions
-  if (metadata.repeatingIntent) {
-    const similarCount = metadata.intentHistory.filter(
-      h => h.similarityToCurrent > 0.5
-    ).length;
-
-    if (similarCount >= 2) {
-      return {
-        type: 'repetition',
-        severity: 'medium',
-        description: 'User repeating similar questions without progress',
-        suggestedAction: 'Try completely different explanation or approach'
-      };
-    }
   }
 
   // Stalled for too long

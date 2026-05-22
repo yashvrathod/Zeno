@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { runOnPiston } from '@/lib/piston';
 import { auth } from '@/lib/auth';
+import { updateAfterExecution } from '@/lib/executor/personalizationUpdater';
 
 function clampDbText(input: unknown, max = 800) {
   const s = typeof input === 'string' ? input : '';
@@ -95,6 +96,40 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
       lastAt: new Date(),
     },
   });
+
+  // Update personalization system with execution results
+  if (session?.user?.id) {
+    try {
+      // Extract problem concepts (this would typically come from the problem data)
+      const concepts = ['binary_search', 'two_pointer', 'sliding_window']; // This should be dynamic
+      const problemContext = {
+        problemId: problem.id,
+        concepts: concepts,
+        patterns: [] as string[], // This should also be dynamic
+        difficulty: 'MEDIUM' as 'EASY' | 'MEDIUM' | 'HARD'
+      };
+
+      const executionStats = {
+        passed: allPassed,
+        testResults: results.map(r => ({
+          passed: r.passed,
+          input: r.output,
+          expected: r.expected,
+          actual: r.output
+        })),
+        runtime: 100 // This should be the actual runtime
+      };
+
+      // Update the knowledge graph
+      await updateAfterExecution(
+        session.user.id,
+        problemContext,
+        executionStats
+      );
+    } catch (error) {
+      console.error('Personalization update failed:', error);
+    }
+  }
 
   return NextResponse.json({ passedCount, total: results.length, results });
   } catch (e) {

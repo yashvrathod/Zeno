@@ -1,23 +1,15 @@
 /**
  * LLM Client — Transport-Abstraction for AI API Calls
  *
- * Encapsulates:
- *  1. Error classification — determines if an error is retryable (429/5xx vs 4xx)
- *  2. Retry logic — exponential backoff with jitter + server-suggested Retry-After
- *  3. Response parsing — extracts assistant content, strips <think> blocks
- *  4. Provider-aware request building — auth header omission for Ollama
+ * Features:
+ *  1. Retry logic — exponential backoff with jitter + server-suggested Retry-After
+ *  2. Streaming — SSE-based token streaming for real-time UX
+ *  3. Timeout — AbortController-based timeout to prevent hanging
+ *  4. Telemetry — latency, token usage, success/failure per provider+model
+ *  5. Response parsing — extracts assistant content, strips <think> blocks
+ *  6. Error classification — retryable (429/5xx) vs non-retryable (4xx)
  *
  * Any module that needs to call an LLM API should use this instead of raw fetch().
- *
- * Usage:
- *   const { content } = await callLlm({
- *     apiBaseUrl: "https://api.groq.com/openai/v1",
- *     apiKey: "...",
- *     provider: "groq",
- *     messages,
- *     temperature: 0.6,
- *     maxTokens: 900,
- *   });
  */
 
 import { reportKeyFailure } from "@/lib/api-key-pool";
@@ -33,22 +25,13 @@ type ChatMessage = {
   content: string;
 };
 
-/**
- * Classification of LLM API error response codes.
- *
- * RETRYABLE: 429 (rate limit), 500-599 (server error)
- * NOT_RETRYABLE: 400-499 (client errors except 429)
- */
 export type LlmErrorType = {
   retryable: boolean;
   statusCode: number;
   message: string;
-  retryAfterMs: number | null; // Server-suggested wait time (from Retry-After header or response body)
+  retryAfterMs: number | null;
 };
 
-/**
- * Result of a successful LLM call.
- */
 export type LlmResult = {
   content: string;
   usage?: {
@@ -58,44 +41,90 @@ export type LlmResult = {
   };
 };
 
-/**
- * Input for calling the LLM API.
- */
 export type CallLlmParams = {
-  /** Base URL of the provider (e.g., "https://api.groq.com/openai/v1") */
   apiBaseUrl: string;
-  /** API key (use "ollama" string for local models) */
   apiKey: string;
-  /** Provider name — affects headers and request body */
   provider: LlmProvider;
-  /** Model identifier (e.g., "llama-3.3-70b-versatile") */
   model: string;
-  /** Conversation messages */
   messages: ChatMessage[];
-  /** Temperature for randomness (0–1) */
   temperature?: number;
-  /** Maximum tokens to generate */
   maxTokens?: number;
-  /** If using server pool, report 429s to the key pool for cooldown */
   serverKeyProvider?: "groq" | "openrouter" | null;
+  signal?: AbortSignal;
+  onChunk?: (chunk: string) => void;
 };
+
+export type LlmCallTelemetry = {
+  provider: LlmProvider;
+  model: string;
+  durationMs: number;
+  success: boolean;
+  statusCode: number;
+  totalTokens?: number;
+  errorMessage?: string;
+};
+
+// ──────────────────────────────────────────────────────────────────
+// TELEMETRY COLLECTOR
+// ──────────────────────────────────────────────────────────────────
+
+const telemetryBuffer: LlmCallTelemetry[] = [];
+const TELEMETRY_FLUSH_INTERVAL = 60_000;
+
+let telemetryTimer: ReturnType<typeof setInterval> | null = null;
+
+function ensureTelemetryTimer(): void {
+  if (telemetryTimer) return;
+  telemetryTimer = setInterval(() => {
+    if (telemetryBuffer.length === 0) return;
+    const batch = telemetryBuffer.splice(0);
+    flushTelemetry(batch);
+  }, TELEMETRY_FLUSH_INTERVAL);
+  if (telemetryTimer && typeof telemetryTimer === "object" && "unref" in telemetryTimer) {
+    (telemetryTimer as any).unref();
+  }
+}
+
+function recordTelemetry(entry: LlmCallTelemetry): void {
+  telemetryBuffer.push(entry);
+  ensureTelemetryTimer();
+}
+
+function flushTelemetry(batch: LlmCallTelemetry[]): void {
+  const byProvider = new Map<string, { calls: number; failures: number; totalMs: number; tokens: number }>();
+  for (const t of batch) {
+    const key = `${t.provider}:${t.model}`;
+    const existing = byProvider.get(key) ?? { calls: 0, failures: 0, totalMs: 0, tokens: 0 };
+    existing.calls++;
+    if (!t.success) existing.failures++;
+    existing.totalMs += t.durationMs;
+    existing.tokens += t.totalTokens ?? 0;
+    byProvider.set(key, existing);
+  }
+
+  const lines: string[] = [];
+  for (const [key, stats] of byProvider) {
+    const failRate = ((stats.failures / stats.calls) * 100).toFixed(1);
+    const avgMs = (stats.totalMs / stats.calls).toFixed(0);
+    lines.push(`${key}: ${stats.calls} calls, ${avgMs}ms avg, ${failRate}% fail, ${stats.tokens} tokens`);
+  }
+  console.debug("[LLM_METRICS]", lines.join(" | "));
+}
+
+export function getTelemetrySnapshot(): LlmCallTelemetry[] {
+  return [...telemetryBuffer];
+}
 
 // ──────────────────────────────────────────────────────────────────
 // PUBLIC API
 // ──────────────────────────────────────────────────────────────────
 
-/**
- * Call an LLM API with automatic retry on transient errors.
- *
- * Retries on: 429 rate limit, 500–599 server errors.
- * Does NOT retry on: 400, 401, 403, 404 (configuration errors).
- * Delays use exponential backoff with jitter, or server-suggested Retry-After.
- */
 export async function callLlm(params: CallLlmParams): Promise<LlmResult> {
   const temperature = params.temperature ?? 0.6;
   const maxTokens = params.maxTokens ?? 900;
   const maxRetries = 4;
   const baseDelayMs = 2000;
+  const startTime = performance.now();
 
   let lastErrorType: LlmErrorType | null = null;
 
@@ -103,32 +132,44 @@ export async function callLlm(params: CallLlmParams): Promise<LlmResult> {
     const result = await executeLlmCall(params, temperature, maxTokens);
 
     if (result.ok) {
-      // Report recovery to key pool if this was a retry after failure
+      const durationMs = performance.now() - startTime;
+      recordTelemetry({
+        provider: params.provider,
+        model: params.model,
+        durationMs: Math.round(durationMs),
+        success: true,
+        statusCode: 200,
+        totalTokens: result.data.usage?.totalTokens,
+      });
       if (attempt > 0 && params.serverKeyProvider) {
-        console.log(`[LLM_CLIENT] Succeeded after ${attempt} retries`);
+        console.debug("[LLM_CLIENT] Succeeded after", attempt, "retries");
       }
       return result.data;
     }
 
     lastErrorType = result.error;
 
+    recordTelemetry({
+      provider: params.provider,
+      model: params.model,
+      durationMs: Math.round(performance.now() - startTime),
+      success: false,
+      statusCode: result.error.statusCode,
+      errorMessage: result.error.message.slice(0, 100),
+    });
+
     if (!result.error.retryable) {
-      throw new LlmApiError(
-        result.error.message,
-        result.error.statusCode,
-        false /* retryable */,
-      );
+      throw new LlmApiError(result.error.message, result.error.statusCode, false);
     }
 
     if (attempt === maxRetries) {
       throw new LlmApiError(
         `LLM API error ${result.error.statusCode} after ${maxRetries} retries: ${result.error.message}`,
         result.error.statusCode,
-        true /* retryable */,
+        true,
       );
     }
 
-    // Calculate wait time: prefer server suggestion, fall back to backoff
     const serverWait = result.error.retryAfterMs;
     const backoff = baseDelayMs * Math.pow(2, attempt) + Math.floor(Math.random() * 200);
     const waitMs = Math.max(serverWait ?? 0, backoff);
@@ -136,7 +177,6 @@ export async function callLlm(params: CallLlmParams): Promise<LlmResult> {
     await sleep(waitMs);
   }
 
-  // Should not reach here, but satisfy TypeScript
   throw new LlmApiError(
     `LLM API call failed: ${lastErrorType?.message ?? "unknown error"}`,
     lastErrorType?.statusCode ?? 500,
@@ -145,13 +185,141 @@ export async function callLlm(params: CallLlmParams): Promise<LlmResult> {
 }
 
 /**
- * Classify an HTTP response status from an LLM provider.
- * Returns structured error info — used by callers that handle their own retry logic.
+ * Stream tokens from an LLM API via Server-Sent Events.
+ * Calls onChunk for each text delta. Returns the full concatenated content.
  */
-export function classifyLlmError(
-  statusCode: number,
-  rawBody: string,
-): LlmErrorType {
+export async function callLlmStream(
+  params: CallLlmParams & { onChunk: (chunk: string) => void },
+): Promise<LlmResult> {
+  const temperature = params.temperature ?? 0.6;
+  const maxTokens = params.maxTokens ?? 900;
+  const startTime = performance.now();
+  const signal = params.signal;
+
+  const headers = buildRequestHeaders(params.provider, params.apiKey);
+  const body = buildRequestBody(params, temperature, maxTokens, true);
+
+  try {
+    const response = await fetch(`${params.apiBaseUrl}/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal,
+    });
+
+    if (!response.ok) {
+      const raw = await response.text();
+      const errorType = classifyLlmError(response.status, raw);
+      if (params.serverKeyProvider) {
+        reportKeyFailure(params.serverKeyProvider, response.status, params.apiKey);
+      }
+      recordTelemetry({
+        provider: params.provider,
+        model: params.model,
+        durationMs: Math.round(performance.now() - startTime),
+        success: false,
+        statusCode: response.status,
+        errorMessage: errorType.message,
+      });
+      if (!errorType.retryable) {
+        throw new LlmApiError(errorType.message, errorType.statusCode, false);
+      }
+      throw new LlmApiError(errorType.message, errorType.statusCode, true);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new LlmApiError("No response body", 0, true);
+
+    const decoder = new TextDecoder();
+    let fullContent = "";
+    let buffer = "";
+    let usage: LlmResult["usage"] | undefined;
+
+    while (true) {
+      if (signal?.aborted) {
+        throw new LlmApiError("Request timed out or was cancelled", 0, true);
+      }
+
+      const readResult = await reader.read();
+      const { done, value } = readResult;
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith("data: ")) continue;
+        const data = trimmed.slice(6);
+        if (data === "[DONE]") break;
+
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta?.content;
+          if (delta) {
+            fullContent += delta;
+            params.onChunk(delta);
+          }
+          if (parsed.usage) {
+            usage = {
+              promptTokens: parsed.usage.prompt_tokens,
+              completionTokens: parsed.usage.completion_tokens,
+              totalTokens: parsed.usage.total_tokens,
+            };
+          }
+        } catch {
+          // Skip malformed JSON chunks
+        }
+      }
+    }
+
+    // Strip <think> blocks from streamed content
+    if (fullContent.includes("<think>")) {
+      fullContent = fullContent.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+    }
+
+    const durationMs = performance.now() - startTime;
+    recordTelemetry({
+      provider: params.provider,
+      model: params.model,
+      durationMs: Math.round(durationMs),
+      success: true,
+      statusCode: 200,
+      totalTokens: usage?.totalTokens,
+    });
+
+    return { content: fullContent, usage };
+  } catch (e) {
+    const durationMs = performance.now() - startTime;
+    if (e instanceof LlmApiError) throw e;
+    if (e instanceof DOMException && e.name === "AbortError") {
+      recordTelemetry({
+        provider: params.provider,
+        model: params.model,
+        durationMs: Math.round(durationMs),
+        success: false,
+        statusCode: 0,
+        errorMessage: "Request timed out",
+      });
+      throw new LlmApiError("Request timed out", 0, true);
+    }
+    recordTelemetry({
+      provider: params.provider,
+      model: params.model,
+      durationMs: Math.round(durationMs),
+      success: false,
+      statusCode: 0,
+      errorMessage: e instanceof Error ? e.message.slice(0, 100) : "Network error",
+    });
+    throw new LlmApiError(e instanceof Error ? e.message : "Network error", 0, true);
+  }
+}
+
+/**
+ * Classify an HTTP response status from an LLM provider.
+ */
+export function classifyLlmError(statusCode: number, rawBody: string): LlmErrorType {
   const retryable = statusCode === 429 || (statusCode >= 500 && statusCode < 600);
   return {
     retryable,
@@ -162,7 +330,7 @@ export function classifyLlmError(
 }
 
 // ──────────────────────────────────────────────────────────────────
-// EXECUTE (makes the actual fetch+parse call)
+// EXECUTE
 // ──────────────────────────────────────────────────────────────────
 
 type LlmOutcome =
@@ -175,13 +343,14 @@ async function executeLlmCall(
   maxTokens: number,
 ): Promise<LlmOutcome> {
   const headers = buildRequestHeaders(params.provider, params.apiKey);
-  const body = buildRequestBody(params, temperature, maxTokens);
+  const body = buildRequestBody(params, temperature, maxTokens, false);
 
   try {
     const response = await fetch(`${params.apiBaseUrl}/chat/completions`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
+      signal: params.signal,
     });
 
     const raw = await response.text();
@@ -192,13 +361,23 @@ async function executeLlmCall(
 
     const errorType = classifyLlmError(response.status, raw);
 
-    // Report failure to key pool if using server-managed keys
     if (params.serverKeyProvider) {
       reportKeyFailure(params.serverKeyProvider, response.status, params.apiKey);
     }
 
     return { ok: false, error: errorType };
   } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") {
+      return {
+        ok: false,
+        error: {
+          retryable: true,
+          statusCode: 0,
+          message: "Request timed out",
+          retryAfterMs: null,
+        },
+      };
+    }
     return {
       ok: false,
       error: {
@@ -221,7 +400,6 @@ function buildRequestHeaders(provider: LlmProvider, apiKey: string): Record<stri
     headers.Authorization = `Bearer ${apiKey}`;
   }
   if (provider === "openrouter") {
-    // OpenRouter tracks usage per application, not per key
     headers["HTTP-Referer"] = process.env.NEXTAUTH_URL || "http://localhost:3000";
     headers["X-Title"] = "code.zone";
   }
@@ -232,16 +410,16 @@ function buildRequestBody(
   params: CallLlmParams,
   temperature: number,
   maxTokens: number,
+  stream: boolean,
 ): Record<string, unknown> {
   const body: Record<string, unknown> = {
     model: params.model,
     messages: params.messages,
     temperature,
     max_tokens: maxTokens,
-    stream: false,
+    stream,
   };
 
-  // Groq and OpenAI support extra generation params
   if (params.provider === "groq" || params.provider === "openai") {
     body.top_p = 0.95;
     body.frequency_penalty = 0.4;
@@ -258,22 +436,15 @@ function buildRequestBody(
 function parseLlmResponse(raw: string): LlmResult {
   const parsed = parseJson(raw);
   if (!parsed) {
-    // If it's not JSON, return raw as content (edge case)
     return { content: raw.trim() };
   }
 
-  // Navigate OpenAI-compatible response shape
   const content = extractAssistantContent(parsed);
-
   const usage = extractUsage(parsed);
 
   return { content, usage };
 }
 
-/**
- * Extract assistant text from an OpenAI-compatible response.
- * Strips <think> blocks (DeepSeek-style reasoning).
- */
 function extractAssistantContent(parsed: unknown): string {
   if (!isRecord(parsed)) return "";
   const choices = parsed.choices;
@@ -285,17 +456,13 @@ function extractAssistantContent(parsed: unknown): string {
 
   let content = typeof message.content === "string" ? message.content.trim() : "";
 
-  // Strip DeepSeek-style <think> blocks
-  if (content.includes("<think>") || content.includes("<think>")) {
+  if (content.includes("<think>")) {
     content = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
   }
 
   return content;
 }
 
-/**
- * Extract token usage info if present in the response.
- */
 function extractUsage(parsed: unknown): LlmResult["usage"] | undefined {
   if (!isRecord(parsed)) return undefined;
   const usage = parsed.usage;
@@ -312,8 +479,6 @@ function extractUsage(parsed: unknown): LlmResult["usage"] | undefined {
 // ──────────────────────────────────────────────────────────────────
 
 function parseRetryAfter(statusCode: number, rawBody: string): number | null {
-  // We can't read response headers here (already read text),
-  // but we can parse Retry-After from response body text if present
   const match = rawBody.match(/try again in\s+(\d+(?:\.\d+)?)s/i);
   if (match?.[1]) {
     const seconds = Number(match[1]);
@@ -345,10 +510,6 @@ function sleep(ms: number): Promise<void> {
 // CUSTOM ERROR CLASSES
 // ──────────────────────────────────────────────────────────────────
 
-/**
- * Thrown when the LLM API returns a non-retryable error after retries.
- * Callers can check `error.retryable` to decide whether to fall back.
- */
 export class LlmApiError extends Error {
   constructor(
     message: string,

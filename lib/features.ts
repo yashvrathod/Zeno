@@ -23,6 +23,9 @@ export const features = {
 
   // Senior architect review for completed solutions
   architectReview: process.env.ENABLE_ARCHITECT_REVIEW !== 'false',
+
+  // Real-time code analysis
+  realTimeAnalysis: process.env.ENABLE_REALTIME_ANALYSIS !== 'false',
 } as const;
 
 export type FeatureFlags = typeof features;

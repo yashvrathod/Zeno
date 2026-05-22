@@ -1,302 +1,246 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Sidebar from '@/components/Sidebar';
 import {
-  Play,
-  CheckCircle2,
-  Clock,
-  BookOpen,
-  Users,
-  Calendar,
-  BarChart,
-  Infinity,
-  Globe,
-  Monitor,
-  Award,
-  ChevronLeft,
-  Pause,
-  Layout,
-  Brain,
+  ChevronDown,
   Zap,
-  Target,
-  TrendingUp,
+  ChevronRight,
+  ArrowUpRight,
+  Lock,
   Sparkles,
-  ArrowRight,
-  Eye
 } from 'lucide-react';
 import Link from 'next/link';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { motion, AnimatePresence } from 'framer-motion';
+import Sidebar from '@/components/Sidebar';
 
-type ApiPattern = {
+interface Pattern {
   id: string;
   name: string;
   description: string | null;
   problemCount: number;
-  problems: Array<{ id: string; slug: string; title: string; difficulty: 'EASY' | 'MEDIUM' | 'HARD' }>;
-};
-
-async function fetchPatterns(): Promise<ApiPattern[]> {
-  const res = await fetch('/api/patterns', { cache: 'no-store' });
-  if (!res.ok) throw new Error('Failed to load patterns');
-  const data = (await res.json()) as { patterns: ApiPattern[] };
-  return data.patterns;
+  problems: Array<{
+    id: string;
+    slug: string;
+    title: string;
+    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  }>;
 }
 
 export default function ProblemsPage() {
-  const [apiPatterns, setApiPatterns] = useState<ApiPattern[] | null>(null);
+  const [apiPatterns, setApiPatterns] = useState<Pattern[] | null>(null);
+  const [expandedModule, setExpandedModule] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchPatterns().then(setApiPatterns).catch(() => setApiPatterns([]));
+    fetch('/api/patterns', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => {
+        setApiPatterns(data.patterns);
+        if (data.patterns?.length > 0) {
+          setExpandedModule(data.patterns[0].id);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to fetch patterns:', err);
+        setApiPatterns([]);
+      });
   }, []);
 
   return (
-    <div className="flex h-screen bg-[#0d0d0d] text-zinc-100 font-sans overflow-hidden">
-      <Sidebar />
+    <div className="flex flex-col h-screen bg-[#010103] text-zinc-400 font-sans overflow-hidden selection:bg-purple-500/30">
+      <div className="flex flex-1 overflow-hidden relative z-10">
+        <Sidebar />
+        <div className="flex-1 overflow-y-auto border-l border-white/5 bg-transparent scrollbar-hide">
+          <div className="max-w-7xl mx-auto px-8 py-12 w-full space-y-20">
+           
+           {/* Hero Section */}
+           <div className="bg-[#121214] border border-white/[0.05] rounded-xl p-16 flex flex-col lg:flex-row gap-16 relative overflow-hidden shadow-2xl">
+              <div className="flex-1 space-y-12 relative z-10">
+                 <div className="flex items-center gap-4">
+                    <div className="flex -space-x-3">
+                       {[1, 2, 3].map(i => (
+                         <div key={i} className="w-8 h-8 rounded-full border-2 border-[#121214] bg-[#1a1a1e] overflow-hidden shadow-xl">
+                            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=eng${i}`} alt="Avatar" />
+                         </div>
+                       ))}
+                    </div>
+                    <span className="zone-label-sm text-zinc-600">JOINED BY 12K+ ENGINEERS THIS WEEK</span>
+                 </div>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-y-auto no-scrollbar pb-20">
-          <div className="max-w-[1400px] mx-auto p-8 space-y-10">
-            
-            {/* AI Recommendation Hero */}
-            <section className="relative rounded-[32px] overflow-hidden bg-[#111111] border border-zinc-800 shadow-2xl p-10 flex flex-col md:flex-row items-center gap-10">
-              <div className="absolute top-0 right-0 w-full h-full opacity-10 pointer-events-none">
-                <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-purple-500 rounded-full blur-[120px]" />
-                <div className="absolute bottom-[-20%] left-[-10%] w-[400px] h-[400px] bg-blue-500 rounded-full blur-[100px]" />
+                 <div className="space-y-6">
+                    <div className="flex items-center gap-2">
+                       <span className="text-[#a855f7] font-bold zone-label-sm">+ MENTOR RECOMMENDATION</span>
+                    </div>
+                    <h1 className="text-[4.8rem] text-zinc-400 leading-[1.05] tracking-tight">
+                       <span className="font-serif-studio italic block mb-3 text-zinc-500">You're mastering</span>
+                       <span className="text-white font-bold">{apiPatterns?.[0]?.name || "DSA Patterns"}</span>
+                    </h1>
+                 </div>
+
+                 <p className="text-[22px] text-zinc-500 font-light leading-relaxed max-w-xl">
+                    Based on your recent sessions, you have strong syntax precision but struggle with <span className="text-white font-medium border-b-2 border-white/10 pb-0.5">complex logic.</span> Let's fix that with some targeted challenges.
+                 </p>
+
+                 <div className="flex items-center gap-8 pt-8">
+                    <Link 
+                      href={apiPatterns?.[0]?.problems[0]?.slug ? `/problems/${apiPatterns[0].problems[0].slug}` : "#"}
+                      className="px-14 py-6 bg-[#2dd4bf] text-[#050505] rounded-xl text-[16px] font-extrabold tracking-widest uppercase hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_20px_50px_rgba(45,212,191,0.3)] flex items-center justify-center"
+                    >
+                       Resume Journey
+                    </Link>
+                    <Link href="/profile/skills" className="px-14 py-6 bg-[#1a1a1e] border border-white/[0.05] text-zinc-400 rounded-xl text-[16px] font-extrabold tracking-widest uppercase hover:bg-white/5 transition-all">
+                       View Weakness Map
+                    </Link>
+                 </div>
               </div>
 
-              <div className="flex-1 space-y-6 relative z-10">
-                <div className="flex items-center gap-3">
-                  <div className="flex -space-x-2">
-                    {[1, 2, 3].map(i => (
-                      <div key={i} className="w-8 h-8 rounded-full border-2 border-[#111111] bg-zinc-800 overflow-hidden">
-                        <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${i + 20}`} alt="user" />
+              {/* Skill Growth Card */}
+              <div className="w-full lg:w-[480px] relative z-10">
+                 <div className="bg-[#161618] border border-white/[0.05] rounded-xl p-12 h-full flex flex-col justify-between shadow-2xl relative">
+                    <div className="space-y-12">
+                      <div className="flex items-center justify-between">
+                         <span className="zone-label-sm text-zinc-500">SKILL GROWTH</span>
+                         <ArrowUpRight size={20} className="text-emerald-500" />
                       </div>
-                    ))}
-                  </div>
-                  <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Joined by 12k+ engineers this week</span>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-[#a855f7]">
-                    <Sparkles size={16} />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">Mentor Recommendation</span>
-                  </div>
-                  <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight leading-[1.1]">
-                    You're mastering <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">Sliding Window</span>.
-                  </h1>
-                  <p className="text-zinc-400 text-lg max-w-2xl leading-relaxed">
-                    Based on your recent sessions, you have strong syntax precision but struggle with <span className="text-white font-semibold">off-by-one errors</span>. Let's fix that with "Longest Substring Without Repeating Characters".
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-4 pt-2">
-                  <Button className="bg-[#4ade80] hover:bg-[#3bbd6d] text-black font-bold h-12 px-8 rounded-xl shadow-[0_0_20px_rgba(74,222,128,0.3)] transition-all">
-                    Resume Journey
-                  </Button>
-                  <Button variant="outline" className="border-zinc-800 bg-transparent text-zinc-300 h-12 px-6 rounded-xl hover:bg-zinc-900 transition-all">
-                    View Weakness Map
-                  </Button>
-                </div>
-              </div>
-
-              <div className="w-full md:w-[340px] bg-[#1a1a1a] rounded-2xl border border-zinc-800 p-6 space-y-6 relative z-10 shadow-xl">
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Skill Growth</span>
-                  <TrendingUp size={14} className="text-[#4ade80]" />
-                </div>
-                
-                <div className="space-y-4">
-                  <SkillProgress label="Analytical Velocity" value={78} color="bg-purple-500" />
-                  <SkillProgress label="Syntax Precision" value={42} color="bg-blue-500" />
-                  <SkillProgress label="Time Complexity" value={61} color="bg-emerald-500" />
-                </div>
-
-                <div className="pt-4 border-t border-zinc-800 flex items-center justify-between">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-zinc-500 font-bold uppercase">Current Streak</span>
-                    <span className="text-xl font-black text-white">12 Days</span>
-                  </div>
-                  <div className="w-10 h-10 rounded-full bg-[#4ade80]/10 flex items-center justify-center text-[#4ade80]">
-                    <Zap size={20} fill="currentColor" />
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <div className="flex flex-col lg:flex-row gap-12">
-              {/* Content Column */}
-              <div className="flex-1 space-y-16">
-                {apiPatterns ? (
-                  apiPatterns.map((pattern, idx) => (
-                    <div key={pattern.id} className="space-y-8">
-                      <div className="flex justify-between items-end border-b border-zinc-900 pb-6">
-                        <div className="space-y-1">
-                          <span className="text-[10px] font-black text-purple-500 uppercase tracking-[0.3em]">Module {idx + 1}</span>
-                          <h2 className="text-3xl font-bold text-white tracking-tight">{pattern.name}</h2>
-                          <p className="text-zinc-500 text-sm max-w-xl">{pattern.description || "Mastering the fundamental logic of this computational pattern."}</p>
-                        </div>
-                        <div className="text-[11px] font-bold text-zinc-600 uppercase tracking-widest">
-                          {pattern.problemCount} Challenges
-                        </div>
+                      <div className="space-y-10">
+                         <SkillItem label="ANALYTICAL VELOCITY" value={78} color="#a855f7" />
+                         <SkillItem label="SYNTAX PRECISION" value={42} color="#3b82f6" />
+                         <SkillItem label="TIME COMPLEXITY" value={61} color="#2dd4bf" />
                       </div>
+                    </div>
+                    
+                    <div className="pt-12 flex items-center justify-between border-t border-white/[0.05] mt-12">
+                       <div className="flex flex-col gap-1.5">
+                          <span className="zone-label-sm text-zinc-700">CURRENT STREAK</span>
+                          <span className="text-4xl font-bold text-white tracking-tight">12 Days</span>
+                       </div>
+                       <div className="w-16 h-14 rounded-[1.25rem] bg-[#2dd4bf]/10 flex items-center justify-center border border-[#2dd4bf]/20 shadow-[0_0_30px_rgba(45,212,191,0.15)] relative">
+                          <Zap size={28} className="text-[#2dd4bf] fill-[#2dd4bf]" />
+                          <div className="absolute inset-0 rounded-[1.25rem] bg-[#2dd4bf]/5 animate-pulse" />
+                       </div>
+                    </div>
+                 </div>
+              </div>
+           </div>
 
-                      <div className="grid grid-cols-1 gap-4">
-                        {pattern.problems.map((problem, pIdx) => (
-                          <Link 
-                            key={problem.id}
-                            href={`/problems/${problem.id}`}
-                            className="group bg-[#111111] hover:bg-[#161616] border border-zinc-800/50 rounded-2xl p-6 flex items-center gap-8 transition-all duration-300 relative overflow-hidden"
-                          >
-                            <div className="absolute top-0 left-0 w-1 h-full bg-transparent group-hover:bg-[#4ade80] transition-all" />
-                            
-                            <div className="w-20 h-20 rounded-2xl bg-[#0d0d0d] flex items-center justify-center border border-zinc-800 shrink-0 relative group-hover:border-[#4ade80]/30 transition-colors">
-                                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                <div className="text-zinc-700 group-hover:text-zinc-400 transition-colors relative z-10">
-                                  {pIdx % 3 === 0 ? <Brain size={32} /> : pIdx % 3 === 1 ? <Layout size={32} /> : <Target size={32} />}
-                                </div>
-                            </div>
+           {/* Curriculum Section */}
+           <div className="space-y-12">
+              <div className="flex items-center justify-between px-8">
+                 <div className="flex flex-col gap-2">
+                    <span className="zone-label-sm text-zinc-600">CURRICULUM MODULES</span>
+                    <h2 className="text-3xl font-bold text-white tracking-tight">Select your path</h2>
+                 </div>
+                 <span className="zone-label-sm text-zinc-700">{apiPatterns?.length || 0} Modules Total</span>
+              </div>
 
-                            <div className="flex-1 min-w-0 space-y-1">
-                              <div className="flex items-center gap-3">
-                                <h3 className="text-lg font-bold text-white group-hover:text-[#4ade80] transition-colors">{problem.title}</h3>
-                                {pIdx % 4 === 0 && (
-                                  <Badge className="bg-[#4ade80]/10 text-[#4ade80] border-[#4ade80]/20 text-[9px] font-black uppercase tracking-widest h-5">
-                                    <Eye size={10} className="mr-1" /> Visual Lab
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-6 text-zinc-500">
-                                <div className="flex items-center gap-1.5 text-xs font-medium">
-                                  <div className={`w-2 h-2 rounded-full ${problem.difficulty === 'EASY' ? 'bg-emerald-500' : problem.difficulty === 'MEDIUM' ? 'bg-amber-500' : 'bg-rose-500'}`} />
-                                  {problem.difficulty}
-                                </div>
-                                <div className="flex items-center gap-1.5 text-xs">
-                                  <Clock size={14} className="text-zinc-600" />
-                                  <span>Approx. 45 min</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 text-xs">
-                                  <Sparkles size={14} className="text-purple-500/60" />
-                                  <span className="text-zinc-400 font-bold uppercase tracking-widest text-[10px]">Strategize Stage</span>
-                                </div>
-                              </div>
-                            </div>
-
+              <div className="space-y-8">
+                 {apiPatterns?.map((pattern, idx) => (
+                   <div 
+                     key={pattern.id} 
+                     className={`group bg-[#121214] border rounded-xl transition-all duration-500 overflow-hidden ${expandedModule === pattern.id ? 'border-[#2dd4bf]/30 bg-[#141416]' : 'border-white/[0.05] hover:border-white/10'}`}
+                   >
+                      {/* Module Header */}
+                      <div 
+                        onClick={() => setExpandedModule(expandedModule === pattern.id ? null : pattern.id)}
+                        className="p-12 flex flex-col gap-12 cursor-pointer relative"
+                      >
+                         {expandedModule === pattern.id && (
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-[60%] bg-[#2dd4bf] rounded-r-full shadow-[0_0_20px_rgba(45,212,191,0.8)]" />
+                         )}
+                         
+                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
-                              <div className="flex flex-col items-end mr-4">
-                                <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Success Rate</span>
-                                <span className="text-sm font-bold text-white">84%</span>
-                              </div>
-                              <div className="w-12 h-12 rounded-full bg-zinc-900 flex items-center justify-center text-[#4ade80] group-hover:bg-[#4ade80] group-hover:text-black transition-all shadow-xl">
-                                <Play size={20} fill="currentColor" className="ml-1" />
-                              </div>
+                               <div className={`px-5 py-2 rounded-xl zone-label-sm ${idx === 0 ? 'bg-[#a855f7]/10 text-[#a855f7] border border-[#a855f7]/20' : 'bg-white/5 text-zinc-600 border border-white/5'}`}>
+                                  {idx === 0 ? `M0${idx + 1} • IN PROGRESS` : `M0${idx + 1} • AVAILABLE`}
+                               </div>
                             </div>
-                          </Link>
-                        ))}
+                            <span className="zone-label-sm text-zinc-700 font-mono">{pattern.problemCount} CHALLENGES</span>
+                         </div>
+
+                         <div className="flex items-center justify-between gap-12">
+                            <div className="space-y-5">
+                               <h3 className="text-[3.2rem] font-serif-studio italic text-white tracking-tight leading-none transition-all group-hover:translate-x-2 duration-500">{pattern.name}</h3>
+                               <p className="text-[19px] text-zinc-500 font-light leading-relaxed max-w-2xl line-clamp-2">
+                                  {pattern.description || "Explore the core patterns and techniques associated with this module to build a strong foundation."}
+                               </p>
+                            </div>
+                            <div className={`w-20 h-20 rounded-lg bg-[#1a1a1e] border border-white/[0.1] flex items-center justify-center text-zinc-500 transition-all duration-500 shadow-2xl shrink-0 ${expandedModule === pattern.id ? 'bg-[#2dd4bf] text-black border-transparent rotate-90' : 'group-hover:text-white group-hover:border-white/20'}`}>
+                               <ChevronRight size={32} strokeWidth={2.5} />
+                            </div>
+                         </div>
                       </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="space-y-4">
-                    {[1, 2, 3].map(i => (
-                      <div key={i} className="h-32 bg-zinc-900 animate-pulse rounded-3xl" />
-                    ))}
-                  </div>
-                )}
+
+                      {/* Problems List (Expanded) */}
+                      <AnimatePresence>
+                         {expandedModule === pattern.id && (
+                            <motion.div 
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
+                              className="border-t border-white/[0.05] bg-black/20"
+                            >
+                               <div className="p-12 pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  {pattern.problems.length > 0 ? (
+                                    pattern.problems.map((problem, pIdx) => (
+                                      <Link 
+                                        key={problem.id}
+                                        href={`/problems/${problem.slug}`}
+                                        className="flex items-center justify-between p-8 bg-[#161618] border border-white/[0.03] rounded-3xl hover:bg-[#1c1c1e] hover:border-white/10 transition-all group/prob"
+                                      >
+                                         <div className="flex items-center gap-6">
+                                            <div className="w-12 h-12 rounded-2xl bg-black/40 flex items-center justify-center text-zinc-600 font-mono text-sm group-hover/prob:text-[#2dd4bf] transition-colors border border-white/[0.05]">
+                                               {String(pIdx + 1).padStart(2, '0')}
+                                            </div>
+                                            <div className="flex flex-col gap-1">
+                                               <span className="text-white font-semibold text-lg tracking-tight group-hover/prob:translate-x-1 transition-transform duration-300">{problem.title}</span>
+                                               <div className="flex items-center gap-3">
+                                                  <span className={`zone-label-sm ${problem.difficulty === 'EASY' ? 'text-emerald-500' : problem.difficulty === 'MEDIUM' ? 'text-amber-500' : 'text-rose-500'}`}>
+                                                     {problem.difficulty}
+                                                  </span>
+                                                  <span className="w-1 h-1 rounded-full bg-zinc-800" />
+                                                  <span className="zone-label-sm text-zinc-600">15-20 MIN</span>
+                                               </div>
+                                            </div>
+                                         </div>
+                                         <div className="w-10 h-10 rounded-xl bg-black/20 flex items-center justify-center text-zinc-700 group-hover/prob:bg-[#2dd4bf]/10 group-hover/prob:text-[#2dd4bf] transition-all">
+                                            <ArrowUpRight size={18} />
+                                         </div>
+                                      </Link>
+                                    ))
+                                  ) : (
+                                    <div className="col-span-full p-12 text-center border-2 border-dashed border-white/5 rounded-xl">
+                                       <Lock size={32} className="mx-auto text-zinc-800 mb-4" />
+                                       <p className="text-zinc-600 font-medium">Challenges currently under encryption by the architect.</p>
+                                    </div>
+                                  )}
+                               </div>
+                            </motion.div>
+                         )}
+                      </AnimatePresence>
+                   </div>
+                 ))}
               </div>
-
-              {/* Sidebar Column */}
-              <aside className="lg:w-[400px] space-y-10">
-                <section className="bg-[#111111] border border-zinc-800 rounded-3xl p-8 space-y-8">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400">
-                      <Brain size={18} />
-                    </div>
-                    <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white">Mentor Insights</h3>
-                  </div>
-
-                  <div className="space-y-6">
-                    <InsightItem 
-                      icon={<Sparkles className="text-amber-400" size={14} />}
-                      text="Your recursive thinking has improved by 15% this week. Focus on base cases next."
-                    />
-                    <InsightItem 
-                      icon={<Target className="text-rose-400" size={14} />}
-                      text="Recurring 'Off-by-one' pattern detected in your Array sessions. Suggesting targeted labs."
-                    />
-                    <InsightItem 
-                      icon={<Zap className="text-blue-400" size={14} />}
-                      text="You solve 'Easy' problems 40% faster than the global average. Ready for 'Medium'."
-                    />
-                  </div>
-
-                  <Button className="w-full h-12 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800 transition-all font-bold text-[11px] uppercase tracking-widest">
-                    Open Full Analysis <ArrowRight size={14} className="ml-2" />
-                  </Button>
-                </section>
-
-                <section className="space-y-6 px-4">
-                  <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em]">Course Highlights</h4>
-                  <div className="space-y-5">
-                    <DetailItem icon={<Users size={18} />} text="17,402 engineers enrolled" />
-                    <DetailItem icon={<Globe size={18} />} text="Available in 4 languages" />
-                    <DetailItem icon={<Monitor size={18} />} text="Cross-platform sync enabled" />
-                    <DetailItem icon={<Award size={18} />} text="Industry recognized certificate" />
-                  </div>
-                </section>
-
-                <section className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-3xl p-8 space-y-4">
-                  <h4 className="text-lg font-bold text-white">Upgrade to Pro</h4>
-                  <p className="text-zinc-400 text-xs leading-relaxed">
-                    Get unlimited AI-guided sessions, system design tracks, and direct mentor support.
-                  </p>
-                  <Button className="w-full h-10 rounded-lg bg-white text-black font-bold text-[10px] uppercase tracking-widest hover:bg-zinc-200">
-                    Unlock Full Access
-                  </Button>
-                </section>
-              </aside>
-            </div>
+           </div>
           </div>
-        </main>
+        </div>
       </div>
     </div>
   );
 }
 
-function SkillProgress({ label, value, color }: { label: string, value: number, color: string }) {
+function SkillItem({ label, value, color }: { label: string, value: number, color: string }) {
   return (
-    <div className="space-y-2">
-      <div className="flex justify-between items-center text-[10px] font-bold">
-        <span className="text-zinc-400 uppercase tracking-widest">{label}</span>
-        <span className="text-white">{value}%</span>
-      </div>
-      <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
-        <div 
-          className={`h-full ${color} rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(168,85,247,0.3)]`}
-          style={{ width: `${value}%` }}
-        />
-      </div>
+    <div className="space-y-4 group">
+       <div className="flex items-center justify-between">
+          <span className="zone-label-sm font-bold text-zinc-600">{label}</span>
+          <span className="text-xs font-bold text-white font-mono">{value}%</span>
+       </div>
+       <div className="h-2 w-full bg-white/[0.03] rounded-full overflow-hidden">
+          <div
+            className="h-full transition-all duration-[1500ms] ease-out shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+            style={{ width: `${value}%`, backgroundColor: color }}
+          />
+       </div>
     </div>
-  );
-}
-
-function InsightItem({ icon, text }: { icon: React.ReactNode, text: string }) {
-  return (
-    <div className="flex gap-4 items-start group">
-      <div className="mt-1 shrink-0">{icon}</div>
-      <p className="text-[13px] text-zinc-400 leading-relaxed group-hover:text-zinc-200 transition-colors">
-        {text}
-      </p>
-    </div>
-  );
-}
-
-function DetailItem({ icon, text }: { icon: React.ReactNode, text: string }) {
-  return (
-    <div className="flex items-center gap-4 text-zinc-400 group cursor-default">
-      <div className="text-zinc-600 group-hover:text-[#4ade80] transition-colors shrink-0">{icon}</div>
-      <span className="text-xs font-medium group-hover:text-zinc-200 transition-colors">{text}</span>
-    </div>
-  );
+   );
 }
