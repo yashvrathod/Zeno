@@ -339,6 +339,7 @@ export default function HeroVideo() {
           transformStyle: 'preserve-3d',
           transform: 'translateZ(160px) rotateX(-15deg)',
           transformOrigin: 'bottom center',
+          opacity: 0,
         }}
       >
         <CodeAnalysisCard />
@@ -349,8 +350,7 @@ export default function HeroVideo() {
         ref={hologramRef}
         className="absolute inset-10 pointer-events-none flex items-start justify-center"
         style={{
-          // transformStyle: 'preserve-3d',
-          // transform: 'translateY(18%) rotateX(10deg) rotateY(-35deg) rotateZ(5deg) translateZ(155px)',
+          opacity: 0,
           transformOrigin: 'bottom center',
         }}
       >
