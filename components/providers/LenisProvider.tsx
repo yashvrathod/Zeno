@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import Lenis from 'lenis';
 import 'lenis/dist/lenis.css';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 interface LenisProviderProps {
   children: React.ReactNode;
@@ -17,8 +19,6 @@ interface LenisProviderProps {
 }
 
 export function LenisProvider({ children, options = {} }: LenisProviderProps) {
-  const lenisRef = useRef<Lenis | null>(null);
-
   useEffect(() => {
     const lenis = new Lenis({
       duration: options.duration ?? 1.2,
@@ -29,18 +29,34 @@ export function LenisProvider({ children, options = {} }: LenisProviderProps) {
       infinite: options.infinite ?? false,
     });
 
-    lenisRef.current = lenis;
+    lenis.on('scroll', ScrollTrigger.update);
 
-    function raf(time: number) {
-      lenis.raf(time);
-      requestAnimationFrame(raf);
-    }
+    gsap.ticker.add((time) => {
+      lenis.raf(time * 1000);
+    });
+    gsap.ticker.lagSmoothing(0);
 
-    requestAnimationFrame(raf);
+    ScrollTrigger.scrollerProxy(window, {
+      scrollTop(value) {
+        if (arguments.length) {
+          lenis.scrollTo(value, { immediate: true });
+        }
+        return lenis.scroll;
+      },
+      getBoundingClientRect() {
+        return {
+          top: 0,
+          left: 0,
+          width: window.innerWidth,
+          height: window.innerHeight,
+        };
+      },
+    });
+
+    ScrollTrigger.refresh();
 
     return () => {
       lenis.destroy();
-      lenisRef.current = null;
     };
   }, []);
 

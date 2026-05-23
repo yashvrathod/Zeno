@@ -11,3 +11,4 @@ export { default as HeroGIF } from './HeroGIF';
 export { default as ChatWidget } from './ChatWidget';
 export { default as ScrollReveal } from './ScrollReveal';
 export { default as HeroVideo } from './HeroVideo';
+export { default as FeatureCards } from './FeatureCards';

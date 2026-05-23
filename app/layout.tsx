@@ -44,7 +44,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${plusJakartaSans.variable} ${jetbrainsMono.variable} ${robotoSlab.variable} antialiased font-sans`}>
         <Providers>
-          <Background/>
+          {/* <Background/> */}
           {/* <CursorGradient /> */}
           {children}
         </Providers>

@@ -2,9 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-
-gsap.registerPlugin(ScrollTrigger);
 
 const codeLines = [
   { text: 'function binarySearch(arr, target) {', type: 'keyword' },
@@ -20,28 +17,38 @@ const codeLines = [
 ];
 
 const metrics = [
-  { label: 'Time', value: 'O(log n)', progress: 0.85 },
-  { label: 'Space', value: 'O(1)', progress: 0.95 },
-  { label: 'Optimal', value: '98%', progress: 0.98 },
+  { label: 'Time',    value: 'O(log n)', progress: 0.85 },
+  { label: 'Space',   value: 'O(1)',     progress: 0.95 },
+  { label: 'Optimal', value: '98%',      progress: 0.98 },
 ];
 
-export default function CodeAnalysisCard() {
-  const cardRef = useRef<HTMLDivElement>(null);
+// How many code lines to show at each breakpoint
+const VISIBLE_LINES = { sm: 5, md: 7, lg: 10 } as const;
+
+interface Props {
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+export default function CodeAnalysisCard({ className, style }: Props) {
+  const cardRef    = useRef<HTMLDivElement>(null);
   const [activeLine, setActiveLine] = useState(0);
-  const [analyzing, setAnalyzing] = useState(true);
+  const [analyzing,  setAnalyzing]  = useState(true);
+  const [visibleCount, setVisibleCount] = useState(10);
+
+  // Update visible lines on resize
+  useEffect(() => {
+    const update = () => {
+      const w = window.innerWidth;
+      setVisibleCount(w < 480 ? VISIBLE_LINES.sm : w < 768 ? VISIBLE_LINES.md : VISIBLE_LINES.lg);
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   useEffect(() => {
     if (!cardRef.current) return;
-
-    gsap.to(cardRef.current, {
-      y: `random(-5, 5)`,
-      x: `random(-3, 3)`,
-      rotateY: `random(-2, 2)`,
-      duration: 3,
-      repeat: -1,
-      yoyo: true,
-      ease: 'sine.inOut',
-    });
 
     const interval = setInterval(() => {
       setActiveLine((prev) => (prev + 1) % codeLines.length);
@@ -55,60 +62,65 @@ export default function CodeAnalysisCard() {
     };
   }, []);
 
+  const displayedLines = codeLines.slice(0, visibleCount);
+
   return (
     <div
-      className="
-        relative
-        w-[520px]
-        h-[280px]
-        rounded-3xl
-        border border-white/40
-        bg-white/[0.03]
-        backdrop-blur-[12px]
-        shadow-[0_0_60px_rgba(255,255,255,0.15),0_20px_60px_rgba(0,0,0,0.4)]
-        overflow-hidden
-      "
+      ref={cardRef}
+      className={className ?? ''}
       style={{
+        width:  'min(500px, calc(100vw - 40px))',
+        height: 'clamp(220px, 28vw, 320px)',
         transformStyle: 'preserve-3d',
-        // transform: 'rotateY(-8deg) rotateX(5deg)',
-         transform: 'translateY(98%) rotateX(10deg) rotateY(-35deg) rotateZ(5deg) translateZ(10px)',
+        ...style,
       }}
     >
-        {/* HEADER */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-white/60" />
-            <span className="text-white/80 text-[12px] font-mono tracking-wide">
+      <div
+        className="
+          relative w-full h-full
+          rounded-2xl sm:rounded-3xl
+          border border-white/40
+          bg-white/[0.03]
+          backdrop-blur-[12px]
+          shadow-[0_0_60px_rgba(255,255,255,0.15),0_20px_60px_rgba(0,0,0,0.4)]
+          overflow-hidden
+        "
+      >
+        {/* ── HEADER ─────────────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between px-3 sm:px-5 py-2 sm:py-3 border-b border-white/10">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-white/60" />
+            <span className="text-white/80 text-[10px] sm:text-[12px] font-mono tracking-wide">
               AI Code Analysis
             </span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className={`w-1.5 h-1.5 rounded-full ${analyzing ? 'bg-green-400 animate-pulse' : 'bg-white/40'}`} />
-            <span className="text-white/40 text-[10px] font-mono">
+          <div className="flex items-center gap-1 sm:gap-1.5">
+            <div className={`w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full ${analyzing ? 'bg-green-400 animate-pulse' : 'bg-white/40'}`} />
+            <span className="text-white/40 text-[9px] sm:text-[10px] font-mono">
               {analyzing ? 'Analyzing...' : 'Complete'}
             </span>
           </div>
         </div>
 
-        {/* CODE BLOCK */}
-        <div className="px-5 py-4 font-mono text-[11px] leading-relaxed">
-          {codeLines.map((line, i) => (
+        {/* ── CODE BLOCK ─────────────────────────────────────────────────── */}
+        <div className="px-3 sm:px-5 py-2 sm:py-4 font-mono text-[9px] sm:text-[10px] lg:text-[11px] leading-relaxed">
+          {displayedLines.map((line, i) => (
             <div
               key={i}
-              className={`transition-opacity duration-300 ${
-                i === activeLine ? 'opacity-100' : 'opacity-30'
+              className={`transition-opacity duration-300 truncate ${
+                i === activeLine % visibleCount ? 'opacity-100' : 'opacity-30'
               }`}
             >
-              <span className="text-white/20 mr-3 select-none">
+              <span className="text-white/20 mr-2 sm:mr-3 select-none">
                 {String(i + 1).padStart(2, '0')}
               </span>
               <span
                 className={
-                  line.type === 'keyword' ? 'text-white/70' :
-                  line.type === 'function' ? 'text-white/90' :
+                  line.type === 'keyword'   ? 'text-white/70' :
+                  line.type === 'function'  ? 'text-white/90' :
                   line.type === 'condition' ? 'text-white/60' :
-                  line.type === 'variable' ? 'text-white/50' :
-                  line.type === 'return' ? 'text-white/80' :
+                  line.type === 'variable'  ? 'text-white/50' :
+                  line.type === 'return'    ? 'text-white/80' :
                   'text-white/40'
                 }
               >
@@ -118,27 +130,27 @@ export default function CodeAnalysisCard() {
           ))}
         </div>
 
-        {/* METRICS */}
-        <div className="px-5 pb-4 space-y-2">
+        {/* ── METRICS ────────────────────────────────────────────────────── */}
+        <div className="px-3 sm:px-5 pb-3 sm:pb-4 space-y-1.5 sm:space-y-2">
           {metrics.map((metric, i) => (
-            <div key={i} className="flex items-center gap-3">
-              <span className="text-white/40 text-[10px] font-mono w-10">
+            <div key={i} className="flex items-center gap-2 sm:gap-3">
+              <span className="text-white/40 text-[9px] sm:text-[10px] font-mono w-8 sm:w-10 shrink-0">
                 {metric.label}
               </span>
-              <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
+              <div className="flex-1 h-[3px] sm:h-1 bg-white/10 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-white/60 rounded-full transition-all duration-1000"
                   style={{ width: `${metric.progress * 100}%` }}
                 />
               </div>
-              <span className="text-white/70 text-[10px] font-mono w-12 text-right">
+              <span className="text-white/70 text-[9px] sm:text-[10px] font-mono w-10 sm:w-12 text-right shrink-0">
                 {metric.value}
               </span>
             </div>
           ))}
         </div>
 
-        {/* GLOW */}
+        {/* ── GLOW OVERLAY ───────────────────────────────────────────────── */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
@@ -146,8 +158,9 @@ export default function CodeAnalysisCard() {
           }}
         />
 
-        {/* BOTTOM LINE */}
+        {/* ── BOTTOM LINE ────────────────────────────────────────────────── */}
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
       </div>
+    </div>
   );
 }

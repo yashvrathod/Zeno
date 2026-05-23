@@ -1,7 +1,7 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { ChevronDown } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronDown, Menu, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRef, useState, useEffect } from 'react';
 import gsap from 'gsap';
@@ -19,23 +19,6 @@ interface NavDropdownProps {
 
 function NavDropdown({ label, items }: NavDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
-  // const navRef = useRef<HTMLDivElement>(null);
-
-//   useEffect(() => {
-//   if (!navRef.current) return;
-
-//   gsap.to(navRef.current, {
-//     backgroundColor: 'rgba(0,0,0,0.75)',
-//     backdropFilter: 'blur(16px)',
-
-//     scrollTrigger: {
-//       trigger: document.body,
-//       start: 'top top',
-//       end: '+=1200',
-//       scrub: true,
-//     },
-//   });
-// }, []);
 
   return (
     <div
@@ -70,10 +53,49 @@ function NavDropdown({ label, items }: NavDropdownProps) {
   );
 }
 
+const NAV_SECTIONS = [
+  {
+    label: 'Products',
+    items: [
+      { label: 'Data Engine', href: '/products/data-engine' },
+      { label: 'Model Evaluation', href: '/products/model-eval' },
+      { label: 'AI Trust', href: '/products/ai-trust' },
+      { label: 'All Products', href: '/products' },
+    ],
+  },
+  {
+    label: 'Solutions',
+    items: [
+      { label: 'Autonomous Vehicles', href: '/solutions/autonomous' },
+      { label: 'Enterprise AI', href: '/solutions/enterprise' },
+      { label: 'Defense', href: '/solutions/defense' },
+      { label: 'All Solutions', href: '/solutions' },
+    ],
+  },
+  {
+    label: 'Research',
+    items: [
+      { label: 'AI Safety', href: '/research/ai-safety' },
+      { label: 'Publications', href: '/research/publications' },
+      { label: 'Case Studies', href: '/research/cases' },
+    ],
+  },
+  {
+    label: 'Resources',
+    items: [
+      { label: 'Blog', href: '/blog' },
+      { label: 'Documentation', href: '/docs' },
+      { label: 'Community', href: '/community' },
+      { label: 'Events', href: '/events' },
+    ],
+  },
+];
+
 export default function Navbar() {
   const navRef = useRef<HTMLElement>(null);
   const isScrolledRef = useRef(false);
   const isHoveredRef = useRef(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const nav = navRef.current;
@@ -127,124 +149,142 @@ export default function Navbar() {
         onMouseEnter={showNav}
         onMouseLeave={hideNav}
       >
-  <div className="px-7 pt-5">
-    <div
-      className="
-        h-[72px]
-        flex
-        items-center
-        justify-between
-      "
-    >
-      {/* Logo */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.4 }}
-      >
-        <Link href="/" className="flex items-center">
-          <img
-            src="/ui/imwewage.png"
-            alt="Scale AI"
-            className="h-6 w-auto"
-          />
-        </Link>
-      </motion.div>
+        <div className="px-4 sm:px-7 pt-5">
+          <div className="h-[72px] flex items-center justify-between">
+            {/* Logo */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.4 }}
+            >
+              <Link href="/" className="flex items-center">
+                <img
+                  src="/ui/imwewage.png"
+                  alt="Scale AI"
+                  className="h-5 sm:h-6 w-auto"
+                />
+              </Link>
+            </motion.div>
 
-      {/* Nav Links */}
-      <motion.div
-        className="hidden lg:flex items-center gap-10"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.4, delay: 0.1 }}
-      >
-        <NavDropdown
-          label="Products"
-          items={[
-            { label: 'Data Engine', href: '/products/data-engine' },
-            { label: 'Model Evaluation', href: '/products/model-eval' },
-            { label: 'AI Trust', href: '/products/ai-trust' },
-            { label: 'All Products', href: '/products' },
-          ]}
-        />
+            {/* Desktop Nav Links */}
+            <motion.div
+              className="hidden lg:flex items-center gap-10"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+            >
+              {NAV_SECTIONS.map((section) => (
+                <NavDropdown key={section.label} label={section.label} items={section.items} />
+              ))}
+            </motion.div>
 
-        <NavDropdown
-          label="Solutions"
-          items={[
-            { label: 'Autonomous Vehicles', href: '/solutions/autonomous' },
-            { label: 'Enterprise AI', href: '/solutions/enterprise' },
-            { label: 'Defense', href: '/solutions/defense' },
-            { label: 'All Solutions', href: '/solutions' },
-          ]}
-        />
+            {/* Actions */}
+            <motion.div
+              className="flex items-center gap-2 sm:gap-3"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+            >
+              <Link
+                href="/auth/signin"
+                className="h-11 px-4 sm:px-5 flex items-center rounded-xl text-[15px] font-medium text-zinc-700 hover:bg-black/[0.03] dark:text-zinc-400 dark:hover:bg-white/5 transition-colors"
+              >
+                <span className="hidden sm:inline">Log In</span>
+                <span className="sm:hidden">Log in</span>
+              </Link>
 
-        <NavDropdown
-          label="Research"
-          items={[
-            { label: 'AI Safety', href: '/research/ai-safety' },
-            { label: 'Publications', href: '/research/publications' },
-            { label: 'Case Studies', href: '/research/cases' },
-          ]}
-        />
+              <Link
+                href="/demo"
+                className="h-11 px-4 sm:px-5 flex items-center rounded-xl bg-black dark:bg-white text-white dark:text-black text-[15px] font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
+              >
+                Book Demo
+              </Link>
 
-        <NavDropdown
-          label="Resources"
-          items={[
-            { label: 'Blog', href: '/blog' },
-            { label: 'Documentation', href: '/docs' },
-            { label: 'Community', href: '/community' },
-            { label: 'Events', href: '/events' },
-          ]}
-        />
-      </motion.div>
+              {/* Hamburger — visible below lg */}
+              <button
+                onClick={() => setMobileMenuOpen(true)}
+                className="lg:hidden h-11 w-11 flex items-center justify-center rounded-xl text-zinc-700 dark:text-zinc-400 hover:bg-black/[0.03] dark:hover:bg-white/5 transition-colors"
+                aria-label="Open menu"
+              >
+                <Menu size={20} />
+              </button>
+            </motion.div>
+          </div>
+        </div>
+      </nav>
 
-      {/* Actions */}
-      <motion.div
-        className="flex items-center gap-3"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.4, delay: 0.2 }}
-      >
-        <Link
-          href="/auth/signin"
-          className="
-            h-11
-            px-5
-            flex
-            items-center
-            rounded-xl
-            text-[15px]
-            font-medium
-            text-zinc-700
-            hover:bg-black/[0.03]
-            transition-colors
-          "
-        >
-          Log In
-        </Link>
-
-        <Link
-          href="/demo"
-          className="
-            h-11
-            px-5
-            flex
-            items-center
-            rounded-xl
-            bg-black
-            text-white
-            text-[15px]
-            font-medium
-            hover:bg-zinc-800
-            transition-colors
-          "
-        >
-          Book Demo
-        </Link>
-      </motion.div>
-    </div>
-  </div>
-</nav>
+      {/* Mobile Drawer — slides up from bottom (Scale.ai pattern) */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-[100] bg-black/50"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ duration: 0.4, ease: [0.34, 0.34, 0.28, 0.78] }}
+              className="fixed bottom-0 left-0 right-0 z-[110] bg-white rounded-t-3xl max-h-[85vh] overflow-y-auto"
+            >
+              <div className="px-6 py-8">
+                <div className="flex items-center justify-between mb-8">
+                  <span className="text-sm font-semibold text-zinc-500 tracking-widest uppercase">Menu</span>
+                  <button
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-zinc-100 text-zinc-600"
+                    aria-label="Close menu"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                <div className="space-y-6">
+                  {NAV_SECTIONS.map((section) => (
+                    <div key={section.label}>
+                      <span className="text-xs font-semibold text-zinc-400 tracking-widest uppercase block mb-3">
+                        {section.label}
+                      </span>
+                      <div className="space-y-1">
+                        {section.items.map((item) => (
+                          <Link
+                            key={item.label}
+                            href={item.href}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="block py-2.5 text-[17px] font-medium text-zinc-800 hover:text-black transition-colors"
+                          >
+                            {item.label}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-8 pt-6 border-t border-zinc-100 flex flex-col gap-3">
+                  <Link
+                    href="/auth/signin"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full h-12 flex items-center justify-center rounded-xl border border-zinc-200 text-[15px] font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+                  >
+                    Log In
+                  </Link>
+                  <Link
+                    href="/demo"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full h-12 flex items-center justify-center rounded-xl bg-black text-white text-[15px] font-medium hover:bg-zinc-800 transition-colors"
+                  >
+                    Book Demo
+                  </Link>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </>
   );
 }
