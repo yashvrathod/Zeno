@@ -93,6 +93,19 @@ export function clientTraceExecution(code: string, inputStr: string): TraceResul
     },
   };
 
+  // Validate code — block dangerous globals that shouldn't be available in sandbox
+  const dangerous = ["process", "require", "import(", "globalThis", "fetch", "XMLHttpRequest", "WebSocket", "localStorage"];
+  for (const pattern of dangerous) {
+    if (instrumentedCode.includes(pattern)) {
+      return {
+        frames: [],
+        finalOutput: "",
+        error: `Execution blocked: use of \`${pattern}\` is not allowed in trace execution`,
+        totalLines,
+      };
+    }
+  }
+
   try {
     const fn = new Function(
       "console",

@@ -70,8 +70,9 @@ export function instrumentJavaScript(code: string): InstrumentationResult {
 
     if (isReturnStatement(trimmed)) {
       const stepIndex = instrumentedLines.length;
+      const returnValue = trimmed.replace(/^return\s*/, "").replace(/;\s*$/, "").trim() || "undefined";
       instrumentedLines.push(
-        `${indent}__trace(${stepIndex}, ${originalLine}, 'return', {value: ${trimmed.replace(/^return\s*/, "") || "undefined"}});`
+        `${indent}__trace(${stepIndex}, ${originalLine}, 'return', {value: ${returnValue}});`
       );
       lineMap.set(instrumentedLines.length, originalLine);
     }

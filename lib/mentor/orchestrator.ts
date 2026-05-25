@@ -2,7 +2,8 @@ import crypto from "crypto";
 import type { TeachingStage } from "@/lib/mentorContext";
 import { routeInteraction } from "./routing/interactionRouter";
 import { getOrCreateSession, saveMessage } from "./stage/core";
-import { buildSolutionResponse } from "./guardrails";
+import { buildSolutionResponse, sanitizeResponse } from "./guardrails";
+import { validateAIResponse } from "@/lib/responseValidator";
 import { resolveApiConfig, type ApiConfig } from "./llm";
 import { handleSoftCacheHit } from "./services/handlers/softCacheHandler";
 import { handleAiNeeded } from "./services/handlers/aiHandler";
@@ -202,7 +203,7 @@ export async function execute(params: {
     }
   }
 
-  const decision = await routeInteraction(body.userMessage, mentorSession, problemForRouter);
+  const decision = await routeInteraction(body.userMessage, mentorSession, problemForRouter, existingSummary?.lastRung ?? 1);
 
   const currentRung = existingSummary?.lastRung ?? 1;
 
@@ -235,13 +236,21 @@ export async function execute(params: {
   }
 
   if (decision.type === "CACHE_HIT" && decision.similarity >= 0.99) {
+    const cachedResponse = decision.entry.response;
+    const validationResult = validateAIResponse(cachedResponse, mentorSession.stage as TeachingStage, decision.intent);
+    const { text: sanitized, wasViolation } = sanitizeResponse(cachedResponse, false);
+
+    const finalMessage = validationResult.isValid && !wasViolation
+      ? cachedResponse
+      : validationResult.rewrittenResponse ?? sanitized;
+
     await saveMessage(
-      mentorSession.id, "assistant", decision.entry.response,
+      mentorSession.id, "assistant", finalMessage,
       mentorSession.stage as TeachingStage,
     );
 
     const cacheHitResponse: MentorResponse = {
-      ok: true, message: decision.entry.response, animation: null,
+      ok: true, message: finalMessage, animation: null,
       metadata: { stage: mentorSession.stage, type: "cache_hit_hard", similarity: decision.similarity },
     };
 
@@ -249,7 +258,7 @@ export async function execute(params: {
 
     logMentorInteraction({
       userId, problemId, userMessage: body.userMessage, decisionType: "CACHE_HIT",
-      responseData: decision.entry.response, stage: mentorSession.stage,
+      responseData: finalMessage, stage: mentorSession.stage,
       rung: currentRung,
       cacheHitData: { similarity: decision.similarity.toFixed(4), cacheEntryId: decision.entry.id },
     }).catch(logDbError);

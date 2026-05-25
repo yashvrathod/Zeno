@@ -239,11 +239,12 @@ async function callLlmWithGuardrails(params: {
   mentorSessionId: string;
   userId: string;
   problemId: string;
+  stats: UserStats;
   intent?: IntentClassification;
   debugAnalysis?: DebugAnalysis | null;
   onChunk?: (chunk: string) => void;
 }): Promise<{ message: string; rawMessage?: string; wasViolation: boolean; wantsAnimation: boolean } | { error: string }> {
-  const temperature = getAdaptiveTemperature(params.body, params.body as any);
+  const temperature = getAdaptiveTemperature(params.body, params.stats);
   const maxTokens = verbosityToModelMaxTokens(params.verbosity);
 
   const messages: LlmMessage[] = [{ role: "system", content: params.systemMessage }];
@@ -338,7 +339,7 @@ async function advanceStage(params: {
         const codeHash = crypto.createHash("md5").update(body.userCode).digest("hex");
         try {
           if (isQueueAvailable()) {
-            enqueueArchitectReview({ userId, problemId, code: body.userCode, language: body.language, sessionId: mentorSessionId }).catch(() => {});
+            enqueueArchitectReview({ userId, problemId, code: body.userCode, language: body.language, sessionId: mentorSessionId }).catch((e) => console.warn("enqueueArchitectReview failed:", e));
           } else {
             const review = await triggerArchitectReview({
               userId, problemId, code: body.userCode, language: body.language, problemTitle: body.problemTitle, codeHash,
@@ -348,7 +349,9 @@ async function advanceStage(params: {
               architectReviewData = { score: review.overallScore, grade: g, feedback: formatArchitectFeedback(review) };
             }
           }
-        } catch {}
+        } catch (e) {
+          console.warn("Architect review failed:", e);
+        }
       }
     } else if (stage === "IMPLEMENT" && transitionCtx.hasErrors) {
       await tryAdvanceStage(mentorSessionId, "DEBUG", transitionCtx);
@@ -375,14 +378,15 @@ async function persistSession(params: {
   cacheMessage?: string;
   body: MentorRequest;
   stage: TeachingStage;
+  intent?: IntentClassification;
 }): Promise<void> {
-  const { memoryJson, currentMessageCount, newMessageCount, rung, userId, problemId, assistantMessage, body, stage, cacheMessage } = params;
+  const { memoryJson, currentMessageCount, newMessageCount, rung, userId, problemId, assistantMessage, body, stage, cacheMessage, intent } = params;
 
   await saveMessage(params.mentorSessionId, "assistant", assistantMessage, stage);
 
   try {
     saveToCache({
-      problemId, question: body.userMessage, response: cacheMessage || assistantMessage, stage, rung, intent: undefined,
+      problemId, question: body.userMessage, response: cacheMessage || assistantMessage, stage, rung, intent,
     });
   } catch (e) {
     console.warn("Cache save failed:", e);
@@ -439,17 +443,10 @@ export async function handleAiNeeded(params: {
   const { body, userId, problemId, mentorSession, history, stats, userAiSettings, existingSummary, apiConfig, intent, conversationIntent, knowledgeGraph, debugAnalysis, rung: rungFromOrch, traceContext, onChunk } = params;
   const stage = mentorSession.stage as TeachingStage;
 
-  // ── Verbosity inference ──
-  const inferred = inferVerbosityFromText(body.userMessage);
+  // ── Verbosity: use user preference, fall back to "normal" ──
   let verbosity: Verbosity = "normal";
   if (userAiSettings?.verbosity && isValidVerbosity(userAiSettings.verbosity)) {
     verbosity = userAiSettings.verbosity;
-  }
-  if (inferred && inferred !== verbosity) {
-    verbosity = inferred;
-    prisma.userAiSettings.upsert({
-      where: { userId }, create: { userId, verbosity }, update: { verbosity },
-    }).catch((e: unknown) => console.warn("Verbosity upsert failed:", e));
   }
 
   const rollingSummaryMd = existingSummary?.summaryMd ?? null;
@@ -494,7 +491,7 @@ export async function handleAiNeeded(params: {
   const llmResult = await callLlmWithGuardrails({
     systemMessage: promptCtx.systemMessage,
     body, history, stage, rung, verbosity, apiConfig, onChunk,
-    mentorSessionId: mentorSession.id, userId, problemId, intent, debugAnalysis,
+    mentorSessionId: mentorSession.id, userId, problemId, intent, debugAnalysis, stats,
   });
 
   if ("error" in llmResult) {
@@ -521,7 +518,7 @@ export async function handleAiNeeded(params: {
   // ── Persist message + cache + summary ──
   await persistSession({
     mentorSessionId: mentorSession.id, memoryJson, currentMessageCount, newMessageCount, rung,
-    userId, problemId, assistantMessage, body, stage, cacheMessage: rawMessage,
+    userId, problemId, assistantMessage, body, stage, cacheMessage: rawMessage, intent,
   });
 
   // ── Stage transitions ──

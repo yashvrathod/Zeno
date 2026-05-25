@@ -12,7 +12,7 @@
  * Any module that needs to call an LLM API should use this instead of raw fetch().
  */
 
-import { reportKeyFailure } from "@/lib/api-key-pool";
+import { reportKeyFailure, reportKeySuccess } from "@/lib/api-key-pool";
 
 // ──────────────────────────────────────────────────────────────────
 // TYPES
@@ -141,8 +141,9 @@ export async function callLlm(params: CallLlmParams): Promise<LlmResult> {
         statusCode: 200,
         totalTokens: result.data.usage?.totalTokens,
       });
-      if (attempt > 0 && params.serverKeyProvider) {
-        console.debug("[LLM_CLIENT] Succeeded after", attempt, "retries");
+      if (params.serverKeyProvider) {
+        reportKeySuccess(params.serverKeyProvider, params.apiKey);
+        if (attempt > 0) console.debug("[LLM_CLIENT] Succeeded after", attempt, "retries");
       }
       return result.data;
     }
@@ -288,6 +289,10 @@ export async function callLlmStream(
       statusCode: 200,
       totalTokens: usage?.totalTokens,
     });
+
+    if (params.serverKeyProvider) {
+      reportKeySuccess(params.serverKeyProvider, params.apiKey);
+    }
 
     return { content: fullContent, usage };
   } catch (e) {

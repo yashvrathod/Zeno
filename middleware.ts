@@ -18,7 +18,7 @@ export default async function middleware(req: NextRequest) {
     const url = req.nextUrl.clone();
     url.pathname = '/auth/login';
     url.searchParams.set('callbackUrl', req.nextUrl.pathname);
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(url, 307);
   }
 
   return NextResponse.next();
@@ -28,5 +28,5 @@ export default async function middleware(req: NextRequest) {
 export const config = {
   // Only protect endpoints that must be authenticated.
   // Keep the app browsable as a guest (including /profile UI).
-  matcher: ["/api/execute", "/api/submissions/:path*"],
+  matcher: ["/api/execute", "/api/submissions/:path*", "/api/auth/:path*"],
 };

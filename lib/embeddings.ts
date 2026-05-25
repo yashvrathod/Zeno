@@ -453,9 +453,7 @@ export async function warmupCache(problems?: Array<{ id: string; title: string }
   ];
 
   try {
-    debugLog("📦 Loading embedding model...");
-    await getPipeline();
-    debugLog("✅ Model loaded");
+    debugLog("📦 Embedding model loaded via worker thread");
 
     // Warmup only populates the in-memory store (no DB for static breakdowns)
     for (const b of staticBreakdowns) {
@@ -578,7 +576,8 @@ export async function initEmbeddings(): Promise<void> {
   }
 }
 
-if (DEBUG_ENABLED) {
+const IS_BUILD = process.env.NEXT_PHASE === 'phase-production-build';
+if (DEBUG_ENABLED && !IS_BUILD) {
   initEmbeddings().catch(console.error);
 }
 

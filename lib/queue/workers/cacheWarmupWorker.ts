@@ -19,6 +19,7 @@ export function startCacheWarmupWorker(): void {
       }
     } catch (error) {
       console.error(`[queue] Cache warmup failed:`, error);
+      throw error; // Re-throw for BullMQ retry
     }
   }, { connection, concurrency: 1 });
 }

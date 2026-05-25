@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
 
     if (!mentorSession) {
       mentorSession = await prisma.mentorSession.create({
-        data: { userId, problemId, stage: "APPROACH", currentRung: 1 },
+        data: { userId, problemId, stage: "STRATEGIZE", currentRung: 1 },
       });
     }
 

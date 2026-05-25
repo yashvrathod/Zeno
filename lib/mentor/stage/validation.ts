@@ -31,8 +31,8 @@ export const TRANSITION_RULES: TransitionRule[] = [
   {
     from: "IMPLEMENT",
     to: "REFLECT",
-    requiredContext: (ctx) => ctx.codeCorrect === true && ctx.isOptimal === true,
-    reason: "Cannot mark REFLECT — code must be correct AND optimal",
+    requiredContext: (ctx) => ctx.codeCorrect === true,
+    reason: "Cannot mark REFLECT — code must be correct",
   },
   {
     from: "IMPLEMENT",

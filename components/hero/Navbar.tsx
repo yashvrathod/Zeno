@@ -145,7 +145,7 @@ export default function Navbar() {
       />
       <nav
         ref={navRef}
-        className="fixed top-0 left-0 right-0 z-50"
+        className="fixed top-0 left-0 right-0 z-50 will-change-transform"
         onMouseEnter={showNav}
         onMouseLeave={hideNav}
       >

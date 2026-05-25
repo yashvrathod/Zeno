@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 3. Validate user code language ──
-    const validLanguages = ["javascript", "python", "java", "cpp", "typescript", "c", "c++", "go", "rust", "java", "kotlin"];
+    const validLanguages = ["javascript", "python", "java", "cpp", "typescript", "c", "c++", "go", "rust", "kotlin"];
     if (!validLanguages.includes(body.language)) {
       return Response.json(
         { error: `Unsupported language: ${body.language}` },

@@ -28,48 +28,73 @@ export async function executeInBrowser(
     const start = Date.now();
     let output = '';
     let error: string | null = null;
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      error = 'Execution timed out';
+      iframe.remove();
+      resolve({
+        passed: false,
+        output: output.trim(),
+        error,
+        runtime: Date.now() - start,
+        tests: [],
+      });
+    }, 10000);
 
-    // Capture console.log
-    const originalLog = console.log;
-    console.log = (...args) => {
-      output += args.map((a) => String(a)).join(' ') + '\n';
+    // Listen for iframe response
+    const messageHandler = (event: MessageEvent) => {
+      if (event.source !== iframe.contentWindow) return;
+      clearTimeout(timeout);
+      if (event.data.type === 'success') {
+        output = event.data.output || '';
+      } else if (event.data.type === 'error') {
+        error = event.data.error || 'Unknown error';
+      }
+      iframe.remove();
+      window.removeEventListener('message', messageHandler);
+
+      const tests = testCases.map((tc) => ({
+        input: tc.input,
+        expected: tc.expected,
+        actual: output.trim(),
+        passed: output.trim() === tc.expected.trim(),
+      }));
+
+      resolve({
+        passed: tests.every((t) => t.passed),
+        output: output.trim(),
+        error,
+        runtime: Date.now() - start,
+        tests,
+      });
     };
+    window.addEventListener('message', messageHandler);
 
     try {
-      // Wrap code to capture output
       const wrapped = `
+        var output = '';
+        var console = { log: function() { output += Array.prototype.join.call(arguments, ' ') + '\\n'; } };
         try {
           ${code}
-          window.parent.postMessage({ type: 'success', output: output }, '*');
-        } catch (e) {
-          window.parent.postMessage({ type: 'error', error: e.message }, '*');
+          window.parent.postMessage({ type: 'success', output: output }, window.location.origin);
+        } catch (e: any) {
+          window.parent.postMessage({ type: 'error', error: e.message }, window.location.origin);
         }
       `;
 
       (iframe.contentWindow as unknown as { eval: (code: string) => void }).eval(wrapped);
     } catch (e) {
-      error = (e as Error).message;
+      clearTimeout(timeout);
+      window.removeEventListener('message', messageHandler);
+      iframe.remove();
+      resolve({
+        passed: false,
+        output: output.trim(),
+        error: (e as Error).message,
+        runtime: Date.now() - start,
+        tests: [],
+      });
     }
-
-    console.log = originalLog;
-    iframe.remove();
-
-    const runtime = Date.now() - start;
-
-    // Run test cases
-    const tests = testCases.map((tc) => ({
-      input: tc.input,
-      expected: tc.expected,
-      actual: output.trim(),
-      passed: output.trim() === tc.expected.trim(),
-    }));
-
-    resolve({
-      passed: tests.every((t) => t.passed),
-      output: output.trim(),
-      error,
-      runtime,
-      tests,
-    });
   });
 }

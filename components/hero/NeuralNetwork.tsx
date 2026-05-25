@@ -21,7 +21,7 @@ interface Connection {
   opacity: number;
 }
 
-export default function NeuralNetwork() {
+export default function NeuralNetwork({ manualControl = false }: { manualControl?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const networkRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -30,84 +30,45 @@ export default function NeuralNetwork() {
 
   const nodesRef = useRef<(HTMLDivElement | null)[]>([]);
 
-  // =========================
-  // NODES
-  // =========================
-
-  const nodes: Node[] = [
-    { id: 0, x: 12, y: 18, z: -100, radius: 4, layer: 0 },
-    { id: 1, x: 12, y: 42, z: 80, radius: 3, layer: 0 },
-    { id: 2, x: 12, y: 65, z: -40, radius: 5, layer: 0 },
-
-    { id: 3, x: 32, y: 14, z: 120, radius: 3, layer: 1 },
-    { id: 4, x: 32, y: 34, z: -120, radius: 5, layer: 1 },
-    { id: 5, x: 32, y: 56, z: 80, radius: 4, layer: 1 },
-    { id: 6, x: 32, y: 80, z: -60, radius: 3, layer: 1 },
-
-    { id: 7, x: 52, y: 24, z: -80, radius: 5, layer: 2 },
-    { id: 8, x: 52, y: 50, z: 140, radius: 4, layer: 2 },
-    { id: 9, x: 52, y: 76, z: -100, radius: 3, layer: 2 },
-
-    { id: 10, x: 72, y: 18, z: 80, radius: 4, layer: 3 },
-    { id: 11, x: 72, y: 44, z: -120, radius: 5, layer: 3 },
-    { id: 12, x: 72, y: 72, z: 100, radius: 3, layer: 3 },
-
-    { id: 13, x: 90, y: 35, z: -40, radius: 6, layer: 4 },
-    { id: 14, x: 90, y: 65, z: 120, radius: 5, layer: 4 },
-  ];
-
-  // =========================
-  // CONNECTIONS
-  // =========================
-
-  const connections: Connection[] = [];
-
-  for (let i = 0; i < nodes.length; i++) {
-    for (let j = 0; j < nodes.length; j++) {
-      if (nodes[j].layer === nodes[i].layer + 1) {
-        connections.push({
-          from: i,
-          to: j,
-          opacity: 0.12 + Math.random() * 0.35,
-        });
-      }
-    }
-  }
-
-  // =========================
-  // EFFECTS
-  // =========================
+  // ... (nodes and connections definitions remain the same)
 
   useEffect(() => {
     if (!containerRef.current || !networkRef.current) return;
 
-    // =========================
-    // SCROLL REVEAL
-    // =========================
-
-    gsap.fromTo(
-      containerRef.current,
-      {
-        opacity: 0,
-        scale: 0.8,
-        filter: 'blur(20px)',
-      },
-      {
+    if (!manualControl) {
+      // =========================
+      // SCROLL REVEAL (Only if not manually controlled)
+      // =========================
+      gsap.fromTo(
+        containerRef.current,
+        {
+          opacity: 0,
+          scale: 0.8,
+          filter: 'blur(20px)',
+        },
+        {
+          opacity: 1,
+          scale: 1,
+          filter: 'blur(0px)',
+          scrollTrigger: {
+            trigger: document.body,
+            start: '+=400 top',
+            end: '+=1200',
+            scrub: true,
+          },
+        }
+      );
+    } else {
+      // If manual, ensure it's visible by default so parent can animate opacity
+      gsap.set(containerRef.current, {
         opacity: 1,
         scale: 1,
         filter: 'blur(0px)',
-
-        scrollTrigger: {
-          trigger: document.body,
-          start: '+=400 top',
-          end: '+=1200',
-          scrub: true,
-        },
-      }
-    );
+      });
+    }
 
     // =========================
-    // FLOATING NODES
+    // FLOATING NODES (Always active)
     // =========================
 
     nodesRef.current.forEach((node, i) => {

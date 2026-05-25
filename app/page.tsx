@@ -15,42 +15,48 @@ export default function Home() {
   const pageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-  const lines = gsap.utils.toArray('.hero-line');
+    const lines = gsap.utils.toArray('.hero-line');
 
-  gsap.to(lines, {
-    opacity: 0,
-    y: -120,
-    stagger: 0.12,
-    ease: 'power3.out',
+    gsap.to(lines, {
+      opacity: 0,
+      y: -120,
+      stagger: 0.12,
+      ease: 'power3.out',
+      scrollTrigger: {
+        trigger: document.body,
+        start: 'top top',
+        end: '+=600',
+        scrub: true,
+      },
+    });
+  }, []);
 
-    scrollTrigger: {
-      trigger: document.body,
-      start: 'top top',
-      end: '+=600',
-      scrub: true,
-    },
-  });
-}, []);
+  useEffect(() => {
+    if (!pageRef.current) return;
 
-useEffect(() => {
-  if (!pageRef.current) return;
-
-  gsap.to(pageRef.current, {
-    backgroundColor: '#000000',
-
-    scrollTrigger: {
-      trigger: document.body,
-      start: 'top top',
-      end: '+=1400',
-      scrub: true,
-    },
-  });
-}, []);
+    // Background transition is now handled by the high-performance overlay below
+  }, []);
   return (
     <div
       ref={pageRef} 
-      className="relative bg-white"
+      className="relative bg-white min-h-screen"
     >
+      {/* Black Background Overlay (Optimized Transition) */}
+      <div 
+        className="fixed inset-0 bg-black pointer-events-none z-[-1] will-change-opacity"
+        style={{ opacity: 0 }}
+        id="bg-overlay"
+      />
+
+      <script dangerouslySetInnerHTML={{ __html: `
+        window.addEventListener('scroll', () => {
+          const overlay = document.getElementById('bg-overlay');
+          if (!overlay) return;
+          const progress = Math.min(window.scrollY / 1400, 1);
+          overlay.style.opacity = progress;
+        }, { passive: true });
+      `}} />
+
       {/* Video Background */}
       <HeroVideo />
 
@@ -58,7 +64,7 @@ useEffect(() => {
       <Navbar />
 
       {/* Fixed Hero Section */}
-      <section className="fixed inset-0 z-10 flex flex-col items-center justify-center px-6 text-center font-roboto-slab">
+      <section className="fixed inset-0 z-10 flex flex-col items-center justify-center px-6 text-center font-roboto-slab pointer-events-none">
         
         {/* TEXT */}
         <motion.div

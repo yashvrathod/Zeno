@@ -4,6 +4,8 @@ import { getAdaptiveTemperature, detectLearningRung } from "@/lib/mentorContext"
 import { inferVerbosityFromText, verbosityToModelMaxTokens } from "@/lib/aiPreferences";
 import { saveMessage } from "../../stage";
 import { resolveApiConfig, callLlmAndExtract, type LlmMessage, type ApiConfig } from "../../llm";
+import { sanitizeResponse } from "../../guardrails";
+import { validateAIResponse } from "@/lib/responseValidator";
 import { clampText } from "../../context";
 import type { HistoryMsg, UserStats } from "../../context";
 import type { MentorRequest, MentorResponse } from "../../orchestrator";
@@ -35,7 +37,7 @@ export async function handleSoftCacheHit(params: {
   if (!isCacheCompatible(cachedStage, decision.entry?.rung ?? 1, mentorSession.stage, currentRung)) {
     return {
       ok: false,
-      error: "No AI provider available. Please configure your API key in Settings.",
+      error: "Cached response is for a different learning stage/rung — generating fresh AI response.",
     };
   }
 
@@ -51,13 +53,17 @@ export async function handleSoftCacheHit(params: {
 
   const refinementRung = detectLearningRung(history, stats, body.userMessage, body.userCode, currentRung);
 
-  const refinedSystemPrompt = `You are a helpful Socratic mentor for DSA.
+  const cachedResponse = ((decision.entry as any)?.response ?? "").slice(0, 1200);
+// Strip code blocks from cached response shown in refinement to avoid leaking solutions
+const sanitizedCached = cachedResponse.replace(/```[\s\S]*?```/g, "[code removed]");
+
+const refinedSystemPrompt = `You are a helpful Socratic mentor for DSA.
 A student just asked: "${body.userMessage}"
 
 Someone previously asked a very similar question. Their question was: "${(decision as any).entry?.questionText || (decision as any).similarity?.toFixed(2) + " similar"}"
 The answer we gave was:
 
-${(decision.entry as any).response.slice(0, 1200)}
+${sanitizedCached}
 
 Do NOT repeat that answer verbatim. Instead:
 1. Give a fresh, tailored response to the student's exact wording
@@ -93,11 +99,17 @@ Do NOT repeat that answer verbatim. Instead:
     return { ok: false, error: "Empty response from AI service" };
   }
 
-  await saveMessage(mentorSession.id, "assistant", refinedMessage, mentorSession.stage as TeachingStage);
+  const validationResult = validateAIResponse(refinedMessage, mentorSession.stage as TeachingStage);
+  const { text: sanitized, wasViolation } = sanitizeResponse(refinedMessage, false);
+  const guardedMessage = validationResult.isValid && !wasViolation
+    ? refinedMessage
+    : validationResult.rewrittenResponse ?? sanitized;
+
+  await saveMessage(mentorSession.id, "assistant", guardedMessage, mentorSession.stage as TeachingStage);
 
   logMentorInteraction({
     userId, problemId, userMessage: body.userMessage, decisionType: "CACHE_HIT",
-    responseData: refinedMessage, stage: mentorSession.stage, rung: refinementRung,
+    responseData: guardedMessage, stage: mentorSession.stage, rung: refinementRung,
     cacheHitData: {
       similarity: (decision.similarity as any)?.toFixed(4) ?? "0",
       cacheEntryId: (decision.entry as any).id,
@@ -105,7 +117,7 @@ Do NOT repeat that answer verbatim. Instead:
   }).catch(logDbError);
 
   return {
-    ok: true, message: refinedMessage, animation: null,
+    ok: true, message: guardedMessage, animation: null,
     metadata: { stage: mentorSession.stage, type: "cache_hit_soft", similarity: decision.similarity },
   };
 }

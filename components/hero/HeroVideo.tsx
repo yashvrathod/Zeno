@@ -83,6 +83,8 @@ export default function HeroVideo() {
     const isMobile  = window.innerWidth < 640;
     const isTablet  = window.innerWidth < 1024;
 
+    //calculate the width and height
+
     // ── Main video shrink & tilt ──────────────────────────────────────
     const tl = gsap.timeline({
       scrollTrigger: {

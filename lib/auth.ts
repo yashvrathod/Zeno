@@ -21,13 +21,6 @@ async function ensureOAuthUsername(
   name?: string | null,
 ) {
   if (!userId) return;
-  const existing = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { username: true, email: true, name: true },
-  });
-
-  if (!existing) return;
-  if (existing.username) return;
 
   const seed = email?.split("@")[0] || name || "user";
   const base = normalizeBaseUsername(seed);
@@ -37,16 +30,16 @@ async function ensureOAuthUsername(
     const suffix = attempt === 0 ? "" : `_${Math.floor(1000 + Math.random() * 9000)}`;
     const candidate = `${base}${suffix}`;
 
-    const taken = await prisma.user.findUnique({ where: { username: candidate }, select: { id: true } });
-    if (!taken) {
-      await prisma.user.update({ where: { id: userId }, data: { username: candidate } });
-      return;
-    }
+    const result = await prisma.user.updateMany({
+      where: { id: userId, username: null },
+      data: { username: candidate },
+    });
+    if (result.count > 0) return;
   }
 
   // Fallback: always unique.
-  await prisma.user.update({
-    where: { id: userId },
+  await prisma.user.updateMany({
+    where: { id: userId, username: null },
     data: { username: `${base}_${userId.slice(-6)}` },
   });
 }

@@ -2,47 +2,51 @@
 
 import { useEffect } from 'react';
 import Lenis from 'lenis';
-import 'lenis/dist/lenis.css';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
+gsap.registerPlugin(ScrollTrigger);
+
 interface LenisProviderProps {
   children: React.ReactNode;
-  options?: {
-    duration?: number;
-    easing?: (t: number) => number;
-    smoothWheel?: boolean;
-    wheelMultiplier?: number;
-    touchMultiplier?: number;
-    infinite?: boolean;
-  };
 }
 
-export function LenisProvider({ children, options = {} }: LenisProviderProps) {
+export function LenisProvider({
+  children,
+}: LenisProviderProps) {
   useEffect(() => {
+    // LENIS
     const lenis = new Lenis({
-      duration: options.duration ?? 1.2,
-      easing: options.easing ?? ((t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t))),
-      smoothWheel: options.smoothWheel ?? true,
-      wheelMultiplier: options.wheelMultiplier ?? 1,
-      touchMultiplier: options.touchMultiplier ?? 2,
-      infinite: options.infinite ?? false,
+      duration: 1.2,
+      smoothWheel: true,
+      wheelMultiplier: 1,
+      touchMultiplier: 2,
+      infinite: false,
     });
 
+    // RAF LOOP
+    function raf(time: number) {
+      lenis.raf(time);
+      requestAnimationFrame(raf);
+    }
+
+    requestAnimationFrame(raf);
+
+    // UPDATE GSAP ON SCROLL
     lenis.on('scroll', ScrollTrigger.update);
 
-    gsap.ticker.add((time) => {
-      lenis.raf(time * 1000);
-    });
-    gsap.ticker.lagSmoothing(0);
-
-    ScrollTrigger.scrollerProxy(window, {
+    // SCROLLER PROXY
+    ScrollTrigger.scrollerProxy(document.body, {
       scrollTop(value) {
         if (arguments.length) {
-          lenis.scrollTo(value, { immediate: true });
+          lenis.scrollTo(value as number, {
+            immediate: true,
+          });
         }
+
         return lenis.scroll;
       },
+
       getBoundingClientRect() {
         return {
           top: 0,
@@ -51,12 +55,22 @@ export function LenisProvider({ children, options = {} }: LenisProviderProps) {
           height: window.innerHeight,
         };
       },
+
+      pinType: document.body.style.transform
+        ? 'transform'
+        : 'fixed',
     });
+
+    // REFRESH
+    ScrollTrigger.addEventListener('refresh', () =>
+      lenis.resize()
+    );
 
     ScrollTrigger.refresh();
 
     return () => {
       lenis.destroy();
+      ScrollTrigger.killAll();
     };
   }, []);
 

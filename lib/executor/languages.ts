@@ -55,7 +55,7 @@ export async function executeOnPiston(
       results.runtime += runtime;
 
       if (data.run && data.run.code !== undefined) {
-        results.output = data.run.stdout || data.run.stderr || '';
+        results.output = data.run.stdout || '';
         const actual = results.output.trim();
 
         results.tests.push({
@@ -65,8 +65,12 @@ export async function executeOnPiston(
           passed: actual === tc.expected.trim(),
         });
 
-        if (data.run.stderr) {
-          results.error = data.run.stderr;
+        if (data.run.code !== 0) {
+          results.error = data.run.stderr || data.run.stdout || `Exit code ${data.run.code}`;
+          results.passed = false;
+        }
+        if (data.run.signal) {
+          results.error = `Execution terminated by signal: ${data.run.signal}`;
           results.passed = false;
         }
       } else {

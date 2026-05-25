@@ -23,7 +23,7 @@ const metrics = [
 ];
 
 // How many code lines to show at each breakpoint
-const VISIBLE_LINES = { sm: 5, md: 7, lg: 10 } as const;
+const VISIBLE_LINES = { sm: 3, md: 5, lg: 10 } as const;
 
 interface Props {
   className?: string;

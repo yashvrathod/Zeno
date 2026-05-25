@@ -105,34 +105,41 @@ export async function updateConceptMastery(
 export async function recordProblemAttempt(
   attempt: Omit<ProblemAttempt, 'date'>
 ): Promise<void> {
-  const kg = await prisma.userKnowledgeGraph.findUnique({
-    where: { userId: attempt.userId },
-  });
+  await prisma.$transaction(async (tx) => {
+    let kg = await tx.userKnowledgeGraph.findUnique({
+      where: { userId: attempt.userId },
+    });
+    if (!kg) {
+      kg = await tx.userKnowledgeGraph.create({
+        data: { userId: attempt.userId, strengths: [], weaknesses: [], learningTrajectory: [] },
+      });
+    }
 
-  const errorsJson = (attempt.errors || []).map(e => ({
-    type: e.type,
-    message: e.message,
-    line: e.line,
-    timestamp: e.timestamp,
-  }));
+    const errorsJson = (attempt.errors || []).map(e => ({
+      type: e.type,
+      message: e.message,
+      line: e.line,
+      timestamp: e.timestamp,
+    }));
 
-  await prisma.problemAttempt.create({
-    data: {
-      userId: kg?.id || attempt.userId,
-      problemId: attempt.problemId,
-      problemSlug: attempt.problemSlug,
-      concepts: attempt.concepts as string[],
-      patterns: attempt.patterns as string[],
-      attempts: attempt.attempts,
-      solved: attempt.solved,
-      timeSpent: attempt.timeSpent,
-      firstAttemptSuccess: attempt.firstAttemptSuccess,
-      hintCount: attempt.hintCount,
-      stageReached: attempt.stageReached as string,
-      rungReached: attempt.rungReached as number,
-      date: new Date(),
-      errors: errorsJson as any,
-    },
+    await tx.problemAttempt.create({
+      data: {
+        userId: kg.id,
+        problemId: attempt.problemId,
+        problemSlug: attempt.problemSlug,
+        concepts: attempt.concepts as string[],
+        patterns: attempt.patterns as string[],
+        attempts: attempt.attempts,
+        solved: attempt.solved,
+        timeSpent: attempt.timeSpent,
+        firstAttemptSuccess: attempt.firstAttemptSuccess,
+        hintCount: attempt.hintCount,
+        stageReached: attempt.stageReached as string,
+        rungReached: attempt.rungReached as number,
+        date: new Date(),
+        errors: errorsJson as any,
+      },
+    });
   });
 }
 

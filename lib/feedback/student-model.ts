@@ -5,7 +5,7 @@ import { aggregateScores, generateInsights } from "./response-scorer";
 const PROFILE_CACHE_TTL = 5 * 60 * 1000;
 const profileCache = new Map<string, { profile: StudentProfile; timestamp: number }>();
 
-export async function recordFeedback(feedback: FeedbackRecord): Promise<void> {
+export async function recordFeedback(feedback: FeedbackRecord & { stage?: string; rung?: number }): Promise<void> {
   try {
     await prisma.mentorFeedback.create({
       data: {
@@ -18,11 +18,14 @@ export async function recordFeedback(feedback: FeedbackRecord): Promise<void> {
         codeBefore: feedback.studentCodeBefore,
         codeAfter: feedback.studentCodeAfter,
         executionTraceAvailable: feedback.executionTraceAvailable,
+        stage: feedback.stage,
+        rung: feedback.rung,
       },
     });
 
     profileCache.delete(feedback.userId);
-  } catch {
+  } catch (e) {
+    console.warn("recordFeedback failed:", e);
   }
 }
 

@@ -25,6 +25,21 @@ const defaultLearningStyle: Record<string, unknown> = {
 // Default empty trajectory array
 const defaultTrajectory: unknown[] = [];
 
+async function ensureKnowledgeGraph(userId: string): Promise<{ id: string }> {
+  return prisma.userKnowledgeGraph.upsert({
+    where: { userId },
+    create: {
+      userId,
+      learningStyle: defaultLearningStyle as PrismaJson,
+      strengths: [],
+      weaknesses: [],
+      learningTrajectory: defaultTrajectory as PrismaJson,
+    },
+    update: {},
+    select: { id: true },
+  });
+}
+
 export type ExecutionStats = {
   passed: boolean;
   testResults: Array<{ passed: boolean; input: string; expected: string; actual: string }>;
@@ -218,20 +233,7 @@ async function updatePatternStrength(
   passed: boolean,
   runtime: number
 ): Promise<void> {
-  // Get or create UserKnowledgeGraph
-  let kg = await prisma.userKnowledgeGraph.findUnique({ where: { userId } });
-  if (!kg) {
-    // Use properly typed defaults
-  kg = await prisma.userKnowledgeGraph.create({
-      data: {
-        userId,
-        learningStyle: defaultLearningStyle as PrismaJson,
-        strengths: [] as string[],
-        weaknesses: [] as string[],
-        learningTrajectory: defaultTrajectory as PrismaJson,
-      },
-    });
-  }
+  const kg = await ensureKnowledgeGraph(userId);
 
   const patternType = pattern.toLowerCase().replace(/-/g, '') as any;
 
@@ -269,20 +271,7 @@ async function recordErrorPattern(
   userId: string,
   failedTest: { input: string; expected: string; actual: string }
 ): Promise<void> {
-  // Get or create UserKnowledgeGraph
-  let kg = await prisma.userKnowledgeGraph.findUnique({ where: { userId } });
-  if (!kg) {
-    // Use properly typed defaults
-  kg = await prisma.userKnowledgeGraph.create({
-      data: {
-        userId,
-        learningStyle: defaultLearningStyle as PrismaJson,
-        strengths: [] as string[],
-        weaknesses: [] as string[],
-        learningTrajectory: defaultTrajectory as PrismaJson,
-      },
-    });
-  }
+  await ensureKnowledgeGraph(userId);
 
   // Simple error type detection
   let errorType: string = 'logic_error';
@@ -319,7 +308,7 @@ async function updateProblemStats(
       runCount: { increment: 1 },
       lastStatus: passed ? 'ACCEPTED' : 'WRONG_ANSWER',
       lastError: passed ? null : 'Execution failed',
-      timeSpentSeconds: { increment: runtime / 1000 },
+      timeSpentSeconds: { increment: Math.min(Math.round(runtime / 1000), 60) },
       lastAt: new Date(),
     },
   });
@@ -329,34 +318,8 @@ async function getOrCreateConceptMastery(
   userId: string,
   conceptId: string
 ): Promise<{ mastery: number; practiceCount: number }> {
-  // First, find or create the UserKnowledgeGraph
-  let kg = await prisma.userKnowledgeGraph.findUnique({
-    where: { userId },
-  });
+  const kg = await ensureKnowledgeGraph(userId);
 
-  if (!kg) {
-    kg = await prisma.userKnowledgeGraph.create({
-      data: {
-        userId,
-        learningStyle: {
-          prefersVisual: false,
-          prefersExamples: true,
-          prefersTheory: false,
-          learnsByDoing: true,
-          needsStepByStep: false,
-          prefersAnalogy: false,
-          hintLevelPreference: 1,
-          explanationDensity: 'detailed',
-          feedbackTiming: 'immediate',
-        },
-        strengths: [],
-        weaknesses: [],
-        learningTrajectory: [],
-      },
-    });
-  }
-
-  // Now look up or create concept mastery using the knowledge graph ID
   const existing = await prisma.conceptMastery.findUnique({
     where: { userId_conceptId: { userId: kg.id, conceptId } },
   });
@@ -365,10 +328,10 @@ async function getOrCreateConceptMastery(
     return { mastery: existing.mastery, practiceCount: existing.practiceCount };
   }
 
-  const defaultMastery = 50; // Start at 50 for new concepts
-  await prisma.conceptMastery.create({
+  const defaultMastery = 50;
+  const created = await prisma.conceptMastery.create({
     data: {
-      userId: kg.id,  // Use knowledge graph ID
+      userId: kg.id,
       conceptId,
       mastery: defaultMastery,
       practiceCount: 0,
@@ -380,7 +343,7 @@ async function getOrCreateConceptMastery(
     },
   });
 
-  return { mastery: defaultMastery, practiceCount: 0 };
+  return { mastery: created.mastery, practiceCount: created.practiceCount };
 }
 
 async function getRecentAttempts(userId: string, conceptId: string, count: number): Promise<{ success: boolean }[]> {
@@ -398,9 +361,7 @@ async function getRecentAttempts(userId: string, conceptId: string, count: numbe
 }
 
 async function incrementConfidence(userId: string, conceptId: string): Promise<void> {
-  // Get or create UserKnowledgeGraph
-  let kg = await prisma.userKnowledgeGraph.findUnique({ where: { userId } });
-  if (!kg) return;
+  const kg = await ensureKnowledgeGraph(userId);
 
   await prisma.conceptMastery.update({
     where: { userId_conceptId: { userId: kg.id, conceptId } },
@@ -409,9 +370,7 @@ async function incrementConfidence(userId: string, conceptId: string): Promise<v
 }
 
 async function incrementDifficulty(userId: string, conceptId: string): Promise<void> {
-  // Get or create UserKnowledgeGraph
-  let kg = await prisma.userKnowledgeGraph.findUnique({ where: { userId } });
-  if (!kg) return;
+  const kg = await ensureKnowledgeGraph(userId);
 
   await prisma.conceptMastery.update({
     where: { userId_conceptId: { userId: kg.id, conceptId } },
@@ -420,9 +379,7 @@ async function incrementDifficulty(userId: string, conceptId: string): Promise<v
 }
 
 async function boostMastery(userId: string, conceptId: string, boost: number): Promise<void> {
-  // Get or create UserKnowledgeGraph
-  let kg = await prisma.userKnowledgeGraph.findUnique({ where: { userId } });
-  if (!kg) return;
+  const kg = await ensureKnowledgeGraph(userId);
 
   await prisma.conceptMastery.update({
     where: { userId_conceptId: { userId: kg.id, conceptId } },
@@ -431,9 +388,7 @@ async function boostMastery(userId: string, conceptId: string, boost: number): P
 }
 
 async function updateNextReviewDate(userId: string, conceptId: string, succeeded: boolean): Promise<void> {
-  // Get or create UserKnowledgeGraph
-  let kg = await prisma.userKnowledgeGraph.findUnique({ where: { userId } });
-  if (!kg) return;
+  const kg = await ensureKnowledgeGraph(userId);
 
   const mastery = await prisma.conceptMastery.findUnique({
     where: { userId_conceptId: { userId: kg.id, conceptId } },
@@ -451,32 +406,13 @@ async function updateNextReviewDate(userId: string, conceptId: string, succeeded
 }
 
 async function trackLearningStyle(userId: string, intent: string, wasHelpful: boolean): Promise<void> {
-  // Get or create UserKnowledgeGraph
-  let kg = await prisma.userKnowledgeGraph.findUnique({ where: { userId } });
-  if (!kg) {
-    kg = await prisma.userKnowledgeGraph.create({
-      data: {
-        userId,
-        learningStyle: {
-          prefersVisual: false,
-          prefersExamples: true,
-          prefersTheory: false,
-          learnsByDoing: true,
-          needsStepByStep: false,
-          prefersAnalogy: false,
-          hintLevelPreference: 1,
-          explanationDensity: 'detailed',
-          feedbackTiming: 'immediate',
-        },
-        strengths: [],
-        weaknesses: [],
-        learningTrajectory: [],
-      },
-    });
-    return;
-  }
+  const kg = await ensureKnowledgeGraph(userId);
 
-  const style = (kg.learningStyle as any) || {};
+  const fullKg = await prisma.userKnowledgeGraph.findUnique({
+    where: { id: kg.id },
+    select: { learningStyle: true },
+  });
+  const style = (fullKg?.learningStyle as any) || {};
 
   // Update based on what worked
   if (wasHelpful) {
@@ -499,19 +435,7 @@ async function recordProblemAttempt(
   hintCount: number,
   solved: boolean
 ): Promise<void> {
-  let kg = await prisma.userKnowledgeGraph.findUnique({ where: { userId } });
-  if (!kg) {
-    // Use properly typed defaults
-  kg = await prisma.userKnowledgeGraph.create({
-      data: {
-        userId,
-        learningStyle: defaultLearningStyle as PrismaJson,
-        strengths: [] as string[],
-        weaknesses: [] as string[],
-        learningTrajectory: defaultTrajectory as PrismaJson,
-      },
-    });
-  }
+  const kg = await ensureKnowledgeGraph(userId);
 
   await prisma.problemAttempt.create({
     data: {

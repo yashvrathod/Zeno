@@ -212,11 +212,16 @@ export function reportKeyFailure(
  * Resets consecutive failure counter.
  */
 export function reportKeySuccess(
-  _provider: string,
-  _key: string
+  provider: string,
+  succeededKey: string
 ): void {
-  // Only need to reset consecutive failures — we don't track per-key
-  // in production since the pool already handles health recovery
+  const envPrefix = provider === "openrouter" ? "OPENROUTER_API_KEY" : "GROQ_API_KEY";
+  const pool = getOrCreatePool(provider, envPrefix);
+  const entry = pool.keys.find((k) => k.key === succeededKey);
+  if (entry) {
+    entry.consecutiveFailures = 0;
+    entry.isHealthy = true;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────

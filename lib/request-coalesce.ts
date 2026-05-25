@@ -22,12 +22,11 @@ function ensureCleanup() {
 export async function coalesce<T>(
   key: string,
   fn: () => Promise<T>
-): Promise<boolean> {
+): Promise<T> {
   const existing = inFlight.get(key);
   if (existing) {
     if (Date.now() - existing.createdAt < MAX_STALE_AGE_MS) {
-      await existing.promise;
-      return false;
+      return existing.promise as Promise<T>;
     }
     inFlight.delete(key);
   }
@@ -47,5 +46,5 @@ export async function coalesce<T>(
 
   inFlight.set(key, { promise, createdAt: Date.now() });
 
-  return true;
+  return promise as Promise<T>;
 }

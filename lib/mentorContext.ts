@@ -23,8 +23,10 @@ type MentorRequest = {
   history?: HistoryMsg[];
 };
 
+import type { LearningRung, TeachingStage } from "@/types/mentor";
+
 // Re-export canonical types from types/mentor.ts to avoid duplication
-export type { LearningRung, TeachingStage } from "@/types/mentor";
+export type { LearningRung, TeachingStage };
 
 export type ConversationTone =
   | "encouraging"

@@ -93,7 +93,8 @@ ${input}`;
     },
   };
 
-  const url = `${GEMINI_BASE_URL}/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+  const url = `${GEMINI_BASE_URL}/${GEMINI_MODEL}:generateContent`;
+  // Use x-goog-api-key header instead of query param to avoid key leakage in logs
 
   // Save what was sent
   debug.sent = prompt.slice(0, 500);
@@ -101,7 +102,7 @@ ${input}`;
   try {
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
       body: JSON.stringify(requestBody),
     });
 

@@ -29,7 +29,7 @@ export async function searchCache(
     currentRung?: number;
   }
 ): Promise<{ entry: CacheEntry; similarity: number } | null> {
-  const questionMd5 = await computeMd5Hash(input);
+  const questionMd5 = await computeHash(input);
 
   try {
     const exactMatch = await prisma.cacheEntry.findFirst({
@@ -140,7 +140,7 @@ export async function saveToCache(params: {
   }
 
   const embedding = params.embedding ?? await getEmbedding(question);
-  const questionMd5 = await computeMd5Hash(question);
+  const questionMd5 = await computeHash(question);
   const pgvectorAvailable = await isPgvectorAvailable();
 
   if (pgvectorAvailable) {
@@ -198,7 +198,7 @@ export async function getCacheStats(params?: {
   return { totalEntries, avgUsedCount, staleEntries };
 }
 
-export async function computeMd5Hash(text: string): Promise<string> {
+export async function computeHash(text: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(text);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
@@ -222,5 +222,5 @@ function isStageRungCompatible(
 function incrementUsage(id: string, similarity?: number): void {
   const data: any = { usedCount: { increment: 1 } };
   if (similarity !== undefined) data.similarity = similarity;
-  prisma.cacheEntry.update({ where: { id }, data }).catch(() => {});
+  prisma.cacheEntry.update({ where: { id }, data }).catch((e) => console.warn("incrementUsage failed:", e));
 }

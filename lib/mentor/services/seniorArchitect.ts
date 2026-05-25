@@ -76,18 +76,21 @@ export async function triggerArchitectReview(params: {
     try {
       const summary = await prisma.mentorConversationSummary.findUnique({
         where: { userId_problemId: { userId, problemId } },
-        select: { summaryMd: true },
+        select: { summaryMd: true, approachNotesMd: true },
       });
-      if (summary?.summaryMd) {
+      const architectJson = summary?.approachNotesMd || (summary?.summaryMd?.startsWith('{') ? summary.summaryMd : null);
+      if (architectJson) {
         try {
-          const parsed = JSON.parse(summary.summaryMd);
+          const parsed = JSON.parse(architectJson);
           if (parsed.architectReview && parsed.codeHash === codeHash) {
             console.debug("[ARCHITECT_REVIEW] Code unchanged since last review — returning cached result");
             return parsed.architectReview as ArchitectReview;
           }
         } catch {}
       }
-    } catch {}
+    } catch (e) {
+      console.warn("Architect cache lookup failed:", e);
+    }
   }
 
   // Resolve AI provider
@@ -248,22 +251,10 @@ async function persistArchitectReview(
   codeHash?: string,
 ): Promise<void> {
   try {
-    const existingSummary = await prisma.mentorConversationSummary.findUnique({
-      where: { userId_problemId: { userId, problemId } },
-      select: { summaryMd: true },
-    });
-
-    let parsed: Record<string, unknown> = {};
-    if (existingSummary?.summaryMd) {
-      try { parsed = JSON.parse(existingSummary.summaryMd); } catch {}
-    }
-    parsed.architectReview = review;
-    parsed.reviewedAt = new Date().toISOString();
-    if (codeHash) parsed.codeHash = codeHash;
-
+    const reviewData = { architectReview: review, reviewedAt: new Date().toISOString(), codeHash };
     await prisma.mentorConversationSummary.update({
       where: { userId_problemId: { userId, problemId } },
-      data: { summaryMd: JSON.stringify(parsed) },
+      data: { approachNotesMd: JSON.stringify(reviewData) },
     });
   } catch {
     // Non-critical: don't fail if persistence fails

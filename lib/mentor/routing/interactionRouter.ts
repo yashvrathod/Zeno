@@ -14,7 +14,8 @@ import { searchCache } from "./cacheManager";
 export async function routeInteraction(
   input: string,
   session: MentorSession & { messages: Array<{ role: string; content: string }> },
-  problem: Problem & { meta: ProblemMeta }
+  problem: Problem & { meta: ProblemMeta },
+  currentRung: number = 1,
 ): Promise<RouteDecision> {
   const timer = startTimer("routeInteraction");
   debug.mentor("routeInteraction called", { stage: session.stage, userId: session.userId.slice(0, 8) + "..." });
@@ -87,7 +88,7 @@ export async function routeInteraction(
 
   const cacheHit = await searchCache(input, session.problemId, embedding, {
     currentStage: session.stage,
-    currentRung: (session as any).currentRung ?? 1,
+    currentRung,
   });
 
   if (cacheHit) {
