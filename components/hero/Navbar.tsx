@@ -26,9 +26,9 @@ function NavDropdown({ label, items }: NavDropdownProps) {
       onMouseEnter={() => setIsOpen(true)}
       onMouseLeave={() => setIsOpen(false)}
     >
-      <button className="flex items-center gap-1.5 text-[15px] text-zinc-700 hover:text-zinc-900 transition-colors font-medium">
+      <button className="flex items-center gap-1.5 text-[17px] text-zinc-700 hover:text-zinc-900 transition-colors font-semibold tracking-tight">
         {label}
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
       {isOpen && (
         <motion.div
@@ -42,7 +42,7 @@ function NavDropdown({ label, items }: NavDropdownProps) {
             <Link
               key={item.label}
               href={item.href}
-              className="block px-5 py-2.5 text-[15px] text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 transition-colors"
+              className="block px-5 py-2.5 text-[17px] text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 transition-colors"
             >
               {item.label}
             </Link>
@@ -157,18 +157,21 @@ export default function Navbar() {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.4 }}
             >
-              <Link href="/" className="flex items-center">
+              <Link href="/" className="flex items-center gap-2.5 group">
                 <img
-                  src="/ui/imwewage.png"
-                  alt="Scale AI"
-                  className="h-5 sm:h-6 w-auto"
+                  src="/logo.png"
+                  alt="neXode"
+                  className="h-8 sm:h-9 w-auto drop-shadow-[0_0_8px_rgba(139,92,246,0.3)] group-hover:drop-shadow-[0_0_14px_rgba(139,92,246,0.5)] transition-all duration-300"
                 />
+                <span className="text-[22px] sm:text-[24px] font-extrabold tracking-tight text-zinc-900">
+                  ne<span className="text-violet-500">X</span>ode
+                </span>
               </Link>
             </motion.div>
 
             {/* Desktop Nav Links */}
             <motion.div
-              className="hidden lg:flex items-center gap-10"
+              className="hidden lg:flex items-center gap-12"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.4, delay: 0.1 }}
@@ -187,7 +190,7 @@ export default function Navbar() {
             >
               <Link
                 href="/auth/signin"
-                className="h-11 px-4 sm:px-5 flex items-center rounded-xl text-[15px] font-medium text-zinc-700 hover:bg-black/[0.03] dark:text-zinc-400 dark:hover:bg-white/5 transition-colors"
+                className="h-12 px-5 sm:px-6 flex items-center rounded-xl text-[17px] font-semibold text-zinc-700 hover:bg-black/[0.03] dark:text-zinc-400 dark:hover:bg-white/5 transition-colors"
               >
                 <span className="hidden sm:inline">Log In</span>
                 <span className="sm:hidden">Log in</span>
@@ -195,9 +198,9 @@ export default function Navbar() {
 
               <Link
                 href="/demo"
-                className="h-11 px-4 sm:px-5 flex items-center rounded-xl bg-black dark:bg-white text-white dark:text-black text-[15px] font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-colors"
+                className="h-12 px-5 sm:px-6 flex items-center rounded-xl bg-gradient-to-r from-indigo-600 via-violet-500 to-purple-600 text-white text-[17px] font-semibold hover:shadow-[0_0_24px_rgba(139,92,246,0.35)] transition-all duration-300"
               >
-                Book Demo
+                Get Started
               </Link>
 
               {/* Hamburger — visible below lg */}
@@ -234,7 +237,12 @@ export default function Navbar() {
             >
               <div className="px-6 py-8">
                 <div className="flex items-center justify-between mb-8">
-                  <span className="text-sm font-semibold text-zinc-500 tracking-widest uppercase">Menu</span>
+                  <Link href="/" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2.5">
+                    <img src="/logo.png" alt="neXode" className="h-7 w-auto" />
+                    <span className="text-lg font-extrabold tracking-tight text-zinc-900">
+                      ne<span className="text-violet-500">X</span>ode
+                    </span>
+                  </Link>
                   <button
                     onClick={() => setMobileMenuOpen(false)}
                     className="w-10 h-10 flex items-center justify-center rounded-full bg-zinc-100 text-zinc-600"
@@ -246,7 +254,7 @@ export default function Navbar() {
                 <div className="space-y-6">
                   {NAV_SECTIONS.map((section) => (
                     <div key={section.label}>
-                      <span className="text-xs font-semibold text-zinc-400 tracking-widest uppercase block mb-3">
+                      <span className="text-sm font-semibold text-zinc-400 tracking-widest uppercase block mb-3">
                         {section.label}
                       </span>
                       <div className="space-y-1">
@@ -255,7 +263,7 @@ export default function Navbar() {
                             key={item.label}
                             href={item.href}
                             onClick={() => setMobileMenuOpen(false)}
-                            className="block py-2.5 text-[17px] font-medium text-zinc-800 hover:text-black transition-colors"
+                            className="block py-2.5 text-[19px] font-semibold text-zinc-800 hover:text-black transition-colors"
                           >
                             {item.label}
                           </Link>
@@ -268,16 +276,16 @@ export default function Navbar() {
                   <Link
                     href="/auth/signin"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="w-full h-12 flex items-center justify-center rounded-xl border border-zinc-200 text-[15px] font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+                    className="w-full h-13 flex items-center justify-center rounded-xl border border-zinc-200 text-[17px] font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors"
                   >
                     Log In
                   </Link>
                   <Link
                     href="/demo"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="w-full h-12 flex items-center justify-center rounded-xl bg-black text-white text-[15px] font-medium hover:bg-zinc-800 transition-colors"
+                    className="w-full h-13 flex items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 via-violet-500 to-purple-600 text-white text-[17px] font-semibold hover:shadow-[0_0_24px_rgba(139,92,246,0.35)] transition-all"
                   >
-                    Book Demo
+                    Get Started
                   </Link>
                 </div>
               </div>

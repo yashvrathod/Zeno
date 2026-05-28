@@ -39,7 +39,7 @@ export default function Home() {
   return (
     <div
       ref={pageRef} 
-      className="relative bg-white min-h-screen"
+      className="relative bg-black min-h-screen"
     >
       {/* Black Background Overlay (Optimized Transition) */}
       <div 
