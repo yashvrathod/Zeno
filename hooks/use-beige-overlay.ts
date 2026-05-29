@@ -65,7 +65,7 @@ export function useBeigeOverlay({
       ScrollTrigger.create({
         trigger: bottomSectionRef.current,
         start: 'top top',
-        end: '+=100%',
+        end: '+=80%',
         onUpdate: (self) => {
           waveProgressRef.current = self.progress;
         },

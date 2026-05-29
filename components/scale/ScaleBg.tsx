@@ -26,7 +26,7 @@ const ScaleBg = forwardRef<HTMLDivElement>((_, ref) => {
 
       {/* Massive atmospheric lighting */}
       <div
-        className="absolute -top-[25%] left-[-10%] h-[900px] w-[900px] rounded-full"
+        className="absolute -top-[25%] left-[-10%] h-[150vw] w-[150vw] max-h-[900px] max-w-[900px] rounded-full"
         style={{
           background:
             'radial-gradient(circle, rgba(255,255,255,0.08) 0%, rgba(255,220,180,0.05) 18%, transparent 62%)',
@@ -36,7 +36,7 @@ const ScaleBg = forwardRef<HTMLDivElement>((_, ref) => {
       />
 
       <div
-        className="absolute top-[5%] right-[-12%] h-[850px] w-[850px] rounded-full"
+        className="absolute top-[5%] right-[-12%] h-[130vw] w-[130vw] max-h-[850px] max-w-[850px] rounded-full"
         style={{
           background:
             'radial-gradient(circle, rgba(120,170,255,0.10) 0%, rgba(170,120,255,0.08) 22%, transparent 65%)',
@@ -47,7 +47,7 @@ const ScaleBg = forwardRef<HTMLDivElement>((_, ref) => {
 
       {/* Cinematic center glow */}
       <div
-        className="absolute left-1/2 top-1/2 h-[1200px] w-[1200px] -translate-x-1/2 -translate-y-1/2 rounded-full"
+        className="absolute left-1/2 top-1/2 h-[200vw] w-[200vw] max-h-[1200px] max-w-[1200px] -translate-x-1/2 -translate-y-1/2 rounded-full"
         style={{
           background:
             'radial-gradient(circle, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.015) 28%, transparent 70%)',
@@ -121,10 +121,8 @@ const ScaleBg = forwardRef<HTMLDivElement>((_, ref) => {
 
       {/* Glass atmosphere */}
       <div
-        className="absolute inset-0 backdrop-blur-[90px]"
-        style={{
-          WebkitBackdropFilter: 'blur(90px)',
-        }}
+        className="absolute inset-0 backdrop-blur-[20px] md:backdrop-blur-[40px]"
+        style={{ transform: 'translateZ(0)' }}
       />
     </div>
   );

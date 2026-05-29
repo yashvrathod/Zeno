@@ -79,12 +79,12 @@ export default function CodeAnalysisCard() {
   return (
     <div className="relative w-full h-full rounded-[28px] overflow-hidden border border-white/[0.06] bg-[#0c0c0e] shadow-[0_40px_120px_rgba(0,0,0,0.8)]">
       {/* Ambient */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-[25%] left-[-10%] h-[320px] w-[320px] rounded-full blur-[120px] opacity-40"
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ transform: 'translateZ(0)' }}>
+        <div className="absolute -top-[25%] left-[-10%] h-[320px] w-[320px] rounded-full blur-[60px] opacity-40"
           style={{ background: "radial-gradient(circle, rgba(139,157,195,0.12) 0%, transparent 70%)" }} />
-        <div className="absolute top-[10%] right-[-8%] h-[260px] w-[260px] rounded-full blur-[120px] opacity-30"
+        <div className="absolute top-[10%] right-[-8%] h-[260px] w-[260px] rounded-full blur-[60px] opacity-30"
           style={{ background: "radial-gradient(circle, rgba(176,196,222,0.08) 0%, transparent 70%)" }} />
-        <div className="absolute bottom-[-15%] left-[30%] h-[240px] w-[240px] rounded-full blur-[100px] opacity-25"
+        <div className="absolute bottom-[-15%] left-[30%] h-[240px] w-[240px] rounded-full blur-[50px] opacity-25"
           style={{ background: "radial-gradient(circle, rgba(139,157,195,0.08) 0%, transparent 70%)" }} />
       </div>
 

@@ -136,7 +136,7 @@ const NAV_SECTIONS = [
   },
 ];
 
-export default function Navbar() {
+export default function Navbar({ initialLight = false }: { initialLight?: boolean }) {
   const navRef = useRef<HTMLElement>(null);
 
   const [scrolled, setScrolled] = useState(false);
@@ -155,6 +155,8 @@ export default function Navbar() {
 
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const isDark = scrolled || !initialLight;
 
   return (
     <>
@@ -180,13 +182,13 @@ export default function Navbar() {
                   src="/logo.png"
                   alt="neXode"
                   className={`h-8 w-auto transition-all duration-500 ${
-                    scrolled ? 'brightness-0 invert' : ''
+                    isDark ? 'brightness-0 invert' : ''
                   }`}
                 />
 
                 <span
                   className={`text-[24px] font-black tracking-[-0.04em] transition-all duration-500 ${
-                    scrolled ? 'text-white' : 'text-zinc-900'
+                    isDark ? 'text-white' : 'text-zinc-900'
                   }`}
                 >
                   ne
@@ -211,7 +213,7 @@ export default function Navbar() {
                   key={section.label}
                   label={section.label}
                   items={section.items}
-                  dark={scrolled}
+                  dark={isDark}
                 />
               ))}
             </motion.div>
@@ -229,7 +231,7 @@ export default function Navbar() {
               <Link
                 href="/auth/signin"
                 className={`hidden sm:flex h-11 items-center rounded-full px-5 text-[15px] font-medium transition-all duration-300 ${
-                  scrolled
+                  isDark
                     ? 'text-white/65 hover:text-white'
                     : 'text-zinc-700 hover:text-black'
                 }`}
@@ -240,7 +242,7 @@ export default function Navbar() {
               <Link
                 href="/demo"
                 className={`group relative flex h-11 items-center overflow-hidden rounded-full px-5 text-[15px] font-semibold transition-all duration-300 ${
-                  scrolled
+                  isDark
                     ? 'border border-white/10 text-white hover:border-white/20'
                     : 'bg-black text-white hover:bg-zinc-800'
                 }`}
@@ -258,7 +260,7 @@ export default function Navbar() {
               <button
                 onClick={() => setMobileMenuOpen(true)}
                 className={`lg:hidden flex h-11 w-11 items-center justify-center rounded-full transition-all duration-300 ${
-                  scrolled
+                  isDark
                     ? 'text-white/70 hover:text-white'
                     : 'text-zinc-700 hover:text-black'
                 }`}

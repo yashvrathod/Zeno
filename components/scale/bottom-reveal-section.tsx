@@ -20,7 +20,7 @@ export const BottomRevealSection = forwardRef<HTMLDivElement, BottomRevealSectio
     return (
       <section
         ref={sectionRef}
-        className="relative z-30 w-full overflow-hidden mt-[-10vh] sm:mt-[-15vh] lg:mt-[-22vh]"
+        className="relative w-full overflow-hidden"
       >
         <div className="relative w-full min-h-screen flex flex-col lg:flex-row items-end gap-5 sm:gap-7 lg:gap-8 px-4 sm:px-8 lg:px-12 pb-6 sm:pb-10">
           <div
@@ -62,41 +62,51 @@ export const BottomRevealSection = forwardRef<HTMLDivElement, BottomRevealSectio
 
           <div
             ref={greenCardRef}
-            className="relative w-full rounded-[2rem] sm:rounded-[2.5rem] overflow-hidden border border-white/10 shadow-[0_25px_100px_rgba(0,0,0,0.45)]"
+            className="relative w-full rounded-[2rem] sm:rounded-[3.2rem] overflow-hidden border border-white/10 shadow-[0_40px_120px_rgba(0,0,0,0.5)]"
           >
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_35%),linear-gradient(135deg,#0a2d1f_0%,#103a28_45%,#071811_100%)]" />
+            {/* Premium cinematic background */}
+            <div className="absolute inset-0 bg-[#060807]" />
+            <div className="absolute inset-0 opacity-40 bg-[radial-gradient(circle_at_0%_0%,rgba(16,185,129,0.15),transparent_40%)]" />
+            <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_100%_100%,rgba(59,130,246,0.1),transparent_40%)]" />
 
-            <div className="relative z-10 p-8 sm:p-12 md:p-16 lg:p-20 xl:p-24 flex flex-col justify-between min-h-[420px] sm:min-h-[500px] lg:min-h-[620px]">
-              <div className="mb-10">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 backdrop-blur-md">
-                  <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                  Trusted AI Infrastructure
+            {/* Futuristic Grid Overlay */}
+            <div className="absolute inset-0 opacity-[0.03] mix-blend-overlay"
+              style={{
+                backgroundImage: `linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)`,
+                backgroundSize: '40px 40px'
+              }}
+            />
+
+            <div className="relative z-10 p-8 sm:p-14 md:p-20 lg:p-24 xl:p-28 flex flex-col justify-between min-h-[500px] sm:min-h-[600px] lg:min-h-[720px]">
+              <div className="mb-14">
+                <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-[11px] uppercase tracking-[0.2em] text-white/60 backdrop-blur-xl shadow-[0_0_20px_rgba(0,0,0,0.2)]">
+                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse" />
+                  Scalable AI Architecture
                 </div>
               </div>
 
               <div>
-                <h2 className="max-w-6xl text-[#f5f5f0] font-medium tracking-[-0.04em] leading-[0.92] text-[clamp(2.7rem,7vw,7rem)]">
-                  90% of the world&apos;s leading generative AI model builders are powered by{' '}
-                  <span className="bg-gradient-to-r from-[#b8ffda] via-[#c7f9ff] to-[#d6bcfa] bg-clip-text text-transparent">
-                    Scale
-                  </span>
-                  .
+                <h2 className="max-w-6xl text-white font-semibold tracking-[-0.045em] leading-[0.9] text-[clamp(2.8rem,7.5vw,7.5rem)]">
+                  Built for the world&apos;s most <br className="hidden sm:block" />
+                  <span className="bg-gradient-to-r from-emerald-300 via-blue-300 to-violet-300 bg-clip-text text-transparent">
+                    Ambitious AI
+                  </span> Builders.
                 </h2>
 
-                <p className="mt-6 max-w-2xl text-white/60 text-base sm:text-lg leading-relaxed">
-                  Build, fine-tune, and deploy advanced AI systems with enterprise-grade infrastructure
-                  and elegant developer workflows.
+                <p className="mt-8 max-w-2xl text-white/50 text-base sm:text-xl font-light leading-relaxed">
+                  Join the engineers creating the next generation of generative models with
+                  infrastructure that scales effortlessly from prototype to global inference.
                 </p>
               </div>
 
-              <div className="mt-12 grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-6">
+              <div className="mt-16 flex flex-wrap gap-4 sm:gap-8">
                 {stats.map((item) => (
                   <div
                     key={item.label}
-                    className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-xl p-4 sm:p-5"
+                    className="flex flex-col gap-1"
                   >
-                    <div className="text-2xl sm:text-3xl font-semibold text-white">{item.value}</div>
-                    <div className="mt-1 text-sm text-white/50">{item.label}</div>
+                    <div className="text-3xl sm:text-5xl font-medium text-white tracking-tight">{item.value}</div>
+                    <div className="text-[10px] uppercase tracking-[0.25em] text-white/30 font-medium">{item.label}</div>
                   </div>
                 ))}
               </div>

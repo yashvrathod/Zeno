@@ -40,7 +40,7 @@ export function useBottomReveal({
         scrollTrigger: {
           trigger: section,
           start: 'top top',
-          end: '+=200%',
+          end: '+=900%',
           scrub: 1.2,
           pin: true,
           anticipatePin: 1,
@@ -54,7 +54,7 @@ export function useBottomReveal({
 
       tl.to(
         imgSlideRef.current,
-        { y: '-45%', ease: 'power3.inOut', duration: 1.5 },
+        { y: '-45%', ease: 'power3.inOut', duration: 2 },
         'slide+=0.8',
       );
 

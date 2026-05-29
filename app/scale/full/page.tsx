@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { ScaleBg, Navbar } from '@/components/scale';
 import { HeroSection } from '@/components/scale/hero-section';
 import { CodeShowcaseSection } from '@/components/scale/code-showcase-section';
@@ -8,10 +9,12 @@ import { BottomRevealSection } from '@/components/scale/bottom-reveal-section';
 import { BeigeOverlay } from '@/components/scale/beige-overlay';
 import { DarkFooter } from '@/components/scale/dark-footer';
 import { useHeroTimeline } from '@/hooks/use-hero-timeline';
-import { useCodeShowcase } from '@/hooks/use-code-showcase';
+
 import { useBottomReveal } from '@/hooks/use-bottom-reveal';
 import { useBeigeOverlay } from '@/hooks/use-beige-overlay';
 import { useFooterEntrance } from '@/hooks/use-footer-entrance';
+
+const GooeyShowcase = dynamic(() => import('@/components/scale/GooeyShowcase'), { ssr: false });
 
 export default function ScaleFullPage() {
   const sectionRef = useRef<HTMLDivElement>(null);
@@ -31,8 +34,7 @@ export default function ScaleFullPage() {
   const greenCardRef = useRef<HTMLDivElement>(null);
   const bottomSectionRef = useRef<HTMLDivElement>(null);
   const showcaseSectionRef = useRef<HTMLDivElement>(null);
-  const showcaseCardRef = useRef<HTMLDivElement>(null);
-  const showcaseTextRef = useRef<HTMLDivElement>(null);
+  const gooeyRef = useRef<HTMLDivElement>(null);
   const waveProgressRef = useRef(0);
   const footerRef = useRef<HTMLDivElement>(null);
 
@@ -47,12 +49,6 @@ export default function ScaleFullPage() {
     typeRef2,
   });
 
-  useCodeShowcase({
-    sectionRef: showcaseSectionRef,
-    cardRef: showcaseCardRef,
-    textRef: showcaseTextRef,
-  });
-
   useBottomReveal({ imgSlideRef, oldLabelRef, newLabelRef, greenCardRef });
 
   useBeigeOverlay({ beigeWrapRef, bottomSectionRef, footerRef, waveProgressRef });
@@ -62,7 +58,7 @@ export default function ScaleFullPage() {
   return (
     <main
       ref={mainRef}
-      className="relative min-h-screen bg-white overflow-x-hidden"
+      className="relative min-h-screen bg-white"
     >
       <div className="absolute inset-0 bg-white z-0" />
       <ScaleBg ref={bgRef} />
@@ -80,11 +76,11 @@ export default function ScaleFullPage() {
           typeRef2={typeRef2}
         />
 
-        <CodeShowcaseSection
-          ref={showcaseSectionRef}
-          cardRef={showcaseCardRef}
-          textRef={showcaseTextRef}
-        />
+        <CodeShowcaseSection ref={showcaseSectionRef} />
+
+        <div className="relative w-full">
+          <GooeyShowcase ref={gooeyRef} />
+        </div>
 
         <BottomRevealSection
           ref={bottomSectionRef}

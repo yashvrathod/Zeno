@@ -104,9 +104,9 @@ export const HeroSection = forwardRef<HTMLDivElement, HeroSectionProps>(
                     AI <span className="italic font-semibold tracking-[0.25em]">DSA</span> Mentor
                 </div>
             </div>
-            <h1 className="text-[clamp(3.5rem,7vw,6rem)] font-semibold tracking-tight leading-[0.95] text-white whitespace-nowrap">
-              <span className="bg-[linear-gradient(to_bottom,#ffffff,#ffffffcc,#ffffff55)] bg-clip-text text-transparent">ENGINEER YOUR</span>
-              <span ref={rotatingRef} className="relative inline-block overflow-hidden h-[1em] align-top italic"
+            <h1 className="text-[clamp(2.5rem,8vw,6rem)] font-semibold tracking-tight leading-[0.95] text-white flex flex-col sm:block items-center sm:items-start text-center sm:text-left">
+              <span className="bg-[linear-gradient(to_bottom,#ffffff,#ffffffcc,#ffffff55)] bg-clip-text text-transparent sm:mr-4">ENGINEER YOUR</span>
+              <span ref={rotatingRef} className="relative inline-block overflow-hidden h-[1em] align-top italic mt-2 sm:mt-0"
                 style={{ perspective: '400px' }}>
                 <span ref={rotatingInnerRef} className="block">
                   {ROTATING_WORDS.map((w) => (
@@ -117,24 +117,24 @@ export const HeroSection = forwardRef<HTMLDivElement, HeroSectionProps>(
                 </span>
               </span>
             </h1>
-            <p className="text-[clamp(0.95rem,1.5vw,1.15rem)] text-white max-w-2xl mt-6 leading-relaxed">
+            <p className="text-[clamp(0.9rem,1.5vw,1.15rem)] text-white max-w-2xl mt-8 leading-relaxed px-4 sm:px-0">
               Master every DSA pattern with AI-powered guidance and real interview-level challenges.
             </p>
-            <p className="text-[clamp(0.8rem,1.05vw,0.9rem)] text-white/70 mt-3">
+            <p className="text-[clamp(0.75rem,1.05vw,0.9rem)] text-white/70 mt-4">
               No credit card required. Start solving in 60 seconds.
             </p>
-            <div className="flex items-center justify-center gap-4 mt-10">
-              <button className="px-10 py-3.5 rounded-full text-[clamp(0.85rem,1.1vw,0.95rem)] font-semibold tracking-wider text-white
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10 w-full px-6 sm:px-0">
+              <button className="w-full sm:w-auto px-10 py-3.5 rounded-full text-[clamp(0.85rem,1.1vw,0.95rem)] font-semibold tracking-wider text-white
                 bg-gradient-to-r from-[#a78bfa] via-[#f472b6] to-[#fb923c]
                 hover:shadow-[0_0_30px_-5px_rgba(167,139,250,0.5)] transition-shadow duration-300">
                 Start for free
               </button>
-              <button className="px-10 py-3.5 rounded-full text-[clamp(0.85rem,1.1vw,0.95rem)] font-semibold tracking-wider text-white/70 border border-white/20
+              <button className="w-full sm:w-auto px-10 py-3.5 rounded-full text-[clamp(0.85rem,1.1vw,0.95rem)] font-semibold tracking-wider text-white/70 border border-white/20
                 hover:bg-white/5 hover:text-white transition-colors duration-300">
                 Explore patterns
               </button>
             </div>
-            <div className="flex items-center justify-center gap-8 mt-12">
+            <div className="hidden sm:flex items-center justify-center gap-8 mt-12">
               {['DSA Patterns', 'AI-Guided', 'Interview Ready'].map((item) => (
                 <span key={item} className="flex items-center gap-2 text-[clamp(0.75rem,0.9vw,0.85rem)] uppercase tracking-[0.2em] text-white/50">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#a78bfa]" />
@@ -201,9 +201,10 @@ export const HeroSection = forwardRef<HTMLDivElement, HeroSectionProps>(
   ref={typeRef}
   className="
     absolute z-20 pointer-events-none
-    left-[8%] top-1/2 -translate-y-1/2
-    w-[85%] sm:w-[560px]
-    text-left
+    left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2
+    w-full px-6
+    sm:left-[8%] sm:-translate-x-0 sm:w-[560px] sm:px-0
+    text-center sm:text-left
 
     opacity-0 translate-y-6
   "
@@ -512,9 +513,10 @@ export const HeroSection = forwardRef<HTMLDivElement, HeroSectionProps>(
   ref={typeRef2}
   className="
     absolute z-20 pointer-events-none
-    right-[8%] top-1/4
-    w-[85%] sm:w-[540px]
-    text-left
+    left-1/2 -translate-x-1/2 top-1/4
+    w-full px-6
+    sm:right-[8%] sm:left-auto sm:-translate-x-0 sm:w-[540px] sm:px-0
+    text-center sm:text-left
 
     opacity-0 translate-y-6
   "

@@ -32,7 +32,7 @@ export function useCodeShowcase({ sectionRef, cardRef, textRef }: UseCodeShowcas
         scrollTrigger: {
           trigger: section,
           start: 'top top',
-          end: '+=250%',
+          end: '+=180%',
           pin: true,
           scrub: 1.2,
           anticipatePin: 1,

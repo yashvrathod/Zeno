@@ -59,10 +59,14 @@ export function useHeroTimeline({
       scrollTrigger: {
         trigger: sectionRef.current,
         start: 'top top',
-        end: '+=1600%',
+        end: '+=1100%',
         pin: true,
-        scrub: 1,
+        scrub: 0.5,
       },
+      defaults: {
+        force3D: true,
+        ease: 'power2.out',
+      }
     });
 
     tl.to(wordsRef.current, { opacity: 1, duration: 0.4 }, 1.2);
@@ -72,9 +76,8 @@ export function useHeroTimeline({
       {
         opacity: 1,
         y: 0,
-        stagger: 0.03,
-        ease: 'power3.out',
-        duration: 0.8,
+        stagger: 0.02,
+        duration: 0.6,
       },
       1.3,
     );
@@ -84,10 +87,8 @@ export function useHeroTimeline({
       {
         autoAlpha: 1,
         rotateX: 0,
-        filter: 'blur(0px)',
-        stagger: { each: 0.15 },
-        duration: 1.5,
-        ease: 'expo.out',
+        stagger: { each: 0.1 },
+        duration: 1.2,
       },
       1.25,
     );
@@ -215,12 +216,10 @@ export function useHeroTimeline({
     tl.to(
       stackRef.current,
       {
-        x: '12vw',
-        ...(!isMobile ? { y: '15vh' } : {}),
+        x: isMobile ? '0' : '15vw',
+        y: isMobile ? '28vh' : '15vh',
+        scale: isMobile ? 0.5 : 1,
         z: 80,
-        // rotationZ:20,
-        // rotationY:20,
-        // rotationX:-20,
         transformOrigin: 'center center',
         ease: 'power3.out',
         duration: 2,
@@ -251,7 +250,9 @@ export function useHeroTimeline({
     tl.to(
       stackRef.current,
       {
-        x: '-12vw',
+        x: isMobile ? '0' : '-15vw',
+        y: isMobile ? '28vh' : '15vh',
+        scale: isMobile ? 0.5 : 1,
         ease: 'power3.inOut',
         duration: 2,
       },
