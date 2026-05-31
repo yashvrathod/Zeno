@@ -38,23 +38,47 @@ export default function Home() {
   }, []);
   return (
     <div
-      ref={pageRef} 
+      ref={pageRef}
       className="relative bg-black min-h-screen"
     >
       {/* Black Background Overlay (Optimized Transition) */}
-      <div 
-        className="fixed inset-0 bg-black pointer-events-none z-[-1] will-change-opacity"
+      <div
+        className="fixed inset-0 bg-black pointer-events-none z-[-1] will-change-opacity transition-opacity duration-700 ease-out"
         style={{ opacity: 0 }}
         id="bg-overlay"
       />
 
       <script dangerouslySetInnerHTML={{ __html: `
-        window.addEventListener('scroll', () => {
-          const overlay = document.getElementById('bg-overlay');
-          if (!overlay) return;
-          const progress = Math.min(window.scrollY / 1400, 1);
-          overlay.style.opacity = progress;
-        }, { passive: true });
+        // Use IntersectionObserver to avoid scroll event overhead for the background
+        const overlay = document.getElementById('bg-overlay');
+        const observer = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+            // As we scroll down, we manually trigger the opacity
+            // For a smoother gradient, we still need a listener, but we'll use requestAnimationFrame
+            if (entry.isIntersecting) {
+              let ticking = false;
+              window.addEventListener('scroll', () => {
+                if (!ticking) {
+                  window.requestAnimationFrame(() => {
+                    const progress = Math.min(window.scrollY / 1500, 1);
+                    overlay.style.opacity = progress;
+                    ticking = false;
+                  });
+                  ticking = true;
+                }
+              }, { passive: true });
+            }
+          });
+        }, { threshold: [0, 1] });
+        
+        // Target a small element far down to trigger the logic
+        const trigger = document.createElement('div');
+        trigger.style.position = 'absolute';
+        trigger.style.top = '500px';
+        trigger.style.height = '1px';
+        trigger.style.width = '1px';
+        document.body.appendChild(trigger);
+        observer.observe(trigger);
       `}} />
 
       {/* Video Background */}
@@ -65,7 +89,7 @@ export default function Home() {
 
       {/* Fixed Hero Section */}
       <section className="fixed inset-0 z-10 flex flex-col items-center justify-center px-6 text-center font-roboto-slab pointer-events-none">
-        
+
         {/* TEXT */}
         <motion.div
           ref={textRef}
@@ -111,7 +135,7 @@ export default function Home() {
       </section>
 
       {/* Scroll Space */}
-      <section className="h-[2000vh]" />
+      <section className="h-[13000px]" />
     </div>
   );
 }

@@ -39,12 +39,20 @@ export default function DualWaveSection({ progressRef }: { progressRef?: { curre
     let currentImage = '';
     let leftRange = { minX: 0, maxX: 0 };
     let rightRange = { minX: 0, maxX: 0 };
+    let itemYPositions: number[] = [];
 
     function calcRanges() {
       const maxLeftW = Math.max(...leftTexts.map(t => t.offsetWidth));
       const maxRightW = Math.max(...rightTexts.map(t => t.offsetWidth));
       leftRange = { minX: 0, maxX: Math.max(0, leftCol!.offsetWidth - maxLeftW) };
       rightRange = { minX: 0, maxX: Math.max(0, rightCol!.offsetWidth - maxRightW) };
+
+      // Cache relative Y positions to avoid layout thrashing
+      const wrapperRect = wrapper.getBoundingClientRect();
+      itemYPositions = leftTexts.map(t => {
+        const r = t.getBoundingClientRect();
+        return (r.top + r.height / 2) - wrapperRect.top;
+      });
     }
     calcRanges();
 
@@ -60,11 +68,13 @@ export default function DualWaveSection({ progressRef }: { progressRef?: { curre
     setInitPos(rightTexts, rightRange, -1);
 
     function findClosest() {
+      const wrapperRect = wrapper.getBoundingClientRect();
       const vpCenter = window.innerHeight / 2;
+      const relativeCenter = vpCenter - wrapperRect.top;
+
       let closest = 0, minDist = Infinity;
-      leftTexts.forEach((t, i) => {
-        const r = t.getBoundingClientRect();
-        const d = Math.abs(r.top + r.height / 2 - vpCenter);
+      itemYPositions.forEach((y, i) => {
+        const d = Math.abs(y - relativeCenter);
         if (d < minDist) { minDist = d; closest = i; }
       });
       return closest;

@@ -37,6 +37,7 @@ export default function ScaleFullPage() {
   const gooeyRef = useRef<HTMLDivElement>(null);
   const waveProgressRef = useRef(0);
   const footerRef = useRef<HTMLDivElement>(null);
+  const spacerRef = useRef<HTMLDivElement>(null);
 
   useHeroTimeline({
     sectionRef,
@@ -51,20 +52,21 @@ export default function ScaleFullPage() {
 
   useBottomReveal({ imgSlideRef, oldLabelRef, newLabelRef, greenCardRef });
 
-  useBeigeOverlay({ beigeWrapRef, bottomSectionRef, footerRef, waveProgressRef });
+  useBeigeOverlay({ beigeWrapRef, bottomSectionRef, footerRef, waveProgressRef, spacerRef });
 
   useFooterEntrance({ footerRef });
 
   return (
     <main
       ref={mainRef}
-      className="relative min-h-screen bg-white"
+      className="relative min-h-screen bg-black overflow-x-hidden"
     >
-      <div className="absolute inset-0 bg-white z-0" />
+      <div className="absolute inset-0 bg-black z-0" />
       <ScaleBg ref={bgRef} />
 
+      <Navbar initialLight={false} />
+
       <div className="relative z-[2]">
-        <Navbar />
 
         <HeroSection
           ref={sectionRef}
@@ -89,6 +91,9 @@ export default function ScaleFullPage() {
           newLabelRef={newLabelRef}
           greenCardRef={greenCardRef}
         />
+
+        {/* Spacer for BeigeOverlay to scroll through */}
+        <div ref={spacerRef} className="h-[300vh] w-full pointer-events-none" />
 
         <BeigeOverlay ref={beigeWrapRef} beigePanelRef={beigePanelRef} progressRef={waveProgressRef} />
 

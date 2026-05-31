@@ -68,14 +68,9 @@ export default function HeroVideo() {
   const innerCubeRef     = useRef<HTMLDivElement>(null);
   const leftContentRef   = useRef<HTMLDivElement>(null);
   const rightContentRef  = useRef<HTMLDivElement>(null);
-  const [scrollPos, setScrollPos] = useState(0);
   const bp = useBreakpoint();
 
-  useEffect(() => {
-    const onScroll = () => setScrollPos(window.scrollY);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+  const scrollIndicatorRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!videoWrapperRef.current) return;
@@ -83,7 +78,16 @@ export default function HeroVideo() {
     const isMobile  = window.innerWidth < 640;
     const isTablet  = window.innerWidth < 1024;
 
-    //calculate the width and height
+    // ── Hide scroll indicator on scroll ──────────────────────────────
+    gsap.to(scrollIndicatorRef.current, {
+      opacity: 0,
+      scrollTrigger: {
+        trigger: document.body,
+        start: 'top top',
+        end: '+=200',
+        scrub: true,
+      }
+    });
 
     // ── Main video shrink & tilt ──────────────────────────────────────
     const tl = gsap.timeline({
@@ -93,27 +97,29 @@ export default function HeroVideo() {
         end: `+=${S.TOTAL}`,
         scrub: true,
       },
+      defaults: { force3D: true }
     });
 
     tl.to(videoWrapperRef.current, {
-      scaleX:    isMobile ? 0.88  : undefined,
-      scaleY:    isMobile ? 0.66  : undefined,
-      scale:     isMobile ? 0.95 : 0.9,
+      scale:     isMobile ? 0.9 : 0.9,
       rotationY: isMobile ? -6   : -12,
       rotationX: isMobile ? 1    : 2,
       y:         isMobile ? 6    : 10,
+      // Fade out video on mobile as we start shrinking
+      opacity:   isMobile ? 0.5  : 1,
       ease: 'none',
       duration: 1,
     });
 
     tl.to(videoWrapperRef.current, {
-      scaleX:    isMobile ? 0.78  : undefined,
-      scaleY:    isMobile ? 0.26  : undefined,
-      scale:     isMobile ? undefined : isTablet ? 0.42 : 0.35,
+      scale:     isMobile ? 0.6 : isTablet ? 0.42 : 0.35,
+      height:    isMobile ? '30%' : '100%',
       rotationY: isMobile ? -35   : -35,
       rotationX: isMobile ? 10     : 6,
       x:         isMobile ? 12    : -10,
       y:         isMobile ? -210   : isTablet ? -110 : -140,
+      // Complete fade out on mobile
+      opacity:   isMobile ? 0    : 1,
       ease: 'none',
       duration: 1.4,
     });
@@ -131,6 +137,7 @@ export default function HeroVideo() {
         rotateY:    -35,
         rotateZ:    -1,
         z:          200,
+        force3D:    true,
         scrollTrigger: st(S.HOLOGRAM_IN_START, S.HOLOGRAM_IN_END),
       }
     );
@@ -263,17 +270,18 @@ export default function HeroVideo() {
           {/* ── VIDEO WRAPPER ──────────────────────────────────────────── */}
           <div
             ref={videoWrapperRef}
-            className="relative w-full h-full overflow-hidden rounded-2xl sm:rounded-[32px] lg:rounded-[42px] will-change-transform"
+            className="relative w-full h-full overflow-hidden rounded-2xl sm:rounded-[32px] lg:rounded-[42px] will-change-transform transform-gpu"
             style={{
               transformStyle: 'preserve-3d',
               boxShadow: '0 40px 120px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.12)',
+              backfaceVisibility: 'hidden',
             }}
           >
             <video
               autoPlay muted loop playsInline
               className="absolute inset-0 w-full h-full object-cover"
             >
-              <source src="/video/bore.mp4" type="video/mp4" />
+              <source src="/video/boreee.mp4" type="video/mp4" />
             </video>
 
             {/* Overlays */}
@@ -520,8 +528,9 @@ export default function HeroVideo() {
 
       {/* ─── SCROLL INDICATOR ──────────────────────────────────────────────── */}
       <div
+        ref={scrollIndicatorRef}
         className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-1.5 pointer-events-none"
-        style={{ opacity: scrollPos > 200 ? 0 : 1, transition: 'opacity 0.4s' }}
+        style={{ transition: 'opacity 0.4s' }}
       >
         <span className="text-[9px] font-medium tracking-[0.2em] uppercase text-white/30">Scroll</span>
         <div className="w-px h-8 bg-gradient-to-b from-white/30 to-transparent" />
@@ -531,7 +540,7 @@ export default function HeroVideo() {
       {DEBUG && (
         <div className="fixed bottom-4 left-4 z-[999] bg-black/85 text-white/90 font-mono text-[11px] leading-relaxed px-3 py-2.5 rounded-lg border border-white/20 pointer-events-none shadow-lg">
           <div className="text-white/60 text-[10px] uppercase tracking-wider mb-1">Scroll Debug</div>
-          <div className="text-yellow-300 font-bold mb-1">scrollY: {scrollPos}px</div>
+          {/* Scroll position debug removed for performance */}
           {([
             ['code',   S.CODE_CARD_IN_START,  S.CODE_CARD_IN_END],
             ['holo',   S.HOLOGRAM_IN_START,   S.HOLOGRAM_IN_END],
@@ -540,7 +549,7 @@ export default function HeroVideo() {
             ['group→', S.GROUP_START,          S.GROUP_END],
             ['group←', S.GROUP_LEFT_START,     S.GROUP_LEFT_END],
           ] as [string, number, number][]).map(([label, a, b]) => (
-            <div key={label} className={scrollPos >= a ? 'text-green-400' : 'text-white/40'}>
+            <div key={label} className="text-white/40">
               {label.padEnd(8)} {a}–{b}
             </div>
           ))}

@@ -69,6 +69,14 @@ export function useBottomReveal({
         { opacity: 1, y: 0, filter: 'blur(0px)', ease: 'expo.out', duration: 0.8 },
         'slide+=1.3',
       );
+
+      // Add fade out at the end of this pin
+      tl.to(section, {
+        opacity: 0,
+        scale: 0.9,
+        filter: 'blur(10px)',
+        duration: 1,
+      }, '+=0.5');
     });
 
     return () => ctx.revert();

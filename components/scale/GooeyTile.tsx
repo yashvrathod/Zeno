@@ -181,10 +181,18 @@ export function GooeyTile({ baseImg, hoverImg, position, scale, onHover, onClick
     }
   }, []);
 
+  useEffect(() => {
+    const handleResize = () => {
+      uniforms.u_res.value.set(window.innerWidth, window.innerHeight);
+    };
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, [uniforms]);
+
   useFrame((state) => {
     time.current += state.clock.getDelta();
     uniforms.u_time.value = time.current;
-    uniforms.u_res.value.set(window.innerWidth, window.innerHeight);
     const target = hoverProgress.current;
     uniforms.u_progressHover.value += (target - uniforms.u_progressHover.value) * 0.06;
     uniforms.u_progressClick.value += (clickProgress.current - uniforms.u_progressClick.value) * 0.04;

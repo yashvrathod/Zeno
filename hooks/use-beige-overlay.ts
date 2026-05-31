@@ -11,6 +11,7 @@ interface UseBeigeOverlayParams {
   bottomSectionRef: React.RefObject<HTMLDivElement | null>;
   footerRef: React.RefObject<HTMLDivElement | null>;
   waveProgressRef: MutableRefObject<number>;
+  spacerRef: React.RefObject<HTMLDivElement | null>;
 }
 
 export function useBeigeOverlay({
@@ -18,56 +19,49 @@ export function useBeigeOverlay({
   bottomSectionRef,
   footerRef,
   waveProgressRef,
+  spacerRef,
 }: UseBeigeOverlayParams) {
   useEffect(() => {
-    if (!beigeWrapRef.current || !bottomSectionRef.current || !footerRef.current) return;
+    if (!beigeWrapRef.current || !bottomSectionRef.current || !footerRef.current || !spacerRef.current) return;
 
     const footer = footerRef.current;
+    const spacer = spacerRef.current;
 
     const ctx = gsap.context(() => {
       gsap.set(beigeWrapRef.current, { y: '100%' });
 
+      // Move overlay in as we scroll into the spacer
       gsap.to(beigeWrapRef.current, {
         y: '0%',
-        ease: 'none',
+        ease: 'power1.inOut',
         scrollTrigger: {
-          trigger: bottomSectionRef.current,
-          start: 'bottom bottom',
+          trigger: spacer,
+          start: 'top bottom',
           end: 'top top',
-          scrub: 0.5,
+          scrub: 1,
         },
       });
 
+      // Update wave progress while scrolling through the spacer
+      ScrollTrigger.create({
+        trigger: spacer,
+        start: 'top top',
+        end: 'bottom bottom',
+        scrub: true,
+        onUpdate: (self) => {
+          waveProgressRef.current = self.progress;
+        },
+      });
+
+      // Move overlay out as we reach the footer
       gsap.to(beigeWrapRef.current, {
         y: '-100%',
-        ease: 'none',
+        ease: 'power1.in',
         scrollTrigger: {
           trigger: footer,
           start: 'top bottom',
           end: 'top top',
-          scrub: 1.2,
-        },
-      });
-
-      gsap.to(bottomSectionRef.current, {
-        opacity: 0,
-        scale: 0.95,
-        filter: 'blur(6px)',
-        ease: 'none',
-        scrollTrigger: {
-          trigger: bottomSectionRef.current,
-          start: 'bottom bottom',
-          end: 'top top',
-          scrub: 1.2,
-        },
-      });
-
-      ScrollTrigger.create({
-        trigger: bottomSectionRef.current,
-        start: 'top top',
-        end: '+=80%',
-        onUpdate: (self) => {
-          waveProgressRef.current = self.progress;
+          scrub: 1,
         },
       });
     });
