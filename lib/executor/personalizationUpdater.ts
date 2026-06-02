@@ -8,6 +8,10 @@
 import prisma from '../prisma';
 import type { TeachingStage } from '../mentorContext';
 import { updateConceptMastery, calculateNextReview, CONCEPT_DEPENDENCIES } from '../mentor/personalizationEngine';
+import type { ErrorType, ErrorPattern } from '../mentor/personalization/types';
+
+const MAX_ERROR_PATTERN_ENTRIES = 50;
+const MAX_ERROR_MESSAGE_LENGTH = 200;
 
 // Prisma Json value type
 type PrismaJson = Parameters<typeof prisma.userKnowledgeGraph.create>[0]['data']['learningStyle'];
@@ -88,7 +92,7 @@ export async function updateAfterExecution(
     // Record error patterns if failed
     if (!passed && testResults.some(t => !t.passed)) {
       try {
-        await recordErrorPattern(userId, testResults.filter(t => !t.passed)[0]);
+        await recordErrorPattern(userId, concepts, testResults.filter(t => !t.passed)[0]);
       } catch (error) {
         console.error('Failed to record error pattern:', error);
       }
@@ -267,14 +271,68 @@ async function updatePatternStrength(
   }
 }
 
+/**
+ * Pure helper: merges a freshly-detected error into an existing commonErrors
+ * list. If an entry with the same `type` already exists, increments
+ * `occurrences`, refreshes `lastSeen`, and preserves the original `message`
+ * (the first-seen message is the most diagnostic). Otherwise inserts a new
+ * entry. The returned array is capped at MAX_ERROR_PATTERN_ENTRIES by
+ * dropping the entry with the oldest `lastSeen`. Truncates `message` on
+ * insert to MAX_ERROR_MESSAGE_LENGTH. Always returns a new array; the input
+ * is never mutated.
+ *
+ * Exported for unit testing; the prisma-touching recordErrorPattern calls
+ * it once per concept.
+ */
+export function mergeErrorPattern(
+  existing: ErrorPattern[],
+  detected: { type: ErrorType; message: string },
+  now: Date = new Date()
+): ErrorPattern[] {
+  const matched = existing.find((e) => e.type === detected.type);
+  let next: ErrorPattern[];
+  if (matched) {
+    next = existing.map((e) =>
+      e === matched
+        ? { ...e, occurrences: e.occurrences + 1, lastSeen: now }
+        : e
+    );
+  } else {
+    const truncated =
+      detected.message.length > MAX_ERROR_MESSAGE_LENGTH
+        ? detected.message.slice(0, MAX_ERROR_MESSAGE_LENGTH)
+        : detected.message;
+    next = [
+      ...existing,
+      {
+        type: detected.type,
+        message: truncated,
+        occurrences: 1,
+        lastSeen: now,
+        relatedConcept: null,
+      },
+    ];
+  }
+  if (next.length > MAX_ERROR_PATTERN_ENTRIES) {
+    next = [...next].sort(
+      (a, b) => a.lastSeen.getTime() - b.lastSeen.getTime()
+    );
+    next = next.slice(next.length - MAX_ERROR_PATTERN_ENTRIES);
+  }
+  return next;
+}
+
 async function recordErrorPattern(
   userId: string,
+  concepts: string[],
   failedTest: { input: string; expected: string; actual: string }
 ): Promise<void> {
-  await ensureKnowledgeGraph(userId);
+  if (concepts.length === 0) return;
+
+  const kg = await ensureKnowledgeGraph(userId);
 
   // Simple error type detection
-  let errorType: string = 'logic_error';
+  let errorType: ErrorType = 'logic_error';
   if (failedTest.actual.includes('undefined') || failedTest.actual.includes('null')) {
     errorType = 'null_pointer';
   } else if (failedTest.actual.includes('index') || failedTest.actual.includes('out of bounds')) {
@@ -283,8 +341,31 @@ async function recordErrorPattern(
     errorType = 'off_by_one';
   }
 
-  // Note: errorPatterns field doesn't exist in schema, so we just log the error
-  console.log(`Recorded error pattern: ${errorType} - Expected ${failedTest.expected}, got ${failedTest.actual}`);
+  const detected = {
+    type: errorType,
+    message: `Expected ${failedTest.expected}, got ${failedTest.actual}`,
+  };
+
+  // We can't attribute a runtime error to a single concept, so we stamp the
+  // pattern on every concept the problem exercises with relatedConcept: null.
+  // Consumers can filter problem-level signals from concept-attributed ones.
+  for (const conceptId of concepts) {
+    try {
+      const current = await getOrCreateConceptMastery(kg.id, conceptId);
+      const merged = mergeErrorPattern(
+        current.commonErrors as ErrorPattern[],
+        detected
+      );
+      await prisma.conceptMastery.update({
+        where: {
+          userId_conceptId: { userId: kg.id, conceptId },
+        },
+        data: { commonErrors: merged as unknown as import('@prisma/client').Prisma.InputJsonValue },
+      });
+    } catch (error) {
+      console.error(`Failed to record error pattern for concept ${conceptId}:`, error);
+    }
+  }
 }
 
 async function updateProblemStats(
@@ -317,7 +398,7 @@ async function updateProblemStats(
 async function getOrCreateConceptMastery(
   userId: string,
   conceptId: string
-): Promise<{ mastery: number; practiceCount: number }> {
+): Promise<{ mastery: number; practiceCount: number; commonErrors: unknown[] }> {
   const kg = await ensureKnowledgeGraph(userId);
 
   const existing = await prisma.conceptMastery.findUnique({
@@ -325,7 +406,11 @@ async function getOrCreateConceptMastery(
   });
 
   if (existing) {
-    return { mastery: existing.mastery, practiceCount: existing.practiceCount };
+    return {
+      mastery: existing.mastery,
+      practiceCount: existing.practiceCount,
+      commonErrors: (existing.commonErrors as unknown[]) || [],
+    };
   }
 
   const defaultMastery = 50;
@@ -343,7 +428,11 @@ async function getOrCreateConceptMastery(
     },
   });
 
-  return { mastery: created.mastery, practiceCount: created.practiceCount };
+  return {
+    mastery: created.mastery,
+    practiceCount: created.practiceCount,
+    commonErrors: (created.commonErrors as unknown[]) || [],
+  };
 }
 
 async function getRecentAttempts(userId: string, conceptId: string, count: number): Promise<{ success: boolean }[]> {
