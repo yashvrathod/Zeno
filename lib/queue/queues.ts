@@ -37,6 +37,8 @@ export async function enqueueArchitectReview(data: {
   code: string;
   language: string;
   sessionId: string;
+  problemTitle?: string;
+  codeHash?: string;
 }): Promise<void> {
   const q = getArchitectReviewQueue();
   if (!q) return;

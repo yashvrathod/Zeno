@@ -15,23 +15,13 @@ interface ExecutionStats {
 
 interface KnowledgeGraphUpdateParams {
   userId?: string;
-  problemContext: ProblemContext;
-  executionStats: ExecutionStats;
+  problemContext: ProblemContext | null;
+  executionStats: ExecutionStats | null;
 }
 
 export function useKnowledgeGraphTracker(params: KnowledgeGraphUpdateParams) {
   useEffect(() => {
     if (params.userId && params.problemContext && params.executionStats) {
-      // In a real implementation, this would be a real API call
-      // For now, we'll just log that we would make the call
-      console.log('Would update knowledge graph with:', {
-        userId: params.userId,
-        problemContext: params.problemContext,
-        executionStats: params.executionStats
-      });
-
-      // This is where you would actually make the API call:
-      /*
       fetch('/api/mentor/update', {
         method: 'POST',
         headers: {
@@ -41,8 +31,7 @@ export function useKnowledgeGraphTracker(params: KnowledgeGraphUpdateParams) {
           problemContext: params.problemContext,
           executionStats: params.executionStats,
         }),
-      });
-      */
+      }).catch((e) => console.warn('Knowledge graph update failed:', e));
     }
   }, [params.userId, params.problemContext, params.executionStats]);
 }

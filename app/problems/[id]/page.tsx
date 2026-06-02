@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Sparkles,
   Maximize2,
@@ -43,7 +43,7 @@ import { ExecutionTracePanel } from '@/components/trace/ExecutionTracePanel';
 import { SeePlusPlusDebugger } from '@/components/SeePlusPlusDebugger';
 import { DebugAnalysisPanel } from '@/components/DebugAnalysisPanel';
 import { ArchitectReviewCard } from '@/components/ArchitectReviewCard';
-import { InterventionIndicator, type InterventionType } from '@/components/InterventionIndicator';
+import { useKnowledgeGraphTracker } from '@/hooks/useKnowledgeGraphTracker';
 import type { LastExecution, TestCaseView, InputShape } from '@/lib/mentor/lastExecution';
 
 type Problem = {
@@ -189,10 +189,14 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
   const [showTraceDebugger, setShowTraceDebugger] = useState(false);
   const [showDebugAnalysis, setShowDebugAnalysis] = useState(false);
   const [showArchitectReview, setShowArchitectReview] = useState(false);
-  const [intervention, setIntervention] = useState<{type: InterventionType; message: string} | null>(null);
   const [hasOutput, setHasOutput] = useState(false);
   const [lastExecution, setLastExecution] = useState<LastExecution | null>(null);
   const [codeHash, setCodeHash] = useState<string | null>(null);
+  const [lastSubmitResult, setLastSubmitResult] = useState<{
+    passed: boolean;
+    testResults: TestCaseView[];
+    runtime: number;
+  } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -225,12 +229,6 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
   }, [problemId]);
 
   useEffect(() => {
-    if (dbProblem) {
-      setCode(pickStarterCode(dbProblem.starterCode, language));
-    }
-  }, [language, dbProblem?.id]);
-
-  useEffect(() => {
     if (session?.user?.id && problemId) {
       fetch(`/api/mentor/history?problemId=${problemId}`)
         .then((res) => res.json())
@@ -248,6 +246,37 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isMentorLoading, isChatExpanded]);
+
+  // Wire up the personalizer: after a successful submit (runAll: true), the
+  // lastSubmitResult state is populated. The hook fires a fetch to
+  // /api/mentor/update only when the memoised params change, so a re-render
+  // triggered by something else (e.g. a new mentor message) does not
+  // duplicate the update.
+  const kgParams = useMemo(() => {
+    if (!dbProblem || !lastSubmitResult) {
+      return { userId: undefined, problemContext: null, executionStats: null };
+    }
+    return {
+      userId: session?.user?.id,
+      problemContext: {
+        problemId: dbProblem.id,
+        concepts: dbProblem.patterns?.map((p) => p.name) ?? [],
+        patterns: [],
+        difficulty: dbProblem.difficulty,
+      },
+      executionStats: {
+        passed: lastSubmitResult.passed,
+        testResults: lastSubmitResult.testResults.map((r) => ({
+          passed: r.status === 'passed',
+          input: r.kind === 'concrete' ? r.input : '',
+          expected: r.kind === 'concrete' ? r.expected : '',
+          actual: r.kind === 'concrete' ? r.actual : '',
+        })),
+        runtime: lastSubmitResult.runtime,
+      },
+    };
+  }, [dbProblem, session?.user?.id, lastSubmitResult]);
+  useKnowledgeGraphTracker(kgParams);
 
   const handleMentorResponse = (data: any) => {
     if (data.visualization) {
@@ -327,14 +356,24 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
         setTestResults(data.results || []);
         setLastExecution(data.lastExecution ?? null);
         setCodeHash(data.codeHash ?? null);
-        const passed = data.results?.filter(r => r.status === 'passed').length || 0;
-        const total = data.results?.length || 0;
+        const results = data.results || [];
+        const passed = results.filter(r => r.status === 'passed').length;
+        const total = results.length;
         const allPassed = passed === total;
         setOutput(`${allPassed ? '✓ Accepted!' : '✗ Wrong Answer'}\n${passed}/${total} test cases passed\n${allPassed ? 'Congratulations! Your solution is correct.' : 'Some test cases failed. Review your code and try again.'}`);
 
         if (allPassed) {
           setShowArchitectReview(true);
         }
+
+        // Capture the submit outcome for the personalizer. The hook fires
+        // when this state changes (memoised on its reference).
+        const maxRuntime = results.reduce((m, r) => Math.max(m, r.executionTime), 0);
+        setLastSubmitResult({
+          passed: allPassed,
+          testResults: results,
+          runtime: maxRuntime,
+        });
       }
     } catch (err) {
       setOutput(`Network error: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -618,17 +657,6 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
                       onClose={() => setShowArchitectReview(false)}
                     />
                   </div>
-                </div>
-              )}
-
-              {/* Proactive Intervention */}
-              {intervention && (
-                <div className="absolute top-4 left-4 right-4 z-40">
-                  <InterventionIndicator
-                    type={intervention.type}
-                    message={intervention.message}
-                    onDismiss={() => setIntervention(null)}
-                  />
                 </div>
               )}
 

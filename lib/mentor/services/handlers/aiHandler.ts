@@ -370,7 +370,7 @@ async function advanceStage(params: {
         const codeHash = crypto.createHash("md5").update(body.userCode).digest("hex");
         try {
           if (isQueueAvailable()) {
-            enqueueArchitectReview({ userId, problemId, code: body.userCode, language: body.language, sessionId: mentorSessionId }).catch((e) => console.warn("enqueueArchitectReview failed:", e));
+            enqueueArchitectReview({ userId, problemId, code: body.userCode, language: body.language, sessionId: mentorSessionId, problemTitle: body.problemTitle, codeHash }).catch((e) => console.warn("enqueueArchitectReview failed:", e));
           } else {
             const review = await triggerArchitectReview({
               userId, problemId, code: body.userCode, language: body.language, problemTitle: body.problemTitle, codeHash,
