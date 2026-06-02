@@ -1,38 +1,154 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import {
-  Brain, TrendingUp, Target, Zap, Activity, BookOpen, Award,
-  CheckCircle2, AlertTriangle, Clock, ArrowRight, BarChart3,
-  Sparkles, Flame, Layers, Code, ChevronRight, AlertCircle,
-  Timer, SkipForward, Play, Trophy,
+  Brain, TrendingUp, Target, Zap, Activity, Award,
+  AlertTriangle, BarChart3, Flame, Layers, ArrowRight,
+  Play, Trophy, Code, Sparkles, Clock,
+  Star, ChevronRight, CheckCircle2, GitBranch, Timer,
+  Activity as Pulse,
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
-import type { DashboardData, ConceptMasteryItem, WeakArea, ActivityItem, ReviewItem, LearningVelocityPoint } from '@/lib/dashboard/types';
+import { StatCard } from '@/components/dashboard/StatCard';
+import { ConceptRing } from '@/components/dashboard/ConceptRing';
+import { EnhancementChart } from '@/components/dashboard/EnhancementChart';
+import { ActivityTimeline } from '@/components/dashboard/ActivityTimeline';
+import { WeakAreaBar } from '@/components/dashboard/WeakAreaBar';
+import { ReviewQueue } from '@/components/dashboard/ReviewQueue';
+import { QuickActionCard } from '@/components/dashboard/QuickActionCard';
+import { HeroSection } from '@/components/dashboard/HeroSection';
+import { AIMentorInsight } from '@/components/dashboard/AIMentorInsight';
+import { StatusPill } from '@/components/dashboard/StatusPill';
+import { FilterTabs } from '@/components/dashboard/FilterTabs';
+import { DateRangePill } from '@/components/dashboard/DateRangePill';
+import { useDashboardEntrance } from '@/hooks/use-dashboard-entrance';
+import { GoldParticles } from '@/components/effects/GoldParticles';
+import { SectionDivider } from '@/components/effects/SectionDivider';
+import type { DashboardData, ConceptMasteryItem } from '@/lib/dashboard/types';
+
+interface MentorProgress {
+  recommendedNextProblem: string | null;
+  stuckProblems: string[];
+}
+
+interface DailyChallenge {
+  problem: { id: string; slug: string; title: string; difficulty: string; totalSolvers: number } | null;
+  date: string;
+}
 
 export default function DashboardPage() {
   const { data: session } = useSession();
   const [data, setData] = useState<DashboardData | null>(null);
+  const [mentorProgress, setMentorProgress] = useState<MentorProgress | null>(null);
+  const [dailyChallenge, setDailyChallenge] = useState<DailyChallenge | null>(null);
   const [loading, setLoading] = useState(true);
+  const [filterTab, setFilterTab] = useState('All');
 
   useEffect(() => {
-    fetch('/api/dashboard')
-      .then(r => r.json())
-      .then(d => { setData(d.data); setLoading(false); })
-      .catch(() => setLoading(false));
+    Promise.all([
+      fetch('/api/dashboard').then(r => r.json()),
+      fetch('/api/mentor/progress').then(r => r.json()).catch(() => ({ data: null })),
+      fetch('/api/challenge/daily').then(r => r.json()).catch(() => ({ problem: null })),
+    ]).then(([dashboard, mentor, challenge]) => {
+      setData(dashboard.data);
+      setMentorProgress(mentor.data);
+      setDailyChallenge(challenge);
+      setLoading(false);
+    }).catch(() => setLoading(false));
   }, []);
+
+  const hasData = data && data.overallStats.problemsAttempted > 0;
+  const entranceRef = useDashboardEntrance(!!data);
+
+  const topWeaknesses = useMemo(() => {
+    if (!data) return [];
+    return [...data.weakAreas].sort((a, b) => b.count - a.count).slice(0, 5);
+  }, [data]);
+
+  const groupedConcepts = useMemo(() => {
+    if (!data) return { mastered: [], learning: [], weak: [] };
+    return {
+      mastered: data.conceptMastery.filter(c => c.status === 'mastered'),
+      learning: data.conceptMastery.filter(c => c.status === 'learning'),
+      weak: data.conceptMastery.filter(c => c.status === 'not_started' || c.status === 'blocked'),
+    };
+  }, [data]);
+
+  const readinessBreakdown = useMemo(() => {
+    if (!data) return [];
+    const { overallStats, conceptMastery, masteredPatterns } = data;
+    const patternCoverage = Math.min(Math.round((masteredPatterns.length / Math.max(conceptMastery.length, 1)) * 100), 100);
+    const consistency = Math.min(Math.round((overallStats.currentStreak / 30) * 100), 100);
+    return [
+      { label: 'Problem Solving', value: overallStats.successRate, gradient: 'from-nx-accent to-amber-600', sub: `${overallStats.problemsSolved}/${overallStats.problemsAttempted} solved` },
+      { label: 'Pattern Coverage', value: patternCoverage, gradient: 'from-emerald-500 to-teal-500', sub: `${masteredPatterns.length} patterns mastered` },
+      { label: 'Consistency', value: consistency, gradient: 'from-orange-500 to-amber-500', sub: `${overallStats.currentStreak} day streak` },
+      { label: 'Readiness', value: overallStats.interviewReadiness, gradient: 'from-cyan-500 to-blue-500', sub: 'Interview readiness' },
+    ];
+  }, [data]);
+
+  const roadmapItems = useMemo(() => {
+    if (!data) return [];
+    return data.conceptMastery.slice(0, 15).map(c => ({
+      concept: c.concept,
+      mastery: c.mastery,
+      status: c.status,
+    }));
+  }, [data]);
+
+  const stuckProblems: string[] = useMemo(() => {
+    if (mentorProgress?.stuckProblems && mentorProgress.stuckProblems.length > 0) return mentorProgress.stuckProblems;
+    return [];
+  }, [mentorProgress]);
+
+  const yesterdayVelocity = useMemo(() => {
+    if (!data || data.learningVelocity.length < 2) return null;
+    const points = data.learningVelocity;
+    const last = points[points.length - 1];
+    const prev = points[points.length - 2];
+    if (!last || !prev) return null;
+    const diff = last.overallMastery - prev.overallMastery;
+    return { direction: diff >= 0 ? 'up' as const : 'down' as const, value: Math.abs(diff).toFixed(1) };
+  }, [data]);
+
+  const tabCounts = useMemo(() => {
+    if (!data) return { all: 0, mastered: 0, learning: 0, weak: 0 };
+    return {
+      all: data.conceptMastery.length,
+      mastered: groupedConcepts.mastered.length,
+      learning: groupedConcepts.learning.length,
+      weak: groupedConcepts.weak.length,
+    };
+  }, [data, groupedConcepts]);
 
   if (loading) {
     return (
-      <div className="flex h-screen bg-[#010103] text-zinc-400">
+      <div className="flex h-screen bg-nx-bg text-nx-text overflow-hidden">
         <Sidebar />
-        <main className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-12 h-12 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-            <span className="text-[11px] font-bold tracking-widest text-zinc-600 uppercase">Compiling Neural Dashboard...</span>
-          </div>
+        <main className="flex-1 flex items-center justify-center relative my-3 mr-3 rounded-2xl bg-nx-surface border border-white/[0.04] overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
+          <div className="absolute inset-0 warm-vignette pointer-events-none" />
+          <GoldParticles />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4 }}
+            className="flex flex-col items-center gap-6 relative"
+          >
+            <div className="relative">
+              <div className="font-heading text-4xl font-bold tracking-tight bg-gradient-to-r from-nx-accent via-nx-accent-bright to-nx-accent bg-clip-text text-transparent">
+                neXode
+              </div>
+              <div className="absolute -inset-x-4 -inset-y-2 bg-gradient-to-r from-transparent via-nx-accent/10 to-transparent animate-shimmer rounded-lg" />
+            </div>
+            <div className="flex gap-3">
+              <div className="w-24 h-4 rounded-full bg-white/[0.03] animate-pulse" />
+              <div className="w-20 h-4 rounded-full bg-white/[0.03] animate-pulse" />
+              <div className="w-28 h-4 rounded-full bg-white/[0.03] animate-pulse" />
+            </div>
+          </motion.div>
         </main>
       </div>
     );
@@ -40,356 +156,542 @@ export default function DashboardPage() {
 
   if (!data) {
     return (
-      <div className="flex h-screen bg-[#010103] text-zinc-400">
+      <div className="flex h-screen bg-nx-bg text-nx-text overflow-hidden">
         <Sidebar />
-        <main className="flex-1 flex items-center justify-center">
+        <main className="flex-1 flex items-center justify-center my-3 mr-3 rounded-2xl bg-nx-surface border border-white/[0.04] shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
           <div className="text-center space-y-4">
-            <AlertCircle size={40} className="mx-auto text-zinc-700" />
-            <p className="text-zinc-500">Could not load dashboard data.</p>
-            <button onClick={() => window.location.reload()} className="text-purple-400 text-sm hover:underline">Retry</button>
+            <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto">
+              <AlertTriangle size={24} className="text-rose-400" />
+            </div>
+            <p className="text-nx-muted text-sm">Could not load dashboard data.</p>
+            <button onClick={() => window.location.reload()} className="text-nx-accent text-xs font-semibold hover:underline">Retry</button>
           </div>
         </main>
       </div>
     );
   }
 
-  const topWeaknesses = [...data.weakAreas].sort((a, b) => b.count - a.count).slice(0, 3);
-  const hasData = data.overallStats.problemsAttempted > 0;
-  const reviewQueue = data.reviewQueue;
-
   return (
-    <div className="flex flex-col h-screen bg-[#010103] text-zinc-400 font-sans overflow-hidden selection:bg-purple-500/30">
-      <div className="flex flex-1 overflow-hidden relative z-10">
-        <Sidebar />
-        <main className="flex-1 overflow-y-auto border-l border-white/5 bg-transparent scrollbar-hide">
-          <div className="max-w-7xl mx-auto px-8 py-10 space-y-12">
-
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center border border-purple-500/30">
-                    <BarChart3 size={16} className="text-purple-400" />
-                  </div>
-                  <span className="text-[10px] font-bold tracking-[0.3em] text-purple-400 uppercase">Neural Analytics</span>
-                </div>
-                <h1 className="text-4xl font-bold text-white tracking-tight">Learning Dashboard</h1>
-              </div>
-              {session?.user && (
-                <div className="flex items-center gap-3 px-5 py-3 bg-[#0a0a0c] border border-white/10 rounded-2xl">
-                  <div className={`w-2.5 h-2.5 rounded-full ${data.overallStats.interviewReadiness >= 60 ? 'bg-emerald-500' : 'bg-amber-500'} shadow-[0_0_10px_rgba(16,185,129,0.5)]`} />
-                  <span className="text-[11px] font-bold tracking-wider text-zinc-500 uppercase">Readiness: {data.overallStats.interviewReadiness}%</span>
-                </div>
-              )}
+    <div className="flex h-screen bg-nx-bg text-nx-text font-sans overflow-hidden">
+      <Sidebar />
+      <main className="flex-1 overflow-y-auto custom-scrollbar my-3 mr-3 rounded-2xl bg-nx-surface border border-white/[0.04] shadow-[0_8px_32px_rgba(0,0,0,0.3)] relative">
+        <div className="absolute inset-0 warm-vignette pointer-events-none rounded-2xl" />
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-5">
+          <div
+            ref={entranceRef}
+            className="space-y-5"
+          >
+            <div className="entrance-hero">
+              <HeroSection
+                name={session?.user?.name}
+                interviewReadiness={data.overallStats.interviewReadiness}
+                conceptMastery={data.conceptMastery}
+                weakAreas={data.weakAreas}
+                dailyChallengeSlug={dailyChallenge?.problem?.slug}
+              />
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-4 gap-5">
-              <StatCard icon={<Brain size={18} />} label="Problems Solved" value={String(data.overallStats.problemsSolved)} sub={`/ ${data.overallStats.problemsAttempted} attempted`} color="text-purple-400" />
-              <StatCard icon={<Trophy size={18} />} label="Success Rate" value={`${data.overallStats.successRate}%`} sub={`${data.overallStats.totalSubmitCount} submissions`} color="text-emerald-400" />
-              <StatCard icon={<Flame size={18} />} label="Current Streak" value={`${data.overallStats.currentStreak}d`} sub={`Best: ${data.overallStats.longestStreak}d`} color="text-orange-400" />
-              <StatCard icon={<Activity size={18} />} label="Mastered Patterns" value={String(data.masteredPatterns.length)} sub="Across all problems" color="text-cyan-400" />
+            <div className="entrance-section glass-pill rounded-2xl p-3 flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+                <StatusPill icon={<GitBranch size={11} />} label="Solved" value={`${data.overallStats.problemsSolved}/${data.overallStats.problemsAttempted}`} variant="accent" />
+                <StatusPill icon={<Trophy size={11} />} label="Rate" value={`${data.overallStats.successRate}%`} variant="success" />
+                <StatusPill icon={<Flame size={11} />} label="Streak" value={`${data.overallStats.currentStreak}d`} variant="warning" />
+                <StatusPill icon={<Brain size={11} />} label="Patterns" value={data.masteredPatterns.length} variant="info" />
+                <StatusPill icon={<Target size={11} />} label="Ready" value={`${data.overallStats.interviewReadiness}%`} variant="default" />
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <DateRangePill label="Last 7 days" />
+              </div>
+            </div>
+
+            <div className="entrance-section flex flex-wrap items-center gap-3">
+              <FilterTabs
+                tabs={[
+                  { label: 'All', count: tabCounts.all },
+                  { label: 'Mastered', count: tabCounts.mastered, variant: 'success' },
+                  { label: 'Learning', count: tabCounts.learning, variant: 'warning' },
+                  { label: 'Not Started', count: tabCounts.weak, variant: 'danger' },
+                ]}
+                active={filterTab}
+                onChange={setFilterTab}
+              />
+              <div className="flex items-center gap-1.5 ml-auto">
+                <span className="text-[9px] font-bold tracking-[0.2em] text-nx-muted uppercase">Show charts</span>
+                <div className="w-7 h-4 rounded-full bg-nx-accent/20 border border-nx-accent/30 flex items-center px-0.5">
+                  <div className="w-3 h-3 rounded-full bg-nx-accent shadow-[0_0_6px_rgba(212,165,83,0.5)]" />
+                </div>
+                <span className="text-[9px] font-bold tracking-[0.2em] text-nx-muted uppercase">Show alerts</span>
+                <div className="w-7 h-4 rounded-full bg-nx-accent/20 border border-nx-accent/30 flex items-center px-0.5">
+                  <div className="w-3 h-3 rounded-full bg-nx-accent shadow-[0_0_6px_rgba(212,165,83,0.5)]" />
+                </div>
+              </div>
             </div>
 
             {!hasData ? (
-              <div className="flex flex-col items-center justify-center py-24 space-y-6">
-                <Brain size={48} className="text-zinc-800" />
-                <p className="text-zinc-600 text-lg font-light">No learning data yet. Start solving problems to see your analytics.</p>
-                <Link href="/problems" className="px-10 py-4 bg-purple-500/10 border border-purple-500/30 rounded-2xl text-purple-400 text-sm font-bold tracking-wider hover:bg-purple-500/20 transition-all">
-                  Browse Curriculum
+              <div className="entrance-section flex flex-col items-center justify-center py-20 lg:py-28 space-y-8">
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-2xl bg-white/[0.02] border border-white/[0.04] flex items-center justify-center">
+                    <Brain size={40} className="text-nx-muted" />
+                  </div>
+                  <div className="absolute -inset-2 animate-shimmer rounded-3xl pointer-events-none" />
+                </div>
+                <div className="text-center space-y-3">
+                  <p className="text-nx-text-bright text-base font-semibold">Your analytics are waiting</p>
+                  <p className="text-nx-muted text-sm max-w-xs mx-auto">Start solving problems and track your mastery across data structures, algorithms, and patterns.</p>
+                </div>
+                <Link href="/problems" className="group px-8 py-4 rounded-2xl bg-gradient-to-r from-nx-accent to-nx-accent-deep text-nx-bg text-xs font-bold tracking-[0.2em] uppercase hover:from-nx-accent-bright hover:to-nx-accent transition-all duration-300 shadow-lg warm-glow-amber">
+                  Start Learning
+                  <ArrowRight size={14} className="inline ml-2 group-hover:translate-x-1 transition-transform" />
                 </Link>
               </div>
             ) : (
               <>
-                {/* Main Grid */}
-                <div className="grid grid-cols-3 gap-6">
-
-                  {/* Concept Mastery Radar */}
-                  <div className="col-span-2 bg-[#050507]/80 backdrop-blur-3xl border border-white/10 rounded-[2rem] p-8">
-                    <div className="flex items-center justify-between mb-8">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center">
-                          <Layers size={16} className="text-purple-400" />
-                        </div>
-                        <span className="text-[12px] font-bold tracking-[0.3em] text-purple-400 uppercase">Concept Mastery</span>
-                      </div>
-                      <span className="text-[11px] text-zinc-600">{data.conceptMastery.filter(c => c.status === 'mastered').length}/{data.conceptMastery.length} mastered</span>
+                <div className="entrance-section">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="lg:col-span-2">
+                      <StatCard
+                        icon={<Brain size={16} />}
+                        label="Problems Solved"
+                        value={data.overallStats.problemsSolved}
+                        sub={`/ ${data.overallStats.problemsAttempted} attempted`}
+                        gradient="from-nx-accent to-amber-600"
+                      />
                     </div>
-                    <ConceptMasteryGrid concepts={data.conceptMastery} />
+                    <StatCard
+                      icon={<Trophy size={16} />}
+                      label="Success Rate"
+                      value={data.overallStats.successRate}
+                      suffix="%"
+                      sub={`${data.overallStats.totalSubmitCount} submissions`}
+                      gradient="from-emerald-500 to-teal-500"
+                    />
+                    <StatCard
+                      icon={<Flame size={16} />}
+                      label="Current Streak"
+                      value={data.overallStats.currentStreak}
+                      suffix="d"
+                      sub={`Best: ${data.overallStats.longestStreak}d`}
+                      gradient="from-orange-500 to-amber-500"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                    <StatCard
+                      icon={<Award size={16} />}
+                      label="Mastered Patterns"
+                      value={data.masteredPatterns.length}
+                      sub="Across all problems"
+                      gradient="from-cyan-500 to-blue-500"
+                    />
+                    <StatCard
+                      icon={<Target size={16} />}
+                      label="Interview Readiness"
+                      value={data.overallStats.interviewReadiness}
+                      suffix="%"
+                      sub="Overall readiness score"
+                      gradient="from-nx-accent to-amber-600"
+                    />
+                  </div>
+                </div>
+
+                <SectionDivider />
+
+                <div className="entrance-section grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <div className="lg:col-span-2">
+                    <AIMentorInsight
+                      conceptMastery={data.conceptMastery}
+                      weakAreas={data.weakAreas}
+                      masteredPatterns={data.masteredPatterns}
+                    />
+                  </div>
+                  <div className="glass-panel-warm rounded-2xl p-6 lg:p-7 relative overflow-hidden flex flex-col">
+                    <div className="absolute top-0 right-0 w-[150px] h-[150px] bg-nx-accent/[0.04] rounded-full blur-[60px] pointer-events-none" />
+                    <div className="flex items-center gap-3 mb-5">
+                      <div className="w-8 h-8 rounded-xl bg-nx-accent-soft flex items-center justify-center border border-nx-accent/20">
+                        <Play size={16} className="text-nx-accent" />
+                      </div>
+                      <span className="text-[10px] font-bold tracking-[0.25em] text-nx-accent/70 uppercase">Next Up</span>
+                    </div>
+                    <div className="flex-1 flex flex-col">
+                      {mentorProgress?.recommendedNextProblem ? (
+                        <>
+                          <p className="text-sm text-nx-text/80 mb-1">Recommended problem</p>
+                          <p className="text-lg font-semibold text-nx-text-bright mb-3">{mentorProgress.recommendedNextProblem}</p>
+                          <p className="text-xs text-nx-muted leading-relaxed mb-6">
+                            This problem matches your mastered patterns and will help strengthen your understanding.
+                          </p>
+                          <div className="mt-auto">
+                            <Link
+                              href="/problems"
+                              className="group w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-nx-accent to-nx-accent-deep text-nx-bg text-xs font-bold tracking-[0.2em] uppercase hover:from-nx-accent-bright hover:to-nx-accent transition-all duration-300 shadow-lg warm-glow-amber"
+                            >
+                              Continue Learning
+                              <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                            </Link>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm text-nx-text/80 mb-1">Start your journey</p>
+                          <p className="text-xs text-nx-muted leading-relaxed mb-6 flex-1">
+                            Begin solving problems and the AI mentor will recommend the best next challenge based on your progress.
+                          </p>
+                          <div className="mt-auto">
+                            <Link
+                              href="/problems"
+                              className="group w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl glass-panel border border-white/[0.06] text-nx-text text-xs font-bold tracking-[0.2em] uppercase hover:bg-white/[0.06] transition-all duration-300"
+                            >
+                              Browse Problems
+                              <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                            </Link>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <SectionDivider />
+
+                <div className="entrance-section grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <div className="lg:col-span-2 glass-panel-warm rounded-2xl p-6 lg:p-7">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-7 h-7 rounded-lg bg-nx-accent-soft flex items-center justify-center">
+                          <Layers size={14} className="text-nx-accent" />
+                        </div>
+                        <span className="text-[10px] font-bold tracking-[0.25em] text-nx-accent/70 uppercase">Concept Mastery</span>
+                      </div>
+                      <span className="text-[10px] text-nx-muted font-medium">{groupedConcepts.mastered.length}/{data.conceptMastery.length} mastered</span>
+                    </div>
+
+                    {groupedConcepts.mastered.length > 0 && (
+                      <div className="mb-5">
+                        <div className="flex items-center gap-2 mb-3">
+                          <CheckCircle2 size={10} className="text-emerald-400" />
+                          <span className="text-[8px] font-bold tracking-[0.2em] text-emerald-400/70 uppercase">Mastered</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                          {groupedConcepts.mastered.map((c, i) => (
+                            <ConceptRing key={c.concept} concept={c} index={i} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {groupedConcepts.learning.length > 0 && (
+                      <div className="mb-5">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Sparkles size={10} className="text-nx-accent" />
+                          <span className="text-[8px] font-bold tracking-[0.2em] text-nx-accent/70 uppercase">Learning</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                          {groupedConcepts.learning.map((c, i) => (
+                            <ConceptRing key={c.concept} concept={c} index={i} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {groupedConcepts.weak.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <AlertTriangle size={10} className="text-rose-400" />
+                          <span className="text-[8px] font-bold tracking-[0.2em] text-rose-400/70 uppercase">Not Started</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                          {groupedConcepts.weak.map((c, i) => (
+                            <ConceptRing key={c.concept} concept={c} index={i} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Weak Areas & Review Queue */}
-                  <div className="space-y-6">
-                    {/* Weak Areas */}
-                    <div className="bg-[#050507]/80 backdrop-blur-3xl border border-white/10 rounded-[2rem] p-8">
-                      <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-rose-500/20 flex items-center justify-center">
-                            <AlertTriangle size={16} className="text-rose-400" />
-                          </div>
-                          <span className="text-[11px] font-bold tracking-[0.3em] text-rose-400 uppercase">Focus Areas</span>
+                  <div className="space-y-5">
+                    <div className="glass-panel-strong rounded-2xl p-6 lg:p-7">
+                      <div className="flex items-center gap-3 mb-5">
+                        <div className="w-7 h-7 rounded-lg bg-rose-500/15 flex items-center justify-center border border-rose-500/20">
+                          <AlertTriangle size={14} className="text-rose-400" />
                         </div>
+                        <span className="text-[10px] font-bold tracking-[0.25em] text-rose-400/70 uppercase">Weakness Heatmap</span>
                       </div>
                       {topWeaknesses.length > 0 ? (
-                        <div className="space-y-4">
-                          {topWeaknesses.map(w => (
-                            <div key={w.tag} className="bg-white/[0.03] rounded-xl p-4 border border-white/5">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm text-white font-medium">{w.friendlyName}</span>
-                                <span className="text-[11px] text-rose-400/80 font-mono">{w.percentOfSessions.toFixed(0)}%</span>
-                              </div>
-                              <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                <div className="h-full bg-gradient-to-r from-rose-500 to-orange-500 rounded-full" style={{ width: `${Math.min(w.percentOfSessions, 100)}%` }} />
-                              </div>
-                              <p className="text-[11px] text-zinc-600 mt-2 leading-relaxed">{w.description}</p>
-                            </div>
+                        <div className="space-y-2.5">
+                          {topWeaknesses.map((w, i) => (
+                            <WeakAreaBar key={w.tag} area={w} index={i} />
                           ))}
                         </div>
                       ) : (
-                        <div className="py-6 text-center text-zinc-600 text-sm">No weak patterns detected. Great work!</div>
+                        <div className="py-6 text-center text-nx-muted text-sm">No weak patterns detected. Great work!</div>
                       )}
                     </div>
 
-                    {/* SRS Review Queue */}
-                    {reviewQueue.length > 0 && (
-                      <div className="bg-[#050507]/80 backdrop-blur-3xl border border-white/10 rounded-[2rem] p-8">
-                        <div className="flex items-center justify-between mb-6">
+                    {data.reviewQueue.length > 0 && (
+                      <div className="glass-panel-strong rounded-2xl p-6 lg:p-7">
+                        <div className="flex items-center justify-between mb-5">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center">
-                              <Timer size={16} className="text-cyan-400" />
+                            <div className="w-7 h-7 rounded-lg bg-teal-500/15 flex items-center justify-center border border-teal-500/20">
+                              <Clock size={14} className="text-teal-400" />
                             </div>
-                            <span className="text-[11px] font-bold tracking-[0.3em] text-cyan-400 uppercase">Review Due</span>
+                            <span className="text-[10px] font-bold tracking-[0.25em] text-teal-400/70 uppercase">Review Queue</span>
                           </div>
-                          <span className="text-[10px] text-zinc-600">{reviewQueue.length} concepts</span>
+                          <span className="text-[9px] text-nx-muted font-medium">{data.reviewQueue.length} items</span>
                         </div>
-                        <div className="space-y-3">
-                          {reviewQueue.map(r => (
-                            <div key={r.concept} className="flex items-center justify-between py-2.5 border-b border-white/5 last:border-0">
-                              <div className="flex items-center gap-3">
-                                <div className={`w-2 h-2 rounded-full ${r.priority === 'high' ? 'bg-rose-500' : r.priority === 'medium' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                                <span className="text-sm text-zinc-300 capitalize">{r.concept.replace(/_/g, ' ')}</span>
+                        <ReviewQueue items={data.reviewQueue} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <SectionDivider />
+
+                <div className="entrance-section">
+                  <div className="glass-panel-warm rounded-2xl p-6 lg:p-7">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-7 h-7 rounded-lg bg-nx-accent-soft flex items-center justify-center border border-nx-accent/20">
+                          <BarChart3 size={14} className="text-nx-accent" />
+                        </div>
+                        <span className="text-[10px] font-bold tracking-[0.25em] text-nx-accent/70 uppercase">Interview Readiness</span>
+                      </div>
+                      {yesterdayVelocity && (
+                        <span className={`text-[10px] font-mono ${yesterdayVelocity.direction === 'up' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {yesterdayVelocity.direction === 'up' ? '↑' : '↓'} {yesterdayVelocity.value}% today
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                      {readinessBreakdown.map((item, i) => (
+                        <div key={item.label} className="bg-white/[0.02] rounded-xl p-4 border border-white/[0.04]">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-nx-text/80 font-medium">{item.label}</span>
+                            <span className="text-sm font-bold text-nx-text-bright font-mono">{item.value}%</span>
+                          </div>
+                          <div className="h-2 bg-white/[0.04] rounded-full overflow-hidden mb-2">
+                            <motion.div
+                              className={`h-full rounded-full bg-gradient-to-r ${item.gradient}`}
+                              initial={{ width: 0 }}
+                              animate={{ width: `${item.value}%` }}
+                              transition={{ duration: 1, delay: 0.3 + i * 0.1, ease: 'easeOut' }}
+                            />
+                          </div>
+                          <p className="text-[10px] text-nx-muted">{item.sub}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {stuckProblems.length > 0 && (
+                  <div className="entrance-section">
+                    <div className="glass-panel-strong rounded-2xl p-6 lg:p-7 border-l-2 border-l-nx-accent/60 relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-nx-accent/[0.04] to-transparent" />
+                      <div className="relative">
+                        <div className="flex items-center gap-3 mb-5">
+                          <div className="w-7 h-7 rounded-lg bg-nx-accent/15 flex items-center justify-center border border-nx-accent/25">
+                            <AlertTriangle size={14} className="text-amber-400" />
+                          </div>
+                          <span className="text-[10px] font-bold tracking-[0.25em] text-nx-accent/70 uppercase">Stuck Problems</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {stuckProblems.slice(0, 6).map((title, i) => (
+                            <motion.div
+                              key={title}
+                              initial={{ opacity: 0, y: 8 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: i * 0.04, duration: 0.3 }}
+                              className="bg-white/[0.02] rounded-xl px-4 py-3.5 border border-white/[0.04] flex items-center justify-between gap-3"
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <Code size={14} className="text-nx-muted shrink-0" />
+                                <span className="text-sm text-nx-text truncate">{title}</span>
                               </div>
-                              <div className="flex items-center gap-4">
-                                <span className="text-[11px] text-zinc-600">{r.mastery}%</span>
-                                <span className="text-[10px] font-mono text-zinc-700">{r.interval > 0 ? `${r.interval}d` : 'Overdue'}</span>
-                              </div>
-                            </div>
+                              <Link
+                                href="/problems"
+                                className="shrink-0 text-[9px] font-bold tracking-[0.15em] px-3 py-1.5 rounded-lg bg-nx-accent-soft border border-nx-accent/20 text-nx-accent hover:bg-nx-accent/15 transition-all duration-200 uppercase"
+                              >
+                                Mentor
+                              </Link>
+                            </motion.div>
                           ))}
                         </div>
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Learning Velocity + Recent Activity */}
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="bg-[#050507]/80 backdrop-blur-3xl border border-white/10 rounded-[2rem] p-8">
-                    <div className="flex items-center gap-3 mb-8">
-                      <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                        <TrendingUp size={16} className="text-emerald-400" />
-                      </div>
-                      <span className="text-[12px] font-bold tracking-[0.3em] text-emerald-400 uppercase">Learning Velocity</span>
-                    </div>
-                    <LearningVelocityChart points={data.learningVelocity} />
-                  </div>
-
-                  <div className="bg-[#050507]/80 backdrop-blur-3xl border border-white/10 rounded-[2rem] p-8">
-                    <div className="flex items-center justify-between mb-8">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                          <Activity size={16} className="text-blue-400" />
-                        </div>
-                        <span className="text-[12px] font-bold tracking-[0.3em] text-blue-400 uppercase">Recent Activity</span>
-                      </div>
-                      <Link href="/problems" className="text-[10px] text-purple-400 hover:text-purple-300 flex items-center gap-1">
-                        View All <ChevronRight size={12} />
-                      </Link>
-                    </div>
-                    {data.recentActivity.length > 0 ? (
-                      <div className="space-y-3">
-                        {data.recentActivity.slice(0, 5).map(a => (
-                          <ActivityRow key={a.id} item={a} />
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="py-8 text-center text-zinc-600 text-sm">No recent activity.</div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Stuck Problems Alert */}
-                {data.stuckProblems.length > 0 && (
-                  <div className="bg-[#050507]/80 backdrop-blur-3xl border border-amber-500/20 rounded-[2rem] p-6">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center border border-amber-500/30">
-                        <AlertCircle size={20} className="text-amber-400" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-white font-semibold text-sm">Stuck on {data.stuckProblems.length} problem{data.stuckProblems.length > 1 ? 's' : ''}</p>
-                        <p className="text-zinc-500 text-[12px]">High submission count with no accepted solution. Try the mentor for guidance.</p>
-                      </div>
-                      <Link href="/problems" className="px-6 py-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 text-[11px] font-bold tracking-wider hover:bg-amber-500/20 transition-all">
-                        Get Help
-                      </Link>
                     </div>
                   </div>
                 )}
 
-                {/* Quick Actions */}
-                <div className="grid grid-cols-3 gap-4">
-                  <QuickAction icon={<Play size={18} />} label="Resume Learning" sub="Continue where you left off" href={data.recommendedNext ? `/problems/${data.recommendedNext}` : '/problems'} color="from-purple-600 to-indigo-600" />
-                  <QuickAction icon={<Target size={18} />} label="Weakness Map" sub="Review your error patterns" href="/profile/skills" color="from-rose-600 to-orange-600" />
-                  <QuickAction icon={<Zap size={18} />} label="Skill Tree" sub="Track concept mastery" href="/profile/skills" color="from-emerald-600 to-teal-600" />
+                <SectionDivider />
+
+                <div className="entrance-section grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className="glass-panel-warm rounded-2xl p-6 lg:p-7">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-500/15 flex items-center justify-center border border-emerald-500/20">
+                        <TrendingUp size={14} className="text-emerald-400" />
+                      </div>
+                      <span className="text-[10px] font-bold tracking-[0.25em] text-emerald-400/70 uppercase">Learning Velocity</span>
+                    </div>
+                    <EnhancementChart points={data.learningVelocity} />
+                  </div>
+
+                  <div className="glass-panel-warm rounded-2xl p-6 lg:p-7">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-7 h-7 rounded-lg bg-blue-500/15 flex items-center justify-center border border-blue-500/20">
+                          <Activity size={14} className="text-blue-400" />
+                        </div>
+                        <span className="text-[10px] font-bold tracking-[0.25em] text-blue-400/70 uppercase">Recent Activity</span>
+                      </div>
+                      <Link href="/problems" className="text-[9px] text-nx-accent hover:text-nx-accent-bright flex items-center gap-1 font-semibold transition-colors">
+                        View All <ArrowRight size={10} />
+                      </Link>
+                    </div>
+                    <ActivityTimeline items={data.recentActivity} />
+                  </div>
+                </div>
+
+                <SectionDivider />
+
+                <div className="entrance-section">
+                  <div className="glass-panel-warm rounded-2xl p-6 lg:p-7">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="w-7 h-7 rounded-lg bg-nx-accent-soft flex items-center justify-center border border-nx-accent/20">
+                        <Layers size={14} className="text-nx-accent" />
+                      </div>
+                      <span className="text-[10px] font-bold tracking-[0.25em] text-nx-accent/70 uppercase">Learning Roadmap</span>
+                    </div>
+                    <div className="flex flex-wrap gap-3 justify-center">
+                      {roadmapItems.map((item, i) => {
+                        const isMastered = item.status === 'mastered';
+                        const isLearning = item.status === 'learning';
+                        return (
+                          <motion.div
+                            key={item.concept}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ delay: i * 0.03, duration: 0.3 }}
+                            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border transition-all duration-300 ${
+                              isMastered
+                                ? 'bg-emerald-500/8 border-emerald-500/20 text-emerald-300'
+                                : isLearning
+                                ? 'bg-nx-accent-soft border-nx-accent/20 text-nx-accent'
+                                : 'bg-white/[0.02] border-white/[0.04] text-nx-muted'
+                            }`}
+                          >
+                            {isMastered ? (
+                              <CheckCircle2 size={12} className="text-emerald-400" />
+                            ) : isLearning ? (
+                              <Sparkles size={12} className="text-nx-accent" />
+                            ) : (
+                              <ChevronRight size={12} />
+                            )}
+                            <span className="text-[10px] font-semibold capitalize whitespace-nowrap">
+                              {item.concept.replace(/_/g, ' ')}
+                            </span>
+                            <span className={`text-[8px] font-mono ${
+                              isMastered ? 'text-emerald-400/60' : isLearning ? 'text-nx-accent/60' : 'text-zinc-700'
+                            }`}>
+                              {item.mastery}%
+                            </span>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <SectionDivider />
+
+                <div className="entrance-section grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {dailyChallenge?.problem ? (
+                    <div className="glass-panel-warm rounded-2xl p-6 lg:p-7 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-[200px] h-[200px] bg-amber-500/4 rounded-full blur-[80px] pointer-events-none" />
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center border border-amber-500/25">
+                          <Zap size={16} className="text-amber-400" />
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold tracking-[0.25em] text-amber-400/70 uppercase">Daily Challenge</span>
+                          <p className="text-[9px] text-nx-muted">{dailyChallenge.date}</p>
+                        </div>
+                      </div>
+                      <p className="text-lg font-semibold text-nx-text-bright mb-2">{dailyChallenge.problem.title}</p>
+                      <div className="flex items-center gap-4 mb-5">
+                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border ${
+                          dailyChallenge.problem.difficulty === 'EASY' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+                          dailyChallenge.problem.difficulty === 'MEDIUM' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                          'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                        }`}>
+                          {dailyChallenge.problem.difficulty}
+                        </span>
+                        <span className="text-[10px] text-nx-muted flex items-center gap-1">
+                          <Star size={10} className="text-amber-500/60" />
+                          {dailyChallenge.problem.totalSolvers} solved
+                        </span>
+                      </div>
+                      <Link
+                        href={`/problems/${dailyChallenge.problem.slug}`}
+                        className="group inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-600 text-nx-bg text-xs font-bold tracking-[0.2em] uppercase hover:from-amber-500 hover:to-orange-500 transition-all duration-300 shadow-lg warm-glow-warning"
+                      >
+                        Start Challenge
+                        <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="glass-panel-strong rounded-2xl p-6 lg:p-7">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-8 h-8 rounded-xl bg-zinc-500/10 flex items-center justify-center border border-zinc-500/20">
+                          <Zap size={16} className="text-zinc-500" />
+                        </div>
+                        <span className="text-[10px] font-bold tracking-[0.25em] text-zinc-500 uppercase">Daily Challenge</span>
+                      </div>
+                      <p className="text-sm text-nx-muted">No challenge available today.</p>
+                    </div>
+                  )}
+
+                  <div className="glass-panel-warm rounded-2xl p-6 lg:p-7">
+                    <div className="flex items-center gap-3 mb-5">
+                      <div className="w-7 h-7 rounded-lg bg-nx-accent-soft flex items-center justify-center border border-nx-accent/20">
+                        <Zap size={14} className="text-nx-accent" />
+                      </div>
+                      <span className="text-[10px] font-bold tracking-[0.25em] text-nx-accent/70 uppercase">Quick Actions</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <QuickActionCard
+                        icon={<Play size={16} />}
+                        label="Continue Learning"
+                        sub="Resume your progress"
+                        href="/problems"
+                        gradient="from-nx-accent to-amber-600"
+                      />
+                      <QuickActionCard
+                        icon={<Brain size={16} />}
+                        label="AI Mentor"
+                        sub="Get personalized help"
+                        href="/problems"
+                        gradient="from-blue-600 to-cyan-600"
+                      />
+                      <QuickActionCard
+                        icon={<Target size={16} />}
+                        label="Weaknesses"
+                        sub="Review error patterns"
+                        href="/profile/skills"
+                        gradient="from-rose-600 to-orange-600"
+                      />
+                      <QuickActionCard
+                        icon={<Layers size={16} />}
+                        label="Skill Tree"
+                        sub="Track concept mastery"
+                        href="/profile/skills"
+                        gradient="from-emerald-600 to-teal-600"
+                      />
+                    </div>
+                  </div>
                 </div>
               </>
             )}
           </div>
-        </main>
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ icon, label, value, sub, color }: { icon: React.ReactNode; label: string; value: string; sub: string; color: string }) {
-  return (
-    <div className="bg-[#050507]/80 backdrop-blur-3xl border border-white/10 rounded-[1.75rem] p-6 group hover:border-white/20 transition-all">
-      <div className="flex items-center gap-3 mb-4">
-        <div className={`${color}`}>{icon}</div>
-        <span className="text-[10px] font-bold tracking-[0.3em] text-zinc-600 uppercase">{label}</span>
-      </div>
-      <div className="text-3xl font-bold text-white tracking-tight mb-1">{value}</div>
-      <div className="text-[11px] text-zinc-600">{sub}</div>
-    </div>
-  );
-}
-
-function ConceptMasteryGrid({ concepts }: { concepts: ConceptMasteryItem[] }) {
-  const topConcepts = concepts.slice(0, 12);
-  return (
-    <div className="grid grid-cols-4 gap-4">
-      {topConcepts.map(c => {
-        const statusColors: Record<string, string> = {
-          mastered: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
-          learning: 'border-purple-500/30 bg-purple-500/10 text-purple-400',
-          blocked: 'border-rose-500/30 bg-rose-500/10 text-rose-400',
-          not_started: 'border-zinc-700/30 bg-zinc-800/20 text-zinc-600',
-        };
-        return (
-          <div key={c.concept} className={`rounded-xl border p-4 ${statusColors[c.status] || statusColors.not_started} transition-all hover:scale-[1.02]`}>
-            <div className="text-[11px] font-medium capitalize truncate mb-2">{c.concept.replace(/_/g, ' ')}</div>
-            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden mb-2">
-              <div className={`h-full rounded-full transition-all duration-700 ${c.status === 'mastered' ? 'bg-emerald-400' : c.status === 'learning' ? 'bg-purple-400' : 'bg-zinc-700'}`}
-                style={{ width: `${c.mastery}%` }} />
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-bold">{c.mastery}%</span>
-              <span className="text-[9px] uppercase tracking-wider font-bold">{c.status.replace(/_/g, ' ')}</span>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function LearningVelocityChart({ points }: { points: LearningVelocityPoint[] }) {
-  const maxSolved = Math.max(...points.map(p => p.problemsSolved), 1);
-  const maxMastery = 100;
-  if (points.length === 0) return <div className="py-8 text-center text-zinc-600 text-sm">No data yet</div>;
-
-  const w = 600; const h = 180;
-  const pointSpacing = Math.max(12, Math.min(18, w / (points.length || 1)));
-  const chartW = Math.max(w, points.length * pointSpacing);
-
-  const pathMastery = points.map((p, i) => {
-    const x = i * pointSpacing + 40;
-    const y = h - 30 - (p.overallMastery / maxMastery) * (h - 60);
-    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-  }).join(' ');
-
-  const pathSolved = points.map((p, i) => {
-    const x = i * pointSpacing + 40;
-    const y = h - 30 - (p.problemsSolved / maxSolved) * (h - 60);
-    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-  }).join(' ');
-
-  const areaMastery = pathMastery + ` L ${(points.length - 1) * pointSpacing + 40} ${h - 30} L 40 ${h - 30} Z`;
-
-  const lastVal = points[points.length - 1];
-  const firstVal = points[0];
-  const velocity = lastVal && firstVal ? ((lastVal.overallMastery - firstVal.overallMastery) / Math.max(points.length, 1)).toFixed(1) : '0';
-
-  return (
-    <div>
-      <div className="flex items-center gap-6 mb-4">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-purple-500" />
-          <span className="text-[11px] text-zinc-500">Mastery</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-emerald-500" />
-          <span className="text-[11px] text-zinc-500">Problems Solved</span>
-        </div>
-        <div className="ml-auto text-[10px] text-zinc-600 font-mono">+{velocity}%/day</div>
-      </div>
-      <svg viewBox={`0 0 ${chartW} ${h}`} className="w-full h-48" preserveAspectRatio="xMidYMid meet">
-        <defs>
-          <linearGradient id="masteryGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#a855f7" stopOpacity="0.2" />
-            <stop offset="100%" stopColor="#a855f7" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <path d={areaMastery} fill="url(#masteryGrad)" />
-        <path d={pathMastery} fill="none" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" />
-        <path d={pathSolved} fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeDasharray="4 3" />
-        {points.filter((_, i) => i % Math.max(1, Math.floor(points.length / 6)) === 0).map((p, i) => {
-          const x = i * Math.floor(points.length / 6) * pointSpacing + 40;
-          return <text key={i} x={x} y={h - 5} textAnchor="middle" className="fill-zinc-700 text-[8px] font-mono">{p.date.slice(5)}</text>;
-        })}
-      </svg>
+      </main>
     </div>
-  );
-}
-
-function ActivityRow({ item }: { item: ActivityItem }) {
-  const icons: Record<string, React.ReactNode> = {
-    solved: <CheckCircle2 size={14} className="text-emerald-400" />,
-    attempted: <Code size={14} className="text-blue-400" />,
-    debug: <Activity size={14} className="text-amber-400" />,
-    review: <Sparkles size={14} className="text-purple-400" />,
-  };
-  const icon = icons[item.type] || <Code size={14} className="text-zinc-500" />;
-  return (
-    <div className="flex items-start gap-4 py-3 border-b border-white/5 last:border-0">
-      <div className="mt-0.5">{icon}</div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm text-zinc-300 truncate">{item.problemTitle}</p>
-        <p className="text-[11px] text-zinc-600 truncate">{item.detail}</p>
-      </div>
-      <span className="text-[10px] text-zinc-700 font-mono whitespace-nowrap">
-        {new Date(item.timestamp).toLocaleDateString()}
-      </span>
-    </div>
-  );
-}
-
-function QuickAction({ icon, label, sub, href, color }: { icon: React.ReactNode; label: string; sub: string; href: string; color: string }) {
-  return (
-    <Link
-      href={href}
-      className="relative group bg-[#050507]/80 backdrop-blur-3xl border border-white/10 rounded-[1.75rem] p-6 overflow-hidden hover:border-white/20 transition-all"
-    >
-      <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-0 group-hover:opacity-10 transition-opacity duration-500`} />
-      <div className="relative z-10 flex items-center gap-4">
-        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center text-white shadow-lg`}>
-          {icon}
-        </div>
-        <div>
-          <p className="text-white font-semibold text-sm">{label}</p>
-          <p className="text-[11px] text-zinc-600">{sub}</p>
-        </div>
-        <ChevronRight size={18} className="ml-auto text-zinc-700 group-hover:text-white transition-colors" />
-      </div>
-    </Link>
   );
 }

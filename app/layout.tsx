@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { JetBrains_Mono, Plus_Jakarta_Sans, Roboto_Slab } from "next/font/google";
+import { JetBrains_Mono, Plus_Jakarta_Sans, Sora } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { Background } from "@/components/hero";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -18,15 +17,15 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   display: "swap",
 });
 
-const robotoSlab = Roboto_Slab({
+const sora = Sora({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700", "800"],
-  variable: "--font-roboto-slab",
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-heading",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "code.zone",
+  title: "neXode",
   description: "Developer community platform",
 };
 
@@ -41,11 +40,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${plusJakartaSans.variable} ${jetbrainsMono.variable} ${robotoSlab.variable} antialiased font-sans`}>
+    <html lang="en" className="dark">
+      <body className={`${plusJakartaSans.variable} ${jetbrainsMono.variable} ${sora.variable} antialiased font-sans`}>
         <Providers>
-          {/* <Background/> */}
-          {/* <CursorGradient /> */}
+          <div className="film-grain" />
           {children}
         </Providers>
       </body>
