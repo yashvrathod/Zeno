@@ -1,141 +1,104 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { ArrowDown } from 'lucide-react';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { useRef } from 'react';
+import dynamic from 'next/dynamic';
+import { ScaleBg, Navbar } from '@/components/scale';
+import { HeroSection } from '@/components/scale/hero-section';
+import { CodeShowcaseSection } from '@/components/scale/code-showcase-section';
+import { BottomRevealSection } from '@/components/scale/bottom-reveal-section';
+import { BeigeOverlay } from '@/components/scale/beige-overlay';
+import { DarkFooter } from '@/components/scale/dark-footer';
+import { useHeroTimeline } from '@/hooks/use-hero-timeline';
 
-import { Navbar, HeroVideo } from '@/components/hero';
+import { useBottomReveal } from '@/hooks/use-bottom-reveal';
+import { useBeigeOverlay } from '@/hooks/use-beige-overlay';
+import { useFooterEntrance } from '@/hooks/use-footer-entrance';
 
-gsap.registerPlugin(ScrollTrigger);
+const GooeyShowcase = dynamic(() => import('@/components/scale/GooeyShowcase'), { ssr: false });
 
-export default function Home() {
-  const textRef = useRef<HTMLDivElement>(null);
-  const pageRef = useRef<HTMLDivElement>(null);
+export default function ScaleFullPage() {
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const stackRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
+  const bgRef = useRef<HTMLDivElement>(null);
+  const wordsRef = useRef<HTMLDivElement>(null);
+  const typeRef = useRef<HTMLDivElement>(null);
+  const typeRef2 = useRef<HTMLDivElement>(null);
+  const imgSlideRef = useRef<HTMLDivElement>(null);
+  const oldLabelRef = useRef<HTMLSpanElement>(null);
+  const newLabelRef = useRef<HTMLSpanElement>(null);
+  const beigeWrapRef = useRef<HTMLDivElement>(null);
+  const beigePanelRef = useRef<HTMLDivElement>(null);
+  const greenCardRef = useRef<HTMLDivElement>(null);
+  const bottomSectionRef = useRef<HTMLDivElement>(null);
+  const showcaseSectionRef = useRef<HTMLDivElement>(null);
+  const gooeyRef = useRef<HTMLDivElement>(null);
+  const waveProgressRef = useRef(0);
+  const footerRef = useRef<HTMLDivElement>(null);
+  const spacerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const lines = gsap.utils.toArray('.hero-line');
+  useHeroTimeline({
+    sectionRef,
+    cardRef,
+    stackRef,
+    headingRef,
+    bgRef,
+    wordsRef,
+    typeRef,
+    typeRef2,
+  });
 
-    gsap.to(lines, {
-      opacity: 0,
-      y: -120,
-      stagger: 0.12,
-      ease: 'power3.out',
-      scrollTrigger: {
-        trigger: document.body,
-        start: 'top top',
-        end: '+=600',
-        scrub: true,
-      },
-    });
-  }, []);
+  useBottomReveal({ imgSlideRef, oldLabelRef, newLabelRef, greenCardRef });
 
-  useEffect(() => {
-    if (!pageRef.current) return;
+  useBeigeOverlay({ beigeWrapRef, bottomSectionRef, footerRef, waveProgressRef, spacerRef });
 
-    // Background transition is now handled by the high-performance overlay below
-  }, []);
+  useFooterEntrance({ footerRef });
+
   return (
-    <div
-      ref={pageRef}
-      className="relative bg-black min-h-screen"
+    <main
+      ref={mainRef}
+      className="relative min-h-screen bg-white overflow-x-hidden"
     >
-      {/* Black Background Overlay (Optimized Transition) */}
-      <div
-        className="fixed inset-0 bg-black pointer-events-none z-[-1] will-change-opacity transition-opacity duration-700 ease-out"
-        style={{ opacity: 0 }}
-        id="bg-overlay"
-      />
+      <div className="absolute inset-0 bg-black z-0 transition-opacity duration-1000" style={{ opacity: 0 }} id="bg-darkener" />
+      <ScaleBg ref={bgRef} />
 
-      <script dangerouslySetInnerHTML={{ __html: `
-        // Use IntersectionObserver to avoid scroll event overhead for the background
-        const overlay = document.getElementById('bg-overlay');
-        const observer = new IntersectionObserver((entries) => {
-          entries.forEach(entry => {
-            // As we scroll down, we manually trigger the opacity
-            // For a smoother gradient, we still need a listener, but we'll use requestAnimationFrame
-            if (entry.isIntersecting) {
-              let ticking = false;
-              window.addEventListener('scroll', () => {
-                if (!ticking) {
-                  window.requestAnimationFrame(() => {
-                    const progress = Math.min(window.scrollY / 1500, 1);
-                    overlay.style.opacity = progress;
-                    ticking = false;
-                  });
-                  ticking = true;
-                }
-              }, { passive: true });
-            }
-          });
-        }, { threshold: [0, 1] });
-        
-        // Target a small element far down to trigger the logic
-        const trigger = document.createElement('div');
-        trigger.style.position = 'absolute';
-        trigger.style.top = '500px';
-        trigger.style.height = '1px';
-        trigger.style.width = '1px';
-        document.body.appendChild(trigger);
-        observer.observe(trigger);
-      `}} />
+      <Navbar initialLight={false} />
 
-      {/* Video Background */}
-      <HeroVideo />
+      <div className="relative z-[2]">
 
-      {/* Navbar */}
-      <Navbar />
+        <HeroSection
+          ref={sectionRef}
+          cardRef={cardRef}
+          stackRef={stackRef}
+          headingRef={headingRef}
+          wordsRef={wordsRef}
+          typeRef={typeRef}
+          typeRef2={typeRef2}
+        />
 
-      {/* Fixed Hero Section */}
-      <section className="fixed inset-0 z-10 flex flex-col items-center justify-center px-6 text-center font-roboto-slab pointer-events-none">
+        <CodeShowcaseSection ref={showcaseSectionRef} />
 
-        {/* TEXT */}
-        <motion.div
-          ref={textRef}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.3 }}
-          className="max-w-5xl mx-auto"
-        >
-          <h1 className="text-[clamp(2.25rem,5vw,3.75rem)] font-medium text-white tracking-tight leading-[1.15] mb-0">
-             <span className="hero-line block">
-      The world's most important decisions
-    </span>
+        <div className="relative w-full">
+          <GooeyShowcase ref={gooeyRef} />
+        </div>
 
-    <span className="hero-line block">
-      need reliable AI systems.
-    </span>
-          </h1>
-        </motion.div>
+        <BottomRevealSection
+          ref={bottomSectionRef}
+          imgSlideRef={imgSlideRef}
+          oldLabelRef={oldLabelRef}
+          newLabelRef={newLabelRef}
+          greenCardRef={greenCardRef}
+        />
 
-        {/* Scroll Indicator */}
-        <motion.div
-          className="absolute bottom-10 right-10 flex items-center gap-3 text-white/70"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.2, duration: 0.5 }}
-        >
-          <span className="text-[14px] font-medium tracking-wide">
-            Scroll to explore
-          </span>
+        {/* Spacer for BeigeOverlay to scroll through */}
+        <div ref={spacerRef} className="h-[300vh] w-full pointer-events-none" />
 
-          <motion.div
-            animate={{ y: [0, 6, 0] }}
-            transition={{
-              duration: 1.5,
-              repeat: Infinity,
-              ease: 'easeInOut',
-            }}
-            className="w-9 h-9 border border-white/40 rounded-lg flex items-center justify-center"
-          >
-            <ArrowDown className="w-4 h-4" />
-          </motion.div>
-        </motion.div>
-      </section>
+        <BeigeOverlay ref={beigeWrapRef} beigePanelRef={beigePanelRef} progressRef={waveProgressRef} />
 
-      {/* Scroll Space */}
-      <section className="h-[13000px]" />
-    </div>
+        <DarkFooter ref={footerRef} />
+      </div>
+    </main>
   );
 }

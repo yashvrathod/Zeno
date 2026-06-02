@@ -23,6 +23,8 @@ import {
 } from "../../context/user";
 import type { HistoryMsg, UserStats } from "../../context/user";
 import { detectTone, buildMentorSystemPrompt } from "../../prompt/system";
+import { buildExecutionContext } from "../../prompt/execution";
+import { buildProblemMetadata } from "../../prompt/problemMetadata";
 import {
   sanitizeResponse, buildSolutionResponse, buildAiUnavailableFallback,
   shouldTriggerAnimation, parseAnimationMarker, parseMentorMemory,
@@ -33,6 +35,8 @@ import { detectVisualizationType } from "../visualScaffolding";
 import { triggerArchitectReview, formatArchitectFeedback } from "../seniorArchitect";
 import { enqueueArchitectReview, isQueueAvailable } from "@/lib/queue";
 import type { MentorRequest, MentorResponse } from "../../orchestrator";
+import { getProblemTimeLimit } from "@/lib/executor/timeLimits";
+import type { LastExecution } from "../../lastExecution";
 import {
   validateAIResponse, extractStageAssessment, detectFrustration,
 } from "@/lib/responseValidator";
@@ -148,8 +152,10 @@ async function buildPromptContext(params: {
   loopDetected: boolean;
   weaknessContext?: string;
   debuggerContext?: string;
+  stale?: boolean;
+  lastExecution?: LastExecution;
 }) {
-  const { body, stage, rung, history, stats, conversationIntent, knowledgeGraph, debugAnalysis, traceContext } = params;
+  const { body, stage, rung, history, stats, conversationIntent, knowledgeGraph, debugAnalysis, traceContext, stale, lastExecution } = params;
 
   const stylePrompt = verbosityToStylePrompt(params.verbosity);
   const contextualGuidance = buildContextualGuidance(body, stats, history);
@@ -161,6 +167,29 @@ async function buildPromptContext(params: {
   const guideQuestion = selectGuideQuestion(rung, stage, probContext);
   const triggerAnimFlag = shouldTriggerAnimation(body.userMessage);
   const animationContext = buildAnimationContext(body.animationType, body.animationData, triggerAnimFlag);
+
+  // PR 3: render problem metadata and execution context into the prompt.
+  // Both are short, pre-rendered strings; the system prompt's
+  // EXECUTION_GUIDANCE section (priority 0) provides the interpretation
+  // rules above them.
+  const problemMetadata = buildProblemMetadata({
+    title: body.problemTitle,
+    difficulty: undefined, // PR 5 will pass this when the field lands
+    tags: undefined,        // PR 5
+    patterns: undefined,    // PR 5
+    expectedComplexity: undefined, // PR 5
+    topicTags: undefined,   // PR 5
+  });
+
+  // TLE rendering needs the per-problem limit. The body doesn't carry it
+  // directly; use the executor's default (5s) for the prompt-level rendering.
+  // The orchestrator could pass the actual limit later; for now this matches
+  // the executor's own default.
+  const limitMs = getProblemTimeLimit({ timeLimitMs: null });
+  const executionContext = buildExecutionContext(lastExecution, {
+    isStale: !!stale,
+    limitMs,
+  });
 
   const understanding = inferUnderstandingFromHistory(history, stage);
   const understandingContext = understanding.demonstrated.length > 0 || understanding.gaps.length > 0
@@ -218,6 +247,8 @@ async function buildPromptContext(params: {
     problemContext, codeContext, statsContext, conversationHistory,
     guideQuestion, loopAlert, existingMem, animationContext,
     params.conversationIntent?.primaryIntent as any, history.length,
+    executionContext,
+    problemMetadata,
   );
 
   return {
@@ -439,8 +470,12 @@ export async function handleAiNeeded(params: {
   rung?: number;
   traceContext?: string;
   onChunk?: (chunk: string) => void;
+  /** PR 3: orchestrator-resolved stale flag (server-authoritative). */
+  stale?: boolean;
+  /** PR 3: structured result of the user's last execution. */
+  lastExecution?: LastExecution;
 }): Promise<MentorResponse> {
-  const { body, userId, problemId, mentorSession, history, stats, userAiSettings, existingSummary, apiConfig, intent, conversationIntent, knowledgeGraph, debugAnalysis, rung: rungFromOrch, traceContext, onChunk } = params;
+  const { body, userId, problemId, mentorSession, history, stats, userAiSettings, existingSummary, apiConfig, intent, conversationIntent, knowledgeGraph, debugAnalysis, rung: rungFromOrch, traceContext, onChunk, stale = false, lastExecution } = params;
   const stage = mentorSession.stage as TeachingStage;
 
   // ── Verbosity: use user preference, fall back to "normal" ──
@@ -485,6 +520,7 @@ export async function handleAiNeeded(params: {
   const promptCtx = await buildPromptContext({
     body, userId, stage, rung, history, stats, conversationIntent, knowledgeGraph, debugAnalysis, traceContext,
     rollingSummaryMd, tone, verbosity, loopDetected, weaknessContext, debuggerContext,
+    stale, lastExecution,
   });
 
   // ── Call LLM ──
@@ -550,6 +586,11 @@ export async function handleAiNeeded(params: {
         assessedStage: stageAssessment.assessedStage,
       },
       frustrationLevel,
+      // PR 3: expose the authoritative stale flag and the kind of execution
+      // context that drove the response. Callers (UI / telemetry) can use
+      // these to render a stale indicator or to track detection efficacy.
+      stale,
+      lastExecutionKind: lastExecution?.kind ?? null,
     },
   };
 }

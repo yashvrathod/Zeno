@@ -128,6 +128,15 @@ export function useHeroTimeline({
       0,
     );
 
+    const darkener = document.getElementById('bg-darkener');
+    if (darkener) {
+      tl.to(
+        darkener,
+        { opacity: 1, ease: 'power2.inOut', duration: 1 },
+        0,
+      );
+    }
+
     tl.to(wordsRef.current, { opacity: 1, duration: 0.4 }, 1.2);
 
     tl.to(

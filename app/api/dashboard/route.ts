@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
 
     const reviewQueue: ReviewItem[] = [];
     if (knowledgeGraph) {
-      const due = getDueConcepts(knowledgeGraph, 5);
+      const due = getDueConcepts(knowledgeGraph.concepts, 5);
       for (const cm of due) {
         reviewQueue.push({
           concept: cm.concept,
@@ -120,10 +120,23 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const trajectory = knowledgeGraph?.learningTrajectory || [];
-    const learningVelocity: LearningVelocityPoint[] = trajectory.length > 0
-      ? trajectory.map((t: any) => ({
-          date: new Date(t.date).toISOString().split('T')[0],
+    let trajectoryArray: any[] = [];
+    const dbTrajectory = knowledgeGraph?.learningTrajectory;
+    if (dbTrajectory) {
+      if (typeof dbTrajectory === "string") {
+        try {
+          trajectoryArray = JSON.parse(dbTrajectory);
+        } catch (e) {
+          trajectoryArray = [];
+        }
+      } else if (Array.isArray(dbTrajectory)) {
+        trajectoryArray = dbTrajectory;
+      }
+    }
+
+    const learningVelocity: LearningVelocityPoint[] = trajectoryArray.length > 0
+      ? trajectoryArray.map((t: any) => ({
+          date: t.date ? new Date(t.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           overallMastery: t.overallMastery || 0,
           conceptsMastered: t.conceptsMastered || 0,
           problemsSolved: t.problemsSolved || 0,

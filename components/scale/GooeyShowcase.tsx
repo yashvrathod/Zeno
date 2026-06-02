@@ -15,32 +15,32 @@ const cards = [
   {
     baseImg: '/gooey/woods-base.jpg',
     hoverImg: '/gooey/woods-hover.jpg',
-    title: 'WOODS &\nFORESTS',
+    title: 'AI HINTS &\nGUIDANCE',
   },
   {
     baseImg: '/gooey/rocks-base.jpg',
     hoverImg: '/gooey/rocks-hover.jpg',
-    title: 'ROCKS &\nMOUNTAINS',
+    title: 'INTERACTIVE\nVISUALIZATIONS',
   },
   {
     baseImg: '/gooey/cities-base.jpg',
     hoverImg: '/gooey/cities-hover.jpg',
-    title: 'MODERN\nCITIES',
+    title: 'PROGRESS\nTRACKING',
   },
   {
     baseImg: '/gooey/ocean.jpg',
     hoverImg: '/gooey/ocean-hover.jpg',
-    title: 'OCEANS &\nWAVES',
+    title: 'INTERVIEW\nPREP',
   },
   {
     baseImg: '/gooey/desert.jpg',
     hoverImg: '/gooey/desert-hover.jpg',
-    title: 'DESERT &\nSANDS',
+    title: 'PATTERN\nRECOGNITION',
   },
   {
     baseImg: '/gooey/snow.jpg',
     hoverImg: '/gooey/snow-hover.jpg',
-    title: 'SNOW &\nICE',
+    title: 'STEP-BY-STEP\nDEBUGGING',
   },
 ];
 
@@ -127,9 +127,9 @@ function OverlayContent({ progressMV }: { progressMV: any }) {
             className="text-[10vw] leading-[0.82] uppercase font-serif tracking-[-0.07em] text-[#76807b]/20 select-none"
             style={{ mixBlendMode: 'soft-light' }}
           >
-            WHAT'S YOUR NEXT
+            YOUR AI DSA MENTOR
             <br />
-            DESTINATION
+            EVERY FEATURE UNLOCKED
           </h1>
         </div>
       </motion.div>
@@ -158,7 +158,7 @@ function OverlayContent({ progressMV }: { progressMV: any }) {
                 </h2>
 
                 <div className="mt-5">
-                  <p className="text-[#efe4db] text-sm mb-2">See more</p>
+                  <p className="text-[#efe4db] text-sm mb-2">Practice now</p>
                   <div className="w-16 h-[1px] bg-[#efe4db]/80" />
                 </div>
               </div>
@@ -170,12 +170,12 @@ function OverlayContent({ progressMV }: { progressMV: any }) {
       {/* Bottom Right */}
       <div className="absolute bottom-10 right-10 z-30">
         <p className="text-white/70 text-sm leading-relaxed text-right">
-          With NexCode, nothing stands between your ideas
+          AI-powered hints, live visualizations, and
           <br />
-          and the final result.
+          personalized guidance to ace your interviews.
         </p>
         <p className="text-white/30 text-xs mt-4 text-right">
-          Built for developers
+          Built for interview success
         </p>
       </div>
 
@@ -273,8 +273,7 @@ const GooeyMagazineScroll = forwardRef<HTMLDivElement>((_, ref) => {
                   </h2>
 
                   <p className="mt-10 max-w-2xl text-lg leading-relaxed text-white/60">
-                    Explore immersive landscapes and cinematic storytelling with rich motion, fluid interaction,
-                    and modern visual experiences crafted for high-end interfaces.
+                    Unlock every feature designed to take you from beginner to interview-ready — AI hints, progress tracking, live debugging, pattern recognition, and more.
                   </p>
 
                   <div className="mt-10 flex items-center gap-6">

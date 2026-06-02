@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Award, Code, BarChart3, AlertTriangle, CheckCircle2, Lightbulb,
   ExternalLink, ChevronDown, ChevronRight, Sparkles,
@@ -27,15 +27,16 @@ interface ArchitectReviewCardProps {
   problemId: string;
   problemTitle?: string;
   onClose?: () => void;
+  autoTrigger?: boolean;
 }
 
-export function ArchitectReviewCard({ code, language, problemId, problemTitle, onClose }: ArchitectReviewCardProps) {
+export function ArchitectReviewCard({ code, language, problemId, problemTitle, onClose, autoTrigger = false }: ArchitectReviewCardProps) {
   const [review, setReview] = useState<ArchitectReviewData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
-  const triggerReview = async () => {
+  const triggerReview = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -60,14 +61,20 @@ export function ArchitectReviewCard({ code, language, problemId, problemTitle, o
           { name: "Clean Code", score: Math.round(Math.random() * 35 + 55), maxScore: 100, feedback: "Code structure could be improved.", suggestions: ["Extract helper functions", "Add early returns"] },
         ],
         summary: `Your solution scores ${data.summary.score}/100. ${data.summary.productionReady ? "It's production-ready!" : "Some improvements needed before production."}`,
-        improvements: ["Add input validation", "Extract magic numbers", "Use descriptive variable names"],
+        improvements: data.review.improvements || ["Add input validation", "Extract magic numbers", "Use descriptive variable names"],
       });
     } catch {
       setError("Review service unavailable");
     } finally {
       setLoading(false);
     }
-  };
+  }, [code, language, problemId, problemTitle]);
+
+  useEffect(() => {
+    if (autoTrigger) {
+      triggerReview();
+    }
+  }, [autoTrigger, triggerReview]);
 
   const gradeColors: Record<string, string> = {
     A: "text-emerald-400 border-emerald-500/30 bg-emerald-500/10",

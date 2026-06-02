@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Code, Mail, Lock, User, AlertCircle, CheckCircle } from 'lucide-react';
+import { signIn } from 'next-auth/react';
+import { Code, Mail, Lock, User, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +22,7 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -71,9 +73,24 @@ export default function RegisterPage() {
       }
 
       setSuccess(true);
-      setTimeout(() => {
-        router.push('/auth/login');
-      }, 2000);
+
+      const signInResult = await signIn('credentials', {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
+      });
+
+      if (signInResult?.ok) {
+        setIsSigningIn(true);
+        setTimeout(() => {
+          router.push('/dashboard');
+          router.refresh();
+        }, 800);
+      } else {
+        setTimeout(() => {
+          router.push('/auth/login');
+        }, 2000);
+      }
     } catch (error) {
       setError('An error occurred. Please try again.');
     } finally {
@@ -92,9 +109,11 @@ export default function RegisterPage() {
       <Card className="w-full max-w-md bg-[#1a1a1a] border-zinc-800 shadow-2xl relative z-10">
         <div className="p-8">
           {/* Logo */}
-          <div className="flex items-center justify-center gap-2 mb-8">
-            <Code className="w-8 h-8 text-orange-500" />
-            <span className="text-2xl font-bold text-white">code.zone</span>
+          <div className="flex items-center justify-center gap-3 mb-8">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-nx-accent to-amber-600 flex items-center justify-center shadow-lg shadow-nx-accent/20">
+              <img src="/logo.png" alt="neXode" className="w-6 h-6 object-contain brightness-0 invert" />
+            </div>
+            <span className="text-2xl font-bold text-white font-heading tracking-tight">neXode</span>
           </div>
 
           {/* Title */}
@@ -114,8 +133,12 @@ export default function RegisterPage() {
           {/* Success Message */}
           {success && (
             <div className="mb-6 p-3 bg-green-500/10 border border-green-500/30 rounded-lg flex items-center gap-2 text-green-400 text-sm">
-              <CheckCircle className="w-4 h-4 flex-shrink-0" />
-              <span>Account created! Redirecting to login...</span>
+              {isSigningIn ? (
+                <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin" />
+              ) : (
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              )}
+              <span>{isSigningIn ? 'Signing you in...' : 'Account created! Redirecting...'}</span>
             </div>
           )}
 
@@ -233,7 +256,7 @@ export default function RegisterPage() {
 
             <Button
               type="submit"
-              disabled={isLoading || success}
+              disabled={isLoading || success || isSigningIn}
               className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold"
             >
               {isLoading ? 'Creating account...' : 'Create Account'}

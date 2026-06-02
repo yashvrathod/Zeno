@@ -83,7 +83,20 @@ export async function getWeakPatternReport(
     return [];
   }
 
-  const patterns = profile.weakPatterns as Record<string, number>;
+  let patterns: Record<string, number> = {};
+  const dbWeakPatterns = profile.weakPatterns;
+  if (dbWeakPatterns) {
+    if (typeof dbWeakPatterns === "string") {
+      try {
+        patterns = JSON.parse(dbWeakPatterns);
+      } catch (e) {
+        patterns = {};
+      }
+    } else if (typeof dbWeakPatterns === "object") {
+      patterns = dbWeakPatterns as Record<string, number>;
+    }
+  }
+
   const totalSolvedSessions = await getTotalSolvedSessions(userId);
 
   // Build report with metadata

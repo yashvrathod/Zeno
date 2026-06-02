@@ -1,74 +1,116 @@
-What's genuinely impressive
+You're right to push back on the UI — the product had a backend that reads like a Series A AI edtech platform and a frontend that still felt like a themed demo. Here's an honest audit and what I changed.
 
-  - Socratic approach is well-designed — Not giving solutions, asking questions, adaptive to rung. This is the right    
-  philosophy for education.
-  - Multi-layer architecture — Cache, rate limiting, key pooling, stage engine. You've thought about scale and cost.    
-  - Contextual awareness — Tracks stats, syntax errors, loop detection, rolling summaries. That's real effort.
+Why the UI felt wrong
+Problem	What was happening
+Too much fiction
+"THE ARCHITECT", "NEURAL PROMPT", "Whisper your logic", "NEURAL_LOAD: 0.04ms" — sounds cool, reads as fake
+Inconsistent design
+Dashboard = violet glass panels; Problems = teal + serif 4.8rem headings; Problem IDE = cyberpunk black — three different products
+Typography overload
+Massive serif headlines, ALL CAPS labels everywhere, tracking-widest on everything
+Decorative noise
+Ambient orbs, gradient blurs, pulse animations — visual clutter without information
+Broken trust
+Fake streak charts (profile), random learning velocity (dashboard), static community stats
+Design direction I applied: clean dark SaaS — readable type, one accent (violet), cards with subtle borders, labels that describe real things.
 
-  Real flaws (from a student's perspective)
+UI changes made
+/problems — Rebuilt as a focused curriculum page: compact header, stat pills, accordion modules, difficulty badges, no marketing hero.
 
-  1. Cache system can deliver stale/wrong answers
+/problems/[id] — Stripped cyberpunk chrome: simple top bar, readable problem statement, cleaner mentor chat ("AI Mentor" not "The Architect"), compact editor tabs, smaller Run/Submit buttons.
 
-  The cache returns previous responses from ANY user (not just this student's conversation). If someone asked "what's a 
-  hash map?" and got a Rung 6 (mastery-level) answer, a brand-new student asking a similar question gets that same      
-  answer. The detectLearningRung is called but the cache hit (routeInteraction) doesn't filter by rung compatibility —  
-  the cached response might be totally wrong for where this student actually is.
+/dashboard — Removed ambient blur orbs, tightened hero card, renamed "AI Mentor Analysis" → "Learning insights" (it's rule-based, not LLM-generated — honest labeling matters).
 
-  2. detectLearningRung() is fragile
+Critical AI fix: Mentor now receives userCode from the editor — previously the AI was advising without seeing your code, which is the #1 reason mentor answers felt useless.
 
-  - Students can write "maybe two pointers" → instantly Rung 2, or confidently "binary search" → Rung 3. A single       
-  keyword triggers huge behavior shifts.
-  - Default fallback: return history.length < 4 ? 1 : 2 — After 4 messages, permanently stuck at Rung 2 unless code     
-  exists.
-  - previousRung is passed in but mostly ignored — it's only used as a baseline floor, not for preventing backwards     
-  jumps.
+Where AI fails today (senior dev audit)
+P0 — Product-breaking
+Mentor was blind — No userCode sent from the problem page (now fixed). /mentor still sends starter Python code, not live editor code.
 
-  3. The prompt is bloated and redundant
+Problem ID mismatch — Orchestrator looks up by slug only; some flows pass UUID → 404 or fragmented history.
 
-  mentorSystemPrompt.ts is ~350 lines. Then you build another system prompt on top of it in buildMentorSystemPrompt     
-  (~467 lines in route.ts). These two compete with each other. The AI gets told "Max 3 lines of code" twice, "Never give   solutions" 4x, etc. This wastes prompt tokens AND confuses the model with potential contradictions.
+Personalization disconnected — Main UX uses /api/execute, but stats/mastery updates only happen on /api/problems/[slug]/run|submit. updateAfterSolve and updateAfterMentorInteraction are never called.
 
-  The actual system prompt sent to the AI (buildMentorSystemPrompt) doesn't even call getMentorSystemPrompt(). The      
-  350-line carefully crafted SAGE prompt is dead code — it's never used. The AI gets a much thinner, less detailed      
-  prompt.
+Fake architect scores — On LLM parse failure, backend returns hardcoded 75/100; frontend can show random category scores. Users think they're getting real review.
 
-  4. Students will get frustrated
+Submit route bug — passedCount wasn't incremented (fixed earlier), so acceptance tracking was wrong.
 
-  The hard rules ("one question per response", "max 3 lines of code", "never fix code") are pedagogically correct but   
-  unrealistic for weaker students. Someone who genuinely doesn't know recursion will ask "what's recursion?" and get a  
-  philosophical question back instead of a simple explanation. The prompt says to handle this (line 174-178), but the   
-  system prompt contradiction ("one question per response, always") fights against it.
+P1 — Trust & quality
+Mock dashboard data — Learning velocity chart uses Math.random() when no real trajectory exists.
 
-  5. No token usage tracking
+Fake profile/community — Random streak grids, hardcoded "2,847 members" discussions.
 
-  As we discussed earlier — you're burning tokens on every call with no visibility. With the full context (problem      
-  statement up to 8000 chars, code up to 8000, history, guidance, etc.), each call could easily be 3000-8000 input      
-  tokens per request. Without tracking, you can't optimize or know your costs.
+No streaming — API supports SSE; UI waits for full response → feels slow.
 
-  6. EXPLORE stage breakdown is generic
+Hardcoded concepts on submit — Every problem tagged binary_search, two_pointer, sliding_window regardless of actual content.
 
-  First message for ANY problem: "Let's break down '{title}' together. What part of the problem statement is most       
-  confusing to you right now?" — This is always the same static string. First impressions matter, and this feels like a 
-  placeholder, not a real mentor greeting.
+Architect review worker broken — Wrong function signature in queue worker; async reviews may never complete.
 
-  7. The "stage gate" catches too many phrases
+P2 — Infrastructure
+Idempotency store is in-memory only (breaks multi-instance deploy)
+Trace generation fails silently (empty catch blocks)
+Debug analysis only runs when message matches /error|bug/i
+Rate limits exist but aren't enforced on mentor route
+What would make this an amazing startup
+The wedge (pick ONE and nail it)
+"AI mentor that actually sees your code and teaches like a senior engineer — not a hint bot."
 
-  Phrases like "show me how to solve" and "what code should i write" are treated as solution-skipping attempts. But a   
-  genuinely stuck student saying "I don't know what code should I write here, I'm trying to handle the edge case" would 
-  trigger a reprimand instead of help.
+You're not competing with LeetCode on problem count. You're competing on learning outcome per hour. That means:
 
-  8. No progress feedback to the student
+Code → Run results → Mentor context → Personalized next step → Mastery update
+That loop is partially built but not wired end-to-end. Fix that before adding more pages.
 
-  The system tracks rung, stage, stats — but the student never sees where they are. A user on Rung 4 of a problem has no   idea they're "at implementation, good progress." They just get text responses with no sense of progression. A simple 
-  "You're at step 4/6 — you've got the approach, now let's get the code working" would be motivating.
+Top 10 priorities (ordered)
+#	Action	Why
+1
+Wire the context pipeline — code, test results, errors, language → every mentor call
+Without this, AI is a generic ChatGPT wrapper
+2
+One execution path — merge /api/execute with run/submit + personalization
+Dashboard/concept mastery stay empty otherwise
+3
+Kill all fake data — hide sections until real, never random charts
+One fake metric destroys trust forever
+4
+Streaming mentor UI
+2–3s perceived latency win with existing SSE
+5
+Slug canonicalization everywhere
+Fixes history, stats, mentor 404s
+6
+Honest architect review — "unavailable" not fake 75/100
+Legal/reputation risk on fake grading
+7
+Daily loop — challenge + streak + "continue where you left off" with real slug links
+Retention mechanic
+8
+Remove or rebuild /community
+Placeholder pages hurt credibility
+9
+Persist mentor logs to DB
+You can't improve AI you can't measure
+10
+Mobile-responsive problem IDE
+Currently editor hidden on small screens (hidden lg:flex)
+What to cut (for now)
+Separate /mentor page (duplicate of problem IDE chat)
+Trace/debug/analyze tabs until core loop works — they're impressive but distract from the wedge
+Roadmap/community pages until content is real
+"Interview readiness %" until the formula is explainable and auditable
+What to double down on
+Socratic stage engine (lib/mentor/orchestrator.ts) — this is genuinely differentiated
+AST debug detectors — fast, no LLM cost, real value
+Pattern-based curriculum — clear learning path vs LeetCode's flat list
+Daily challenge API — real DB-backed, good retention hook
+Recommended product narrative
+"Code.Zone — practice DSA with an AI senior engineer who watches you code, catches your mistakes before you submit, and tells you exactly what to study next."
 
-  9. Two AI calls per conversation cycle
+Not: "Neural scaffolding forged by the Architect."
 
-  One for the mentor response (callAIWithKeyRotation) and one for the rolling summary (rewriteRollingSummary). That     
-  doubles token cost. And the summary runs every 4 messages but doesn't actually use its content in the mentor response 
-  — it's just stored.
-
-  Verdict
-
-  The architecture is strong for a startup — better than most AI wrapper products you'll see. The real gaps are: (1) the   cache system can serve wrong-level answers, (2) the detailed SAGE prompt is never actually used, (3) rung detection  
-  is keyword-based and brittle, and (4) the student gets zero feedback about their own progress.
+Next steps I'd take if you want me to continue
+Full dashboard simplification — bento layout, fewer sections, real data only
+Unify problem workspace — merge /mentor into /problems/[id], delete duplicate
+Wire personalization pipeline — execute → mastery → dashboard in one PR
+Streaming mentor chat — use existing SSE endpoint
+Remove fake data from profile + community + velocity chart
+Tell me which of these you want prioritized and I'll implement it.

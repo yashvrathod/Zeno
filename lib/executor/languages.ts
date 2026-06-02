@@ -3,6 +3,8 @@
  */
 
 import { ExecutionResult } from "./core";
+import { runOnPiston } from "@/lib/piston";
+import { classifyError } from "./errorClassifier";
 
 export async function executeOnPiston(
   code: string,
@@ -19,62 +21,38 @@ export async function executeOnPiston(
     tests: [] as Array<{ input: string; expected: string; actual: string; passed: boolean }>,
   };
 
-  for (const tc of testCases.slice(0, 3)) {
-    const start = Date.now();
+  // Loop ALL test cases. The previous `slice(0, 3)` silently truncated runs on
+  // problems with more than 3 tests, so the user saw "all 3 of 3 passed" on a
+  // 10-test problem and the hidden 7 never ran. Fixed in PR 1.
+  for (const tc of testCases) {
     try {
-      const urls = [
-        process.env.PISTON_LOCAL_URL || 'http://localhost:2000/api/v2',
-        process.env.PISTON_API_URL || process.env.NEXT_PUBLIC_PISTON_API_URL || 'https://emkc.org/api/v2/piston',
-        process.env.PISTON_API_URL_FALLBACK || 'https://piston.rs/api/v2/piston',
-      ].filter(Boolean);
+      const { output, runtimeMs, stderr, exitCode, signal } = await runOnPiston({
+        code,
+        language: pistonLang as keyof typeof import("@/lib/piston").LANGUAGE_CONFIG,
+        stdin: tc.input,
+      });
+      results.runtime += runtimeMs;
 
-      let response: Response | null = null;
-      let lastErr: Error | null = null;
-      for (const baseUrl of [...new Set(urls)]) {
-        try {
-          response = await fetch(`${baseUrl}/execute`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              language: pistonLang,
-              version: '*',
-              files: [{ content: code }],
-              stdin: tc.input,
-            }),
-          });
-          if (response.ok) break;
-          lastErr = new Error(`Piston error: ${response.status}`);
-        } catch (e) {
-          lastErr = e instanceof Error ? e : new Error('Piston request failed');
-        }
+      const actual = output.trim();
+      const passed = actual === tc.expected.trim();
+
+      results.tests.push({
+        input: tc.input,
+        expected: tc.expected,
+        actual,
+        passed,
+      });
+
+      if (exitCode !== null && exitCode !== 0) {
+        const kind = classifyError(stderr, pistonLang);
+        const detail = stderr || output || `Exit code ${exitCode}`;
+        results.error = kind === "compile_error"
+          ? `Compile error: ${detail}`
+          : detail;
+        results.passed = false;
       }
-      if (!response || !response.ok) throw lastErr ?? new Error('All piston URLs failed');
-
-      const data = await response.json();
-      const runtime = Date.now() - start;
-      results.runtime += runtime;
-
-      if (data.run && data.run.code !== undefined) {
-        results.output = data.run.stdout || '';
-        const actual = results.output.trim();
-
-        results.tests.push({
-          input: tc.input,
-          expected: tc.expected,
-          actual,
-          passed: actual === tc.expected.trim(),
-        });
-
-        if (data.run.code !== 0) {
-          results.error = data.run.stderr || data.run.stdout || `Exit code ${data.run.code}`;
-          results.passed = false;
-        }
-        if (data.run.signal) {
-          results.error = `Execution terminated by signal: ${data.run.signal}`;
-          results.passed = false;
-        }
-      } else {
-        results.error = 'Execution failed';
+      if (signal) {
+        results.error = `Execution terminated by signal: ${signal}`;
         results.passed = false;
       }
     } catch (e) {

@@ -32,6 +32,7 @@ import { handleIntervention } from "./services/intervention";
 import { logMentorInteraction, logDbError } from "./logging";
 import { classifyIntent } from "./intent/core";
 import type { IntentClassification } from "./intent/core";
+import { resolveStale, type LastExecution } from "./lastExecution";
 
 // ── Idempotency store ──
 // In-memory Map keyed by "userId:problemId:idempotencyKey"
@@ -79,6 +80,15 @@ export type MentorRequest = {
   animationData?: string | null;
   idempotencyKey?: string;
   stream?: boolean;
+  /** Structured result of the user's last code execution (PR 2/3). */
+  lastExecution?: LastExecution;
+  /**
+   * Page-computed hash of the user's CURRENT code (not the code that
+   * produced the lastExecution). Diagnostic only — the server re-hashes
+   * the incoming code and compares against lastExecution.codeHash for the
+   * authoritative stale decision. A mismatch here is logged, never trusted.
+   */
+  codeHash?: string;
 };
 
 export type ArchitectReviewData = {
@@ -134,6 +144,22 @@ export async function execute(params: {
   }
 
   const codeHash = computeCodeHash(body.userCode);
+  const stale = resolveStale(body.lastExecution, codeHash);
+
+  // Diagnostic only: page's locally-computed codeHash vs server's recomputed
+  // hash. A mismatch signals a page-side hashing bug (e.g., different
+  // algorithm, stale cache, character encoding). Never used for the
+  // authoritative stale decision.
+  if (body.codeHash && codeHash && body.codeHash !== codeHash) {
+    logMentorInteraction({
+      userId, problemId, userMessage: body.userMessage,
+      decisionType: "AI_NEEDED",
+      responseData: "client_codehash_mismatch",
+      stage: "EXPLORE", rung: 1,
+      aiCalled: false,
+      error: `client=${body.codeHash} server=${codeHash}`,
+    }).catch(logDbError);
+  }
 
   const mentorSession = await getOrCreateSession(userId, problemId);
 
@@ -333,6 +359,7 @@ export async function execute(params: {
     body, userId, problemId, mentorSession, history, stats, userAiSettings,
     existingSummary, apiConfig, intent, conversationIntent, knowledgeGraph,
     debugAnalysis: analysis, rung: currentRung, traceContext, onChunk,
+    stale, lastExecution,
   });
 
   if (idKey) setIdempotentResponse(idKey, aiResponse);

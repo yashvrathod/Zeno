@@ -10,9 +10,9 @@ interface BottomRevealSectionProps {
 }
 
 const stats = [
-  { label: 'AI Models', value: '500+' },
-  { label: 'Developers', value: '1M+' },
-  { label: 'Inference', value: '99.99%' },
+  { label: 'DSA Patterns', value: '500+' },
+  { label: 'Problems Solved', value: '1M+' },
+  { label: 'Success Rate', value: '99.9%' },
 ];
 
 export const BottomRevealSection = forwardRef<HTMLDivElement, BottomRevealSectionProps>(
@@ -32,7 +32,7 @@ export const BottomRevealSection = forwardRef<HTMLDivElement, BottomRevealSectio
             <div className="relative aspect-[3/4] lg:aspect-[0.72] overflow-hidden">
               <img
                 src="/scale/image.png"
-                alt="Scale feature"
+                alt="DSA Mentor feature"
                 className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
               />
 
@@ -81,7 +81,7 @@ export const BottomRevealSection = forwardRef<HTMLDivElement, BottomRevealSectio
               <div className="mb-14">
                 <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-[11px] uppercase tracking-[0.2em] text-white/60 backdrop-blur-xl shadow-[0_0_20px_rgba(0,0,0,0.2)]">
                   <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse" />
-                  Scalable AI Architecture
+                  AI DSA Mentor Platform
                 </div>
               </div>
 
@@ -89,13 +89,12 @@ export const BottomRevealSection = forwardRef<HTMLDivElement, BottomRevealSectio
                 <h2 className="max-w-6xl text-white font-semibold tracking-[-0.045em] leading-[0.9] text-[clamp(2.8rem,7.5vw,7.5rem)]">
                   Built for the world&apos;s most <br className="hidden sm:block" />
                   <span className="bg-gradient-to-r from-emerald-300 via-blue-300 to-violet-300 bg-clip-text text-transparent">
-                    Ambitious AI
-                  </span> Builders.
+                    Ambitious Learners
+                  </span> & Engineers.
                 </h2>
 
                 <p className="mt-8 max-w-2xl text-white/50 text-base sm:text-xl font-light leading-relaxed">
-                  Join the engineers creating the next generation of generative models with
-                  infrastructure that scales effortlessly from prototype to global inference.
+                  Join thousands mastering DSA with AI-powered guidance, from zero to interview-ready.
                 </p>
               </div>
 

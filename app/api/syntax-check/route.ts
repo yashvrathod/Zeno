@@ -33,20 +33,11 @@ export async function POST(req: NextRequest) {
 
     // For JS/Python, syntax errors typically appear immediately.
     // For C++/Java, compilation happens before run.
-    const { output, raw } = await runOnPiston({ language: body.language, code: body.code, stdin });
+    const { output, stderr } = await runOnPiston({ language: body.language, code: body.code, stdin });
 
-    // Piston wraps compilation errors differently per runtime.
-    // Our runOnPiston merges stdout+stderr into `output`, so treat any non-empty stderr/compile stderr as error.
-    type PistonRaw = {
-      compile?: { stderr?: string | null } | null;
-      run?: { stderr?: string | null } | null;
-    };
-
-    const rawTyped = raw as unknown as PistonRaw;
-    const compileStderr = rawTyped.compile?.stderr ?? undefined;
-    const runStderr = rawTyped.run?.stderr ?? undefined;
-
-    const errorText = clampText((compileStderr || runStderr || '').toString().trim());
+    // runOnPiston merges stdout+stderr into `output`. Use the dedicated stderr
+    // field to surface compile vs runtime errors reliably.
+    const errorText = clampText((stderr || '').toString().trim());
 
     // If stderr exists, report error; otherwise ok.
     if (errorText) {

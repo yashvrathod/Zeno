@@ -66,6 +66,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     }
 
     const passed = !thisTestRuntimeError && output.trim() === tc.expected.trim();
+    if (passed) passedCount++;
     details.push({ order: tc.order, isHidden: tc.isHidden, passed, output });
   }
 

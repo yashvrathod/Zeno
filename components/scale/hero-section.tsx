@@ -124,15 +124,17 @@ export const HeroSection = forwardRef<HTMLDivElement, HeroSectionProps>(
               No credit card required. Start solving in 60 seconds.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-10 w-full px-6 sm:px-0">
-              <button className="w-full sm:w-auto px-10 py-4 rounded-full text-[clamp(0.85rem,1.1vw,0.95rem)] font-bold tracking-wider text-white
+              <a href="/auth/register"
+                className="w-full sm:w-auto px-10 py-4 rounded-full text-[clamp(0.85rem,1.1vw,0.95rem)] font-bold tracking-wider text-white
                 bg-gradient-to-r from-blue-600 to-violet-600
                 hover:shadow-[0_0_40px_-5px_rgba(37,99,235,0.5)] transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95">
                 Start Coding Free
-              </button>
-              <button className="w-full sm:w-auto px-10 py-4 rounded-full text-[clamp(0.85rem,1.1vw,0.95rem)] font-bold tracking-wider text-white/80 border border-white/10
+              </a>
+              <a href="/roadmap"
+                className="w-full sm:w-auto px-10 py-4 rounded-full text-[clamp(0.85rem,1.1vw,0.95rem)] font-bold tracking-wider text-white/80 border border-white/10
                 bg-white/5 backdrop-blur-xl hover:bg-white/10 hover:text-white hover:border-white/20 transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95">
                 View Roadmap
-              </button>
+              </a>
             </div>
             <div className="hidden sm:flex items-center justify-center gap-8 mt-12">
               {['DSA Patterns', 'AI-Guided', 'Interview Ready'].map((item) => (

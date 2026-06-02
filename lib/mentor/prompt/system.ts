@@ -8,6 +8,20 @@ export type ConversationTone = "encouraging" | "analytical" | "challenging" | "e
 
 const MAX_SYSTEM_PROMPT_CHARS = 6000;
 
+/**
+ * EXECUTION_GUIDANCE — rules for interpreting the EXECUTION CONTEXT
+ * section of the system prompt. Injected as a separate priority-0 section
+ * (top of the prompt, never trimmed first) so it stays isolated from the
+ * base system prompt and the code context. Any change here directly
+ * changes how the model reads failure evidence.
+ */
+const EXECUTION_GUIDANCE = `EXECUTION CONTEXT RULES:
+- Never invent or fabricate hidden test inputs. If the input shape is described only as a length (e.g., "opaque input of 100000 bytes"), do not guess specific values. Reference failure summaries verbatim.
+- When describing failures, use the failure summaries in the EXECUTION CONTEXT section. Do not invent additional symptoms beyond the evidence.
+- A "hint" is an evidence-based suggestion (e.g., off-by-one, null/None reference), not a diagnosis. Treat it as a direction to consider, not a fact.
+- If the EXECUTION CONTEXT is marked as stale, the code the student is now looking at may differ from the code that produced the failure. Point this out and ask the student to re-run before drawing conclusions.
+- If a problem has an "expected complexity" field, compare the student's apparent approach to it. If their approach cannot meet the target, surface that early.`;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TONE DETECTION
 // ─────────────────────────────────────────────────────────────────────────────
@@ -51,6 +65,8 @@ export function buildMentorSystemPrompt(
   animationContext?: string,
   intent?: IntentType,
   messageCount?: number,
+  executionContext?: string,
+  problemMetadata?: string,
 ): string {
   const basePrompt = getMentorSystemPrompt();
 
@@ -87,6 +103,17 @@ Current Stage: ${stage}`;
     { key: "problem", content: problemContext, priority: 9 },
     { key: "current_context", content: currentCtx, priority: 10 },
     { key: "base", content: basePrompt, priority: 11 },
+    // EXECUTION_GUIDANCE is priority 0 (top of prompt, never trimmed first).
+    // Kept separate from base so that changes to execution interpretation
+    // don't require editing the long base system prompt.
+    { key: "execution_guidance", content: EXECUTION_GUIDANCE, priority: 0 },
+    // PR 3: problem metadata + execution context. These are pre-rendered
+    // strings produced by `problemMetadata.ts` and `execution.ts`. Placed
+    // at the same priority as `problem` so they ride alongside it; the
+    // array order means the model sees problem → problem_metadata →
+    // execution, with EXECUTION_GUIDANCE rules coming first.
+    { key: "problem_metadata", content: problemMetadata || "", priority: 9 },
+    { key: "execution", content: executionContext || "", priority: 9 },
   ];
 
   const separator = "\n\n";

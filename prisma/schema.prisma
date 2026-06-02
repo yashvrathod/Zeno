@@ -166,6 +166,7 @@ model Problem {
   orderInPattern Int?
   isFree Boolean @default(false)
   expectedTimeMin Int?
+  timeLimitMs Int?
   tags Json?
   starterCode Json?
   animationType String?

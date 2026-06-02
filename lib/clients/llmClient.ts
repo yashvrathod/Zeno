@@ -406,7 +406,7 @@ function buildRequestHeaders(provider: LlmProvider, apiKey: string): Record<stri
   }
   if (provider === "openrouter") {
     headers["HTTP-Referer"] = process.env.NEXTAUTH_URL || "http://localhost:3000";
-    headers["X-Title"] = "code.zone";
+    headers["X-Title"] = "neXode";
   }
   return headers;
 }

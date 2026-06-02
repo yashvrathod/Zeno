@@ -17,7 +17,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ slug: stri
       testCases: {
         where: { isHidden: false },
         orderBy: { order: 'asc' },
-        select: { order: true, input: true, expected: true },
+        select: { id: true, order: true, input: true, expected: true, isHidden: true },
       },
     },
   });
@@ -36,7 +36,14 @@ export async function GET(_: Request, { params }: { params: Promise<{ slug: stri
       difficulty: problem.difficulty,
       patterns: problem.patterns.map((p) => ({ id: p.pattern.id, name: p.pattern.name })),
       hints: problem.hints.map((h) => h.textMd),
-      publicTestCases: problem.testCases,
+      testCases: problem.testCases.map((tc) => ({
+        id: tc.id,
+        order: tc.order,
+        input: tc.input,
+        expected: tc.expected,
+        isSample: !tc.isHidden,
+      })),
+      publicTestCases: problem.testCases.map(({ order, input, expected }) => ({ order, input, expected })),
       starterCode: problem.starterCode ?? {},
       animationType: problem.animationType,
       animationData: problem.animationData,

@@ -1,17 +1,21 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  BookOpen,
   ChevronDown,
-  Zap,
   ChevronRight,
-  ArrowUpRight,
-  Lock,
-  Sparkles,
+  Flame,
+  Loader2,
+  AlertCircle,
+  Play,
+  Target,
+  TrendingUp,
 } from 'lucide-react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from '@/components/Sidebar';
+import { DifficultyBadge } from '@/components/ui/nav-link';
 
 interface Pattern {
   id: string;
@@ -26,221 +30,227 @@ interface Pattern {
   }>;
 }
 
+interface DashboardStats {
+  currentStreak: number;
+  problemsSolved: number;
+  successRate: number;
+  interviewReadiness: number;
+}
+
 export default function ProblemsPage() {
-  const [apiPatterns, setApiPatterns] = useState<Pattern[] | null>(null);
+  const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [resumeSlug, setResumeSlug] = useState<string | null>(null);
+  const [weakAreaName, setWeakAreaName] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/patterns', { cache: 'no-store' })
-      .then((res) => res.json())
-      .then((data) => {
-        setApiPatterns(data.patterns);
-        if (data.patterns?.length > 0) {
-          setExpandedModule(data.patterns[0].id);
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const [patternsRes, dashboardRes] = await Promise.all([
+          fetch('/api/patterns', { cache: 'no-store' }),
+          fetch('/api/dashboard', { cache: 'no-store' }).catch(() => null),
+        ]);
+
+        if (!patternsRes.ok) throw new Error('Failed to load curriculum');
+
+        const patternsData = await patternsRes.json();
+        const list: Pattern[] = patternsData.patterns ?? [];
+        if (cancelled) return;
+
+        setPatterns(list);
+        if (list.length > 0) setExpandedModule(list[0].id);
+
+        let nextResume: string | null = null;
+
+        if (dashboardRes?.ok) {
+          const { data: d } = await dashboardRes.json();
+          if (d) {
+            setStats({
+              currentStreak: d.overallStats?.currentStreak ?? 0,
+              problemsSolved: d.overallStats?.problemsSolved ?? 0,
+              successRate: d.overallStats?.successRate ?? 0,
+              interviewReadiness: d.overallStats?.interviewReadiness ?? 0,
+            });
+            if (d.weakAreas?.[0]) setWeakAreaName(d.weakAreas[0].friendlyName);
+            nextResume = d.recentActivity?.[0]?.problemSlug ?? null;
+          }
         }
-      })
-      .catch((err) => {
-        console.error('Failed to fetch patterns:', err);
-        setApiPatterns([]);
-      });
+
+        if (!nextResume) nextResume = list[0]?.problems[0]?.slug ?? null;
+        setResumeSlug(nextResume);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Something went wrong');
+          setPatterns([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
+    return () => { cancelled = true; };
   }, []);
 
+  const totalProblems = useMemo(
+    () => patterns.reduce((n, p) => n + p.problemCount, 0),
+    [patterns]
+  );
+
   return (
-    <div className="flex flex-col h-screen bg-[#010103] text-zinc-400 font-sans overflow-hidden selection:bg-purple-500/30">
-      <div className="flex flex-1 overflow-hidden relative z-10">
-        <Sidebar />
-        <div className="flex-1 overflow-y-auto border-l border-white/5 bg-transparent scrollbar-hide">
-          <div className="max-w-7xl mx-auto px-8 py-12 w-full space-y-20">
-           
-           {/* Hero Section */}
-           <div className="bg-[#121214] border border-white/[0.05] rounded-xl p-16 flex flex-col lg:flex-row gap-16 relative overflow-hidden shadow-2xl">
-              <div className="flex-1 space-y-12 relative z-10">
-                 <div className="flex items-center gap-4">
-                    <div className="flex -space-x-3">
-                       {[1, 2, 3].map(i => (
-                         <div key={i} className="w-8 h-8 rounded-full border-2 border-[#121214] bg-[#1a1a1e] overflow-hidden shadow-xl">
-                            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=eng${i}`} alt="Avatar" />
-                         </div>
-                       ))}
-                    </div>
-                    <span className="zone-label-sm text-zinc-600">JOINED BY 12K+ ENGINEERS THIS WEEK</span>
-                 </div>
+    <div className="flex h-screen bg-[#0b0b10] text-zinc-400 overflow-hidden">
+      <Sidebar />
+      <main className="flex-1 overflow-y-auto border-l border-white/[0.04] custom-scrollbar">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-8">
 
-                 <div className="space-y-6">
-                    <div className="flex items-center gap-2">
-                       <span className="text-[#a855f7] font-bold zone-label-sm">+ MENTOR RECOMMENDATION</span>
-                    </div>
-                    <h1 className="text-[4.8rem] text-zinc-400 leading-[1.05] tracking-tight">
-                       <span className="font-serif-studio italic block mb-3 text-zinc-500">You're mastering</span>
-                       <span className="text-white font-bold">{apiPatterns?.[0]?.name || "DSA Patterns"}</span>
-                    </h1>
-                 </div>
-
-                 <p className="text-[22px] text-zinc-500 font-light leading-relaxed max-w-xl">
-                    Based on your recent sessions, you have strong syntax precision but struggle with <span className="text-white font-medium border-b-2 border-white/10 pb-0.5">complex logic.</span> Let's fix that with some targeted challenges.
-                 </p>
-
-                 <div className="flex items-center gap-8 pt-8">
-                    <Link 
-                      href={apiPatterns?.[0]?.problems[0]?.slug ? `/problems/${apiPatterns[0].problems[0].slug}` : "#"}
-                      className="px-14 py-6 bg-[#2dd4bf] text-[#050505] rounded-xl text-[16px] font-extrabold tracking-widest uppercase hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_20px_50px_rgba(45,212,191,0.3)] flex items-center justify-center"
-                    >
-                       Resume Journey
-                    </Link>
-                    <Link href="/profile/skills" className="px-14 py-6 bg-[#1a1a1e] border border-white/[0.05] text-zinc-400 rounded-xl text-[16px] font-extrabold tracking-widest uppercase hover:bg-white/5 transition-all">
-                       View Weakness Map
-                    </Link>
-                 </div>
-              </div>
-
-              {/* Skill Growth Card */}
-              <div className="w-full lg:w-[480px] relative z-10">
-                 <div className="bg-[#161618] border border-white/[0.05] rounded-xl p-12 h-full flex flex-col justify-between shadow-2xl relative">
-                    <div className="space-y-12">
-                      <div className="flex items-center justify-between">
-                         <span className="zone-label-sm text-zinc-500">SKILL GROWTH</span>
-                         <ArrowUpRight size={20} className="text-emerald-500" />
-                      </div>
-                      <div className="space-y-10">
-                         <SkillItem label="ANALYTICAL VELOCITY" value={78} color="#a855f7" />
-                         <SkillItem label="SYNTAX PRECISION" value={42} color="#3b82f6" />
-                         <SkillItem label="TIME COMPLEXITY" value={61} color="#2dd4bf" />
-                      </div>
-                    </div>
-                    
-                    <div className="pt-12 flex items-center justify-between border-t border-white/[0.05] mt-12">
-                       <div className="flex flex-col gap-1.5">
-                          <span className="zone-label-sm text-zinc-700">CURRENT STREAK</span>
-                          <span className="text-4xl font-bold text-white tracking-tight">12 Days</span>
-                       </div>
-                       <div className="w-16 h-14 rounded-[1.25rem] bg-[#2dd4bf]/10 flex items-center justify-center border border-[#2dd4bf]/20 shadow-[0_0_30px_rgba(45,212,191,0.15)] relative">
-                          <Zap size={28} className="text-[#2dd4bf] fill-[#2dd4bf]" />
-                          <div className="absolute inset-0 rounded-[1.25rem] bg-[#2dd4bf]/5 animate-pulse" />
-                       </div>
-                    </div>
-                 </div>
-              </div>
-           </div>
-
-           {/* Curriculum Section */}
-           <div className="space-y-12">
-              <div className="flex items-center justify-between px-8">
-                 <div className="flex flex-col gap-2">
-                    <span className="zone-label-sm text-zinc-600">CURRICULUM MODULES</span>
-                    <h2 className="text-3xl font-bold text-white tracking-tight">Select your path</h2>
-                 </div>
-                 <span className="zone-label-sm text-zinc-700">{apiPatterns?.length || 0} Modules Total</span>
-              </div>
-
-              <div className="space-y-8">
-                 {apiPatterns?.map((pattern, idx) => (
-                   <div 
-                     key={pattern.id} 
-                     className={`group bg-[#121214] border rounded-xl transition-all duration-500 overflow-hidden ${expandedModule === pattern.id ? 'border-[#2dd4bf]/30 bg-[#141416]' : 'border-white/[0.05] hover:border-white/10'}`}
-                   >
-                      {/* Module Header */}
-                      <div 
-                        onClick={() => setExpandedModule(expandedModule === pattern.id ? null : pattern.id)}
-                        className="p-12 flex flex-col gap-12 cursor-pointer relative"
-                      >
-                         {expandedModule === pattern.id && (
-                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-[60%] bg-[#2dd4bf] rounded-r-full shadow-[0_0_20px_rgba(45,212,191,0.8)]" />
-                         )}
-                         
-                         <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                               <div className={`px-5 py-2 rounded-xl zone-label-sm ${idx === 0 ? 'bg-[#a855f7]/10 text-[#a855f7] border border-[#a855f7]/20' : 'bg-white/5 text-zinc-600 border border-white/5'}`}>
-                                  {idx === 0 ? `M0${idx + 1} • IN PROGRESS` : `M0${idx + 1} • AVAILABLE`}
-                               </div>
-                            </div>
-                            <span className="zone-label-sm text-zinc-700 font-mono">{pattern.problemCount} CHALLENGES</span>
-                         </div>
-
-                         <div className="flex items-center justify-between gap-12">
-                            <div className="space-y-5">
-                               <h3 className="text-[3.2rem] font-serif-studio italic text-white tracking-tight leading-none transition-all group-hover:translate-x-2 duration-500">{pattern.name}</h3>
-                               <p className="text-[19px] text-zinc-500 font-light leading-relaxed max-w-2xl line-clamp-2">
-                                  {pattern.description || "Explore the core patterns and techniques associated with this module to build a strong foundation."}
-                               </p>
-                            </div>
-                            <div className={`w-20 h-20 rounded-lg bg-[#1a1a1e] border border-white/[0.1] flex items-center justify-center text-zinc-500 transition-all duration-500 shadow-2xl shrink-0 ${expandedModule === pattern.id ? 'bg-[#2dd4bf] text-black border-transparent rotate-90' : 'group-hover:text-white group-hover:border-white/20'}`}>
-                               <ChevronRight size={32} strokeWidth={2.5} />
-                            </div>
-                         </div>
-                      </div>
-
-                      {/* Problems List (Expanded) */}
-                      <AnimatePresence>
-                         {expandedModule === pattern.id && (
-                            <motion.div 
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.5, ease: [0.23, 1, 0.32, 1] }}
-                              className="border-t border-white/[0.05] bg-black/20"
-                            >
-                               <div className="p-12 pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  {pattern.problems.length > 0 ? (
-                                    pattern.problems.map((problem, pIdx) => (
-                                      <Link 
-                                        key={problem.id}
-                                        href={`/problems/${problem.slug}`}
-                                        className="flex items-center justify-between p-8 bg-[#161618] border border-white/[0.03] rounded-3xl hover:bg-[#1c1c1e] hover:border-white/10 transition-all group/prob"
-                                      >
-                                         <div className="flex items-center gap-6">
-                                            <div className="w-12 h-12 rounded-2xl bg-black/40 flex items-center justify-center text-zinc-600 font-mono text-sm group-hover/prob:text-[#2dd4bf] transition-colors border border-white/[0.05]">
-                                               {String(pIdx + 1).padStart(2, '0')}
-                                            </div>
-                                            <div className="flex flex-col gap-1">
-                                               <span className="text-white font-semibold text-lg tracking-tight group-hover/prob:translate-x-1 transition-transform duration-300">{problem.title}</span>
-                                               <div className="flex items-center gap-3">
-                                                  <span className={`zone-label-sm ${problem.difficulty === 'EASY' ? 'text-emerald-500' : problem.difficulty === 'MEDIUM' ? 'text-amber-500' : 'text-rose-500'}`}>
-                                                     {problem.difficulty}
-                                                  </span>
-                                                  <span className="w-1 h-1 rounded-full bg-zinc-800" />
-                                                  <span className="zone-label-sm text-zinc-600">15-20 MIN</span>
-                                               </div>
-                                            </div>
-                                         </div>
-                                         <div className="w-10 h-10 rounded-xl bg-black/20 flex items-center justify-center text-zinc-700 group-hover/prob:bg-[#2dd4bf]/10 group-hover/prob:text-[#2dd4bf] transition-all">
-                                            <ArrowUpRight size={18} />
-                                         </div>
-                                      </Link>
-                                    ))
-                                  ) : (
-                                    <div className="col-span-full p-12 text-center border-2 border-dashed border-white/5 rounded-xl">
-                                       <Lock size={32} className="mx-auto text-zinc-800 mb-4" />
-                                       <p className="text-zinc-600 font-medium">Challenges currently under encryption by the architect.</p>
-                                    </div>
-                                  )}
-                               </div>
-                            </motion.div>
-                         )}
-                      </AnimatePresence>
-                   </div>
-                 ))}
-              </div>
-           </div>
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-semibold tracking-widest text-violet-400/80 uppercase mb-2">Curriculum</p>
+              <h1 className="text-2xl lg:text-3xl font-bold text-white tracking-tight">Practice by pattern</h1>
+              <p className="text-sm text-zinc-500 mt-2 max-w-xl">
+                {weakAreaName
+                  ? `Your mentor suggests reinforcing ${weakAreaName}. Pick a module below.`
+                  : 'Structured modules from fundamentals to interview-ready problems.'}
+              </p>
+            </div>
+            {resumeSlug && (
+              <Link
+                href={`/problems/${resumeSlug}`}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors shrink-0"
+              >
+                <Play size={16} fill="currentColor" />
+                Continue
+              </Link>
+            )}
           </div>
+
+          {/* Stats row */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <StatPill icon={<BookOpen size={15} />} label="Modules" value={String(patterns.length)} />
+            <StatPill icon={<Target size={15} />} label="Problems" value={String(totalProblems)} />
+            <StatPill icon={<TrendingUp size={15} />} label="Solved" value={String(stats?.problemsSolved ?? 0)} />
+            <StatPill icon={<Flame size={15} />} label="Streak" value={`${stats?.currentStreak ?? 0}d`} accent />
+          </div>
+
+          {/* Modules */}
+          <section className="space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-sm font-semibold text-white">All modules</h2>
+              {!loading && <span className="text-xs text-zinc-600">{patterns.length} modules</span>}
+            </div>
+
+            {loading && (
+              <div className="flex flex-col items-center py-20 gap-3">
+                <Loader2 size={28} className="text-violet-400 animate-spin" />
+                <p className="text-sm text-zinc-600">Loading modules…</p>
+              </div>
+            )}
+
+            {error && !loading && (
+              <div className="flex items-center gap-3 p-4 rounded-xl border border-rose-500/20 bg-rose-500/5">
+                <AlertCircle size={18} className="text-rose-400 shrink-0" />
+                <p className="text-sm text-rose-300">{error}</p>
+              </div>
+            )}
+
+            {!loading && !error && patterns.length === 0 && (
+              <div className="text-center py-16 rounded-xl border border-dashed border-white/[0.06]">
+                <p className="text-sm text-zinc-600">No modules published yet.</p>
+              </div>
+            )}
+
+            {!loading && patterns.map((pattern, idx) => {
+              const open = expandedModule === pattern.id;
+              return (
+                <div
+                  key={pattern.id}
+                  className={`rounded-xl border transition-colors ${open ? 'border-violet-500/30 bg-[#12121a]' : 'border-white/[0.06] bg-[#0f0f14] hover:border-white/10'}`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setExpandedModule(open ? null : pattern.id)}
+                    className="w-full flex items-center gap-4 p-4 sm:p-5 text-left"
+                  >
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${open ? 'bg-violet-500/20 text-violet-300' : 'bg-white/[0.04] text-zinc-500'}`}>
+                      {String(idx + 1).padStart(2, '0')}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-base font-semibold text-white">{pattern.name}</h3>
+                        <span className="text-[10px] font-medium text-zinc-600 uppercase tracking-wide">
+                          {pattern.problemCount} problems
+                        </span>
+                      </div>
+                      {pattern.description && (
+                        <p className="text-sm text-zinc-500 mt-1 line-clamp-1">{pattern.description}</p>
+                      )}
+                    </div>
+                    {open ? <ChevronDown size={18} className="text-zinc-500 shrink-0" /> : <ChevronRight size={18} className="text-zinc-600 shrink-0" />}
+                  </button>
+
+                  <AnimatePresence initial={false}>
+                    {open && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-0 border-t border-white/[0.04]">
+                          {pattern.problems.length === 0 ? (
+                            <p className="text-sm text-zinc-600 py-4 text-center">No problems in this module yet.</p>
+                          ) : (
+                            <ul className="divide-y divide-white/[0.04] mt-2">
+                              {pattern.problems.map((problem, pIdx) => (
+                                <li key={problem.id}>
+                                  <Link
+                                    href={`/problems/${problem.slug}`}
+                                    className="flex items-center justify-between gap-4 py-3.5 px-2 -mx-2 rounded-lg hover:bg-white/[0.03] transition-colors group"
+                                  >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <span className="text-xs font-mono text-zinc-600 w-6">{pIdx + 1}</span>
+                                      <span className="text-sm font-medium text-zinc-200 truncate group-hover:text-white transition-colors">
+                                        {problem.title}
+                                      </span>
+                                    </div>
+                                    <DifficultyBadge difficulty={problem.difficulty} />
+                                  </Link>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+          </section>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
 
-function SkillItem({ label, value, color }: { label: string, value: number, color: string }) {
+function StatPill({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: string; accent?: boolean }) {
   return (
-    <div className="space-y-4 group">
-       <div className="flex items-center justify-between">
-          <span className="zone-label-sm font-bold text-zinc-600">{label}</span>
-          <span className="text-xs font-bold text-white font-mono">{value}%</span>
-       </div>
-       <div className="h-2 w-full bg-white/[0.03] rounded-full overflow-hidden">
-          <div
-            className="h-full transition-all duration-[1500ms] ease-out shadow-[0_0_15px_rgba(255,255,255,0.1)]"
-            style={{ width: `${value}%`, backgroundColor: color }}
-          />
-       </div>
+    <div className="rounded-xl border border-white/[0.06] bg-[#0f0f14] px-4 py-3">
+      <div className="flex items-center gap-2 text-zinc-500 mb-1">
+        {icon}
+        <span className="text-[10px] font-medium uppercase tracking-wide">{label}</span>
+      </div>
+      <p className={`text-xl font-bold font-mono ${accent ? 'text-amber-400' : 'text-white'}`}>{value}</p>
     </div>
-   );
+  );
 }

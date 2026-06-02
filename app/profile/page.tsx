@@ -242,8 +242,7 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div className="flex flex-col h-screen bg-[#0a0a0a] text-gray-100 overflow-hidden">
-      
+    <div className="flex h-screen bg-[#0a0a0a] text-gray-100 overflow-hidden">
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
 

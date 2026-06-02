@@ -4,16 +4,16 @@ import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 
 const items = [
-  { name: 'Built for AI', brand: 'Next-Gen Infrastructure', image: '/scale/image.png' },
-  { name: 'Scale Smart', brand: 'Intelligent Automation', image: '/scale/firstpage.png' },
-  { name: 'Zero Latency', brand: 'Real-Time Inference', image: '/scale/afterscrollign.png' },
-  { name: 'Trust Layer', brand: 'Enterprise Security', image: '/scale/image.png' },
-  { name: 'Data Fusion', brand: 'Multi-Modal Pipeline', image: '/scale/firstpage.png' },
-  { name: 'Elegant DX', brand: 'Developer Experience', image: '/scale/afterscrollign.png' },
-  { name: 'Model Mesh', brand: 'Distributed Compute', image: '/scale/image.png' },
-  { name: 'Auto Pilot', brand: 'Self-Healing Ops', image: '/scale/firstpage.png' },
-  { name: 'Insight Engine', brand: 'Analytics & Observability', image: '/scale/afterscrollign.png' },
-  { name: 'Edge Ready', brand: 'Global Deployments', image: '/scale/image.png' },
+  { name: 'Arrays & Strings', brand: 'Two Pointers & Sliding Window', image: '/scale/image.png' },
+  { name: 'Graph Algorithms', brand: 'BFS, DFS & Topological Sort', image: '/scale/firstpage.png' },
+  { name: 'Dynamic Programming', brand: 'Memoization & Tabulation', image: '/scale/afterscrollign.png' },
+  { name: 'Tree Traversals', brand: 'Inorder, Preorder & Postorder', image: '/scale/image.png' },
+  { name: 'Sorting & Searching', brand: 'QuickSort, MergeSort & Binary Search', image: '/scale/firstpage.png' },
+  { name: 'Recursion & Backtracking', brand: 'Subsets, Permutations & Combinations', image: '/scale/afterscrollign.png' },
+  { name: 'Heap & Priority Queue', brand: 'Min-Heap, Max-Heap & Top K', image: '/scale/image.png' },
+  { name: 'Hash Maps & Sets', brand: 'Constant Time Lookups', image: '/scale/firstpage.png' },
+  { name: 'Linked Lists', brand: 'Reverse, Cycle Detection & Merge', image: '/scale/afterscrollign.png' },
+  { name: 'Bit Manipulation', brand: 'XOR, Shifts & Masks', image: '/scale/image.png' },
 ];
 
 export default function DualWaveSection({ progressRef }: { progressRef?: { current: number } }) {

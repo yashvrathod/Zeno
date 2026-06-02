@@ -16,12 +16,11 @@ export default function HeroText({ mounted }: HeroTextProps) {
         className="text-white text-2xl sm:text-4xl md:text-5xl font-semibold tracking-tight leading-tight mb-3 sm:mb-4"
         style={{ letterSpacing: "-0.02em" }}
       >
-        Reliable AI has no shortcuts.
+        Master DSA with no shortcuts.
       </h1>
       <p className="text-[#777] text-sm sm:text-base md:text-[17px] leading-relaxed">
-        Scale works across the AI stack, from the data that trains the models
-        you rely on, to the systems that put them to work. Humans stay in the
-        loop.
+        Your AI mentor works across the DSA stack, from arrays and strings to
+        advanced graphs and DP. Every step guided, every pattern mastered.
       </p>
     </div>
   );

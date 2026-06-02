@@ -119,7 +119,7 @@ export async function runOnPiston({
   code: string;
   language: keyof typeof LANGUAGE_CONFIG;
   stdin: string;
-}) {
+}): Promise<{ output: string; runtimeMs: number; stderr: string; exitCode: number | null; signal: string | null }> {
   const langConfig = LANGUAGE_CONFIG[language];
   if (!langConfig) throw new Error(`Language ${language} not supported`);
 
@@ -127,6 +127,7 @@ export async function runOnPiston({
 
   let lastErr: Error | null = null;
   for (const apiUrl of tryUrls) {
+    const startedAt = Date.now();
     try {
       const runtime = await resolveRuntime(apiUrl, language);
       const res = await fetchWithTimeout(`${apiUrl}/execute`, {
@@ -151,7 +152,13 @@ export async function runOnPiston({
       const stderr = (data.run.stderr ?? '').toString();
       const output = (stdout + (stderr ? `\n${stderr}` : '')).trim();
 
-      return { output, raw: data };
+      return {
+        output,
+        runtimeMs: Date.now() - startedAt,
+        stderr,
+        exitCode: data.run.code ?? null,
+        signal: data.run.signal ?? null,
+      };
     } catch (e) {
       lastErr = e instanceof Error ? e : new Error('Unknown piston error');
     }
