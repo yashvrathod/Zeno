@@ -38,9 +38,7 @@ import { NavLink, SidebarLink, DifficultyBadge } from '@/components/ui/nav-link'
 import { Markdown } from '@/components/Markdown';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { VisualizationRenderer } from '@/components/VisualizationRenderer';
-import { TraceDebugger } from '@/components/TraceDebugger';
 import { ExecutionTracePanel } from '@/components/trace/ExecutionTracePanel';
-import { SeePlusPlusDebugger } from '@/components/SeePlusPlusDebugger';
 import { DebugAnalysisPanel } from '@/components/DebugAnalysisPanel';
 import { ArchitectReviewCard } from '@/components/ArchitectReviewCard';
 import { useKnowledgeGraphTracker } from '@/hooks/useKnowledgeGraphTracker';
@@ -78,6 +76,16 @@ const LANGUAGE_CONFIG: Record<SupportedLanguage, { label: string; ext: string; m
 };
 
 const DEFAULT_STARTER = `// Write your solution here\n\nfunction solution(input) {\n  // Your logic here\n}\n`;
+
+async function safeJsonParse(res: Response): Promise<any> {
+  const text = await res.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: `Server returned non-JSON response (HTTP ${res.status})` };
+  }
+}
 
 function pickStarterCode(starterCode: Record<string, string> | undefined, lang: SupportedLanguage): string {
   if (!starterCode) return DEFAULT_STARTER;
@@ -186,9 +194,10 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
   const [output, setOutput] = useState<string>('');
   const [isChatExpanded, setIsChatExpanded] = useState(false);
   const [currentVisualization, setCurrentVisualization] = useState<{type: string; data: unknown} | null>(null);
-  const [showTraceDebugger, setShowTraceDebugger] = useState(false);
-  const [showDebugAnalysis, setShowDebugAnalysis] = useState(false);
   const [showArchitectReview, setShowArchitectReview] = useState(false);
+  const [streamingMessage, setStreamingMessage] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [hasOutput, setHasOutput] = useState(false);
   const [lastExecution, setLastExecution] = useState<LastExecution | null>(null);
   const [codeHash, setCodeHash] = useState<string | null>(null);
@@ -206,7 +215,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
 
     fetch(`/api/problems/${problemId}`)
       .then(async (res) => {
-        const data = await res.json();
+        const data = await safeJsonParse(res);
         if (!res.ok || !data.problem) {
           throw new Error(data.error || 'Problem not found');
         }
@@ -231,8 +240,8 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
   useEffect(() => {
     if (session?.user?.id && problemId) {
       fetch(`/api/mentor/history?problemId=${problemId}`)
-        .then((res) => res.json())
-        .then((data) => {
+        .then(async (res) => {
+          const data = await safeJsonParse(res);
           if (data.ok && data.history) {
             setMessages(data.history);
           }
@@ -309,7 +318,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
           runAll: false,
         }),
       });
-      const data: RunResult = await res.json();
+      const data: RunResult = await safeJsonParse(res);
 
       if (!res.ok || !data.ok) {
         setOutput(`Error: ${data.error || 'Failed to run code'}\n${data.compileError || ''}`);
@@ -347,7 +356,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
           runAll: true,
         }),
       });
-      const data: RunResult = await res.json();
+      const data: RunResult = await safeJsonParse(res);
 
       if (!res.ok || !data.ok) {
         setOutput(`Submission failed: ${data.error || 'Unknown error'}\n${data.compileError || ''}`);
@@ -384,19 +393,21 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
 
   const sendMentorMessage = async (content: string) => {
     if (!content.trim()) return;
+
+    // Cancel any in-flight stream before starting a new one
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     const newMessages = [...messages, { role: 'user', content } as const];
     setMessages(newMessages);
     setMentorInput('');
     setIsMentorLoading(true);
-    setIsChatExpanded(true); // Auto-expand when sending
+    setIsStreaming(true);
+    setIsChatExpanded(true);
+    setStreamingMessage('');
 
     try {
-      // The page sends the codeHash that the server returned with the most
-      // recent execute response. The server recomputes the hash of the
-      // incoming code and compares against `lastExecution.codeHash` for the
-      // authoritative stale check; the page's stored value is a diagnostic
-      // signal (mismatch indicates the user has edited since the last run,
-      // or a page/server hashing bug).
       const res = await fetch('/api/mentor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -413,24 +424,102 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
           lastExecution,
           codeHash,
         }),
+        signal: controller.signal,
       });
+
       if (!res.ok) {
-        const errData = await res.json();
+        if (controller.signal.aborted) return;
+        const errData = await safeJsonParse(res);
         setMessages([...newMessages, { role: 'assistant', content: errData.error ?? 'Something went wrong. Please try again.' }]);
         return;
       }
-      const data = await res.json();
-      const assistantMsg = {
-        role: 'assistant' as const,
-        content: data.message ?? 'AI response unavailable',
-        visualization: data.visualization
-      };
-      setMessages([...newMessages, assistantMsg]);
-      handleMentorResponse(data);
+
+      if (!res.body) {
+        setMessages([...newMessages, { role: 'assistant', content: 'No response stream received.' }]);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullMessage = '';
+      let lastUpdate = 0;
+      const THROTTLE_MS = 50;
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('event: error')) {
+              const nextLine = lines[lines.indexOf(line) + 1];
+              if (nextLine?.startsWith('data: ')) {
+                try {
+                  const errPayload = JSON.parse(nextLine.slice(6));
+                  if (!controller.signal.aborted) {
+                    setMessages([...newMessages, { role: 'assistant', content: errPayload.error ?? 'Mentor error.' }]);
+                  }
+                } catch { /* malformed error payload */ }
+              }
+              break;
+            }
+
+            if (line.startsWith('event: delta')) {
+              const nextLine = lines[lines.indexOf(line) + 1];
+              if (nextLine?.startsWith('data: ')) {
+                try {
+                  const payload = JSON.parse(nextLine.slice(6));
+                  if (payload.token) {
+                    fullMessage += payload.token;
+                    const now = Date.now();
+                    if (now - lastUpdate >= THROTTLE_MS) {
+                      setStreamingMessage(fullMessage);
+                      lastUpdate = now;
+                    }
+                  }
+                } catch { /* malformed delta payload */ }
+              }
+            }
+
+            if (line.startsWith('event: done')) {
+              const nextLine = lines[lines.indexOf(line) + 1];
+              if (nextLine?.startsWith('data: ')) {
+                try {
+                  const payload = JSON.parse(nextLine.slice(6));
+                  // Flush any remaining buffer
+                  setStreamingMessage(fullMessage);
+                  setIsStreaming(false);
+
+                  const assistantMsg = {
+                    role: 'assistant' as const,
+                    content: payload.message ?? fullMessage ?? 'AI response unavailable',
+                    visualization: payload.visualization,
+                  };
+                  setStreamingMessage('');
+                  setMessages([...newMessages, assistantMsg]);
+                  handleMentorResponse(payload);
+                } catch { /* malformed done payload — fall through to finally */ }
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        // User initiated a new message — suppress error UI
+        setStreamingMessage('');
+        setIsStreaming(false);
+        return;
+      }
       setMessages([...newMessages, { role: 'assistant', content: 'Network error. Please try again.' }]);
     } finally {
       setIsMentorLoading(false);
+      setIsStreaming(false);
     }
   };
 
@@ -575,7 +664,19 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
                         </div>
                       </motion.div>
                     ))}
-                    {isMentorLoading && (
+                    {isStreaming && streamingMessage && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex justify-start"
+                      >
+                        <div className="max-w-[90%] rounded-xl px-4 py-3 text-sm leading-relaxed bg-[#0b0b10] border border-white/[0.06] text-zinc-400">
+                          <Markdown md={streamingMessage} />
+                          <span className="inline-block w-[2px] h-4 bg-violet-400 ml-0.5 animate-pulse align-middle" />
+                        </div>
+                      </motion.div>
+                    )}
+                    {isMentorLoading && !isStreaming && (
                       <div className="flex items-center gap-2 text-zinc-600 text-xs pl-1">
                         <div className="w-4 h-4 border-2 border-zinc-600 border-t-violet-400 rounded-full animate-spin" />
                         Thinking…
@@ -615,11 +716,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
                         {(['editor', 'testcases', 'output', 'debugger', 'analysis'] as const).map((tab) => (
                           <button
                             key={tab}
-                            onClick={() => {
-                              setActiveRightTab(tab);
-                              if (tab === 'debugger') setShowTraceDebugger(true);
-                              if (tab === 'analysis') setShowDebugAnalysis(true);
-                            }}
+                            onClick={() => setActiveRightTab(tab)}
                             className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
                               activeRightTab === tab
                                 ? 'bg-white/10 text-white'
@@ -664,7 +761,11 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
               <div className="flex-1 overflow-hidden relative">
                 {activeRightTab === 'debugger' ? (
                   <div className="h-full overflow-y-auto">
-                    <SeePlusPlusDebugger code={code} language={language} />
+                    <ExecutionTracePanel
+                      code={code}
+                      language={language}
+                      defaultInput={dbProblem?.testCases?.[0]?.input}
+                    />
                   </div>
                 ) : activeRightTab === 'analysis' ? (
                   <div className="h-full overflow-y-auto">

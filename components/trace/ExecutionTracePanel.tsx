@@ -13,12 +13,13 @@ import type { EnhancedTraceEvent, HeapObject, Reference, CallStackFrame } from "
 interface ExecutionTracePanelProps {
   code: string;
   language: string;
+  defaultInput?: string;
 }
 
 type TabType = "trace" | "stack" | "heap" | "vars";
 
-export function ExecutionTracePanel({ code, language }: ExecutionTracePanelProps) {
-  const [input, setInput] = useState("[2, 7, 11, 15]");
+export function ExecutionTracePanel({ code, language, defaultInput }: ExecutionTracePanelProps) {
+  const [input, setInput] = useState(defaultInput || "[2, 7, 11, 15]");
   const [events, setEvents] = useState<EnhancedTraceEvent[]>([]);
   const [finalOutput, setFinalOutput] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +38,11 @@ export function ExecutionTracePanel({ code, language }: ExecutionTracePanelProps
   useEffect(() => {
     return () => { if (playRef.current) clearInterval(playRef.current); };
   }, []);
+
+  // Sync input when defaultInput arrives asynchronously (e.g. from API)
+  useEffect(() => {
+    if (defaultInput) setInput(defaultInput);
+  }, [defaultInput]);
 
   // Auto-step during play
   useEffect(() => {

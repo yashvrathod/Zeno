@@ -161,13 +161,29 @@ export async function execute(params: {
     }).catch(logDbError);
   }
 
-  const mentorSession = await getOrCreateSession(userId, problemId);
+  let mentorSession;
+  try {
+    mentorSession = await getOrCreateSession(userId, problemId);
+  } catch (e) {
+    console.error("Failed to get/create mentor session:", e);
+    return { ok: false, error: "Failed to initialize mentor session. Please try again." };
+  }
 
-  await saveMessage(
-    mentorSession.id, "user", body.userMessage, mentorSession.stage as TeachingStage,
-  );
+  try {
+    await saveMessage(
+      mentorSession.id, "user", body.userMessage, mentorSession.stage as TeachingStage,
+    );
+  } catch (e) {
+    console.warn("Failed to save user message:", e);
+  }
 
-  const problemRecord = await findProblemBySlug(problemId);
+  let problemRecord;
+  try {
+    problemRecord = await findProblemBySlug(problemId);
+  } catch (e) {
+    console.error("Failed to fetch problem:", e);
+    return { ok: false, error: "Failed to load problem data. Please try again." };
+  }
 
   if (!problemRecord) {
     return { ok: false, error: "Problem not found" };
@@ -183,11 +199,19 @@ export async function execute(params: {
     },
   };
 
-  const [userAiSettings, stats, existingSummary] = await Promise.all([
-    findUserSettings(userId),
-    findProblemStats(userId, problemId),
-    findConversationSummary(userId, problemId),
-  ]);
+  let userAiSettings, stats, existingSummary;
+  try {
+    [userAiSettings, stats, existingSummary] = await Promise.all([
+      findUserSettings(userId),
+      findProblemStats(userId, problemId),
+      findConversationSummary(userId, problemId),
+    ]);
+  } catch (e) {
+    console.warn("Failed to fetch user data, continuing with defaults:", e);
+    userAiSettings = null;
+    stats = null;
+    existingSummary = null;
+  }
 
   const history = mentorSession.messages.map((m) => ({
     role: m.role as "user" | "assistant",
@@ -359,7 +383,7 @@ export async function execute(params: {
     body, userId, problemId, mentorSession, history, stats, userAiSettings,
     existingSummary, apiConfig, intent, conversationIntent, knowledgeGraph,
     debugAnalysis: analysis, rung: currentRung, traceContext, onChunk,
-    stale, lastExecution,
+    stale, lastExecution: body.lastExecution,
   });
 
   if (idKey) setIdempotentResponse(idKey, aiResponse);
