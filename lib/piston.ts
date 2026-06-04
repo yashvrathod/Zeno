@@ -51,7 +51,7 @@ async function getRuntimes(apiUrl: string): Promise<PistonRuntime[]> {
   try {
     const res = await fetchWithTimeout(`${apiUrl}/runtimes`, {
       headers: { 'Content-Type': 'application/json' },
-      timeoutMs: 10_000,
+      timeoutMs: RUNTIMES_PROBE_TIMEOUT_MS,
     });
     if (!res.ok) {
       runtimeCache.set(apiUrl, []);
@@ -103,12 +103,94 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit & { 
   }
 }
 
-function getPistonUrls(): string[] {
-  const localUrl = process.env.PISTON_LOCAL_URL || 'http://localhost:2000/api/v2';
-  const primaryUrl = process.env.PISTON_API_URL || process.env.NEXT_PUBLIC_PISTON_API_URL || 'https://emkc.org/api/v2/piston';
-  const fallbackUrl = process.env.PISTON_API_URL_FALLBACK || 'https://piston.rs/api/v2/piston';
+/**
+ * Returns the list of Piston URLs to try, in order.
+ *
+ * Resolution order:
+ *   1. `PISTON_LOCAL_URL` env var (e.g., a Docker container on the host).
+ *      If unset, defaults to `http://localhost:2000/api/v2`.
+ *   2. Additional URLs from `PISTON_EXTRA_URLS` (comma-separated).
+ *   3. `PISTON_API_URL` ONLY if it is explicitly set in env.
+ *
+ * Critical: we no longer fall back to `emkc.org` silently. As of
+ * 2/15/2026 the public Piston API is whitelist-only, so a dead
+ * localhost would previously fall through to emkc.org and surface a
+ * confusing 401. Now it surfaces a clear "no Piston reachable" error
+ * naming the URLs that were tried. If you really want to use the
+ * whitelisted public API, opt in via PISTON_API_URL explicitly.
+ *
+ * Returned as a frozen, deduplicated list.
+ */
+export function getPistonUrls(): readonly string[] {
+  const localUrl =
+    process.env.PISTON_LOCAL_URL && process.env.PISTON_LOCAL_URL.trim().length > 0
+      ? process.env.PISTON_LOCAL_URL.trim()
+      : "http://localhost:2000/api/v2";
 
-  return [...new Set([localUrl, primaryUrl, fallbackUrl].filter(Boolean))];
+  const extras = (process.env.PISTON_EXTRA_URLS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const explicitPrimary =
+    process.env.PISTON_API_URL && process.env.PISTON_API_URL.trim().length > 0
+      ? process.env.PISTON_API_URL.trim()
+      : process.env.NEXT_PUBLIC_PISTON_API_URL &&
+          process.env.NEXT_PUBLIC_PISTON_API_URL.trim().length > 0
+        ? process.env.NEXT_PUBLIC_PISTON_API_URL.trim()
+        : null;
+
+  return Object.freeze(
+    Array.from(
+      new Set([localUrl, ...extras, ...(explicitPrimary ? [explicitPrimary] : [])]),
+    ),
+  );
+}
+
+/**
+ * Smaller timeout used for "is this Piston reachable?" probes
+ * (`/runtimes` GET). We don't want a dead localhost:2000 to add 25s of
+ * latency to every run before the chain falls through.
+ */
+const RUNTIMES_PROBE_TIMEOUT_MS = 3_000;
+
+/**
+ * Timeout used for the `/execute` POST. Piston is mostly a fast round
+ * trip; 25s is generous and only matters for genuinely long-running
+ * code. If the URL is unreachable (connection refused), Node's fetch
+ * fails immediately — the timeout is the upper bound.
+ */
+const EXECUTE_TIMEOUT_MS = 25_000;
+
+export type PistonResult = {
+  output: string;
+  runtimeMs: number;
+  stderr: string;
+  exitCode: number | null;
+  signal: string | null;
+  /** Which Piston URL actually served this request (useful for debugging). */
+  servedBy: string;
+};
+
+/**
+ * Error thrown when every URL in the chain failed. The `.tried` field
+ * is preserved so the route can surface "we tried A, B, C and all
+ * failed" instead of a generic "Piston error".
+ */
+export class PistonUnreachableError extends Error {
+  tried: string[];
+  cause: Error | null;
+  constructor(tried: string[], cause: Error | null) {
+    const urlList = tried.length > 0 ? tried.join(", ") : "(no URLs configured)";
+    super(
+      `No Piston instance reachable. Tried: ${urlList}. ` +
+        `Last error: ${cause?.message ?? "unknown"}. ` +
+        `Set PISTON_LOCAL_URL to your local instance (e.g. http://localhost:2000/api/v2).`,
+    );
+    this.name = "PistonUnreachableError";
+    this.tried = tried;
+    this.cause = cause;
+  }
 }
 
 export async function runOnPiston({
@@ -119,17 +201,23 @@ export async function runOnPiston({
   code: string;
   language: keyof typeof LANGUAGE_CONFIG;
   stdin: string;
-}): Promise<{ output: string; runtimeMs: number; stderr: string; exitCode: number | null; signal: string | null }> {
+}): Promise<PistonResult> {
   const langConfig = LANGUAGE_CONFIG[language];
   if (!langConfig) throw new Error(`Language ${language} not supported`);
 
-  const tryUrls = getPistonUrls();
+  const tryUrls = [...getPistonUrls()];
 
   let lastErr: Error | null = null;
   for (const apiUrl of tryUrls) {
     const startedAt = Date.now();
     try {
       const runtime = await resolveRuntime(apiUrl, language);
+      // Light-touch log so a production issue is easy to diagnose from
+      // the access log alone (which Piston URL worked, which version
+      // was selected). Kept as console.debug to avoid noise.
+      if (process.env.PISTON_DEBUG === '1') {
+        console.debug(`[piston] ${apiUrl} → ${runtime.language}@${runtime.version || '(default)'}`);
+      }
       const res = await fetchWithTimeout(`${apiUrl}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -139,12 +227,19 @@ export async function runOnPiston({
           files: [{ name: fileName(language), content: code }],
           stdin,
         }),
-        timeoutMs: 25_000,
+        timeoutMs: EXECUTE_TIMEOUT_MS,
       });
 
       if (!res.ok) {
         const text = await res.text().catch(() => '');
-        throw new Error(`Piston error: ${res.status} ${text ? `- ${text.slice(0, 300)}` : ''}`.trim());
+        // 401/403 from a public Piston URL: treat as a hard failure for
+        // THIS url, but try the next one in the chain. A dead localhost
+        // shouldn't burn 25s on a whitelisted-API 401.
+        const isAuth = res.status === 401 || res.status === 403;
+        throw new Error(
+          `Piston error: ${res.status} ${text ? `- ${text.slice(0, 300)}` : ''}`.trim() +
+            (isAuth ? " (auth-required; skipping to next URL in chain)" : ""),
+        );
       }
 
       const data = (await res.json()) as PistonExecuteResponse;
@@ -158,13 +253,14 @@ export async function runOnPiston({
         stderr,
         exitCode: data.run.code ?? null,
         signal: data.run.signal ?? null,
+        servedBy: apiUrl,
       };
     } catch (e) {
       lastErr = e instanceof Error ? e : new Error('Unknown piston error');
     }
   }
 
-  throw lastErr ?? new Error('Piston error');
+  throw new PistonUnreachableError(tryUrls, lastErr);
 }
 
 function fileName(language: keyof typeof LANGUAGE_CONFIG) {

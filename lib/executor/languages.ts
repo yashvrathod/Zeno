@@ -5,6 +5,7 @@
 import { ExecutionResult } from "./core";
 import { runOnPiston } from "@/lib/piston";
 import { classifyError } from "./errorClassifier";
+import { wrapForExecution, supportsHarness } from "./harness";
 
 export async function executeOnPiston(
   code: string,
@@ -21,13 +22,22 @@ export async function executeOnPiston(
     tests: [] as Array<{ input: string; expected: string; actual: string; passed: boolean }>,
   };
 
+  // Apply the stdin/function harness so a `function solution(input)` from
+  // the editor actually gets invoked. Without this wrap the program runs
+  // but produces no output, so every test fails silently.
+  const harnessUsed = supportsHarness(pistonLang);
+  const effectiveCode =
+    harnessUsed
+      ? wrapForExecution(code, pistonLang as 'javascript' | 'typescript' | 'python')
+      : code;
+
   // Loop ALL test cases. The previous `slice(0, 3)` silently truncated runs on
   // problems with more than 3 tests, so the user saw "all 3 of 3 passed" on a
   // 10-test problem and the hidden 7 never ran. Fixed in PR 1.
   for (const tc of testCases) {
     try {
       const { output, runtimeMs, stderr, exitCode, signal } = await runOnPiston({
-        code,
+        code: effectiveCode,
         language: pistonLang as keyof typeof import("@/lib/piston").LANGUAGE_CONFIG,
         stdin: tc.input,
       });

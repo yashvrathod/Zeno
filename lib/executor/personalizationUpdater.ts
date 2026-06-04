@@ -29,7 +29,32 @@ const defaultLearningStyle: Record<string, unknown> = {
 // Default empty trajectory array
 const defaultTrajectory: unknown[] = [];
 
-async function ensureKnowledgeGraph(userId: string): Promise<{ id: string }> {
+/**
+ * Ensure the UserKnowledgeGraph row exists for `userId`.
+ *
+ * Prisma's `upsert` does NOT create the parent row — it only creates the
+ * child. If `userId` has no matching `User` row, the FK constraint
+ * `UserKnowledgeGraph_userId_fkey` is violated with P2003. We see this in
+ * the wild when:
+ *   - The session cookie references a User that was deleted
+ *   - A dev/test id is passed that was never persisted
+ *   - A DB reset cleared users but left dangling auth tokens
+ *
+ * Returns `null` in that case so callers can skip the personalization
+ * pipeline gracefully instead of throwing (the route's try/catch would
+ * otherwise return 500 to the client and spam the logs).
+ */
+async function ensureKnowledgeGraph(userId: string): Promise<{ id: string } | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+  if (!user) {
+    console.warn(
+      `[personalizationUpdater] ensureKnowledgeGraph: user ${userId} not found, skipping personalization`,
+    );
+    return null;
+  }
   return prisma.userKnowledgeGraph.upsert({
     where: { userId },
     create: {
@@ -198,6 +223,7 @@ async function updateConceptMasteryForConcept(
   stats: ExecutionStats & { difficulty: string }
 ): Promise<void> {
   const current = await getOrCreateConceptMastery(userId, conceptId);
+  if (!current) return; // user missing → personalization skipped
 
   // Calculate mastery change
   let masteryChange = 0;
@@ -238,6 +264,7 @@ async function updatePatternStrength(
   runtime: number
 ): Promise<void> {
   const kg = await ensureKnowledgeGraph(userId);
+  if (!kg) return;
 
   const patternType = pattern.toLowerCase().replace(/-/g, '') as any;
 
@@ -330,6 +357,7 @@ async function recordErrorPattern(
   if (concepts.length === 0) return;
 
   const kg = await ensureKnowledgeGraph(userId);
+  if (!kg) return;
 
   // Simple error type detection
   let errorType: ErrorType = 'logic_error';
@@ -352,6 +380,7 @@ async function recordErrorPattern(
   for (const conceptId of concepts) {
     try {
       const current = await getOrCreateConceptMastery(kg.id, conceptId);
+      if (!current) continue;
       const merged = mergeErrorPattern(
         current.commonErrors as ErrorPattern[],
         detected
@@ -374,6 +403,20 @@ async function updateProblemStats(
   passed: boolean,
   runtime: number
 ): Promise<void> {
+  // Skip when the user is missing — UserProblemStats.userId is also a
+  // FK to User, so an upsert would crash with P2003 the same way
+  // ensureKnowledgeGraph used to. The personalization signal is
+  // unavailable, but the route's try/catch should not turn this into 500.
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+  if (!user) {
+    console.warn(
+      `[personalizationUpdater] updateProblemStats: user ${userId} not found, skipping`,
+    );
+    return;
+  }
   await prisma.userProblemStats.upsert({
     where: { userId_problemId: { userId, problemId } },
     create: {
@@ -398,8 +441,9 @@ async function updateProblemStats(
 async function getOrCreateConceptMastery(
   userId: string,
   conceptId: string
-): Promise<{ mastery: number; practiceCount: number; commonErrors: unknown[] }> {
+): Promise<{ mastery: number; practiceCount: number; commonErrors: unknown[] } | null> {
   const kg = await ensureKnowledgeGraph(userId);
+  if (!kg) return null;
 
   const existing = await prisma.conceptMastery.findUnique({
     where: { userId_conceptId: { userId: kg.id, conceptId } },
@@ -451,6 +495,7 @@ async function getRecentAttempts(userId: string, conceptId: string, count: numbe
 
 async function incrementConfidence(userId: string, conceptId: string): Promise<void> {
   const kg = await ensureKnowledgeGraph(userId);
+  if (!kg) return;
 
   await prisma.conceptMastery.update({
     where: { userId_conceptId: { userId: kg.id, conceptId } },
@@ -460,6 +505,7 @@ async function incrementConfidence(userId: string, conceptId: string): Promise<v
 
 async function incrementDifficulty(userId: string, conceptId: string): Promise<void> {
   const kg = await ensureKnowledgeGraph(userId);
+  if (!kg) return;
 
   await prisma.conceptMastery.update({
     where: { userId_conceptId: { userId: kg.id, conceptId } },
@@ -469,6 +515,7 @@ async function incrementDifficulty(userId: string, conceptId: string): Promise<v
 
 async function boostMastery(userId: string, conceptId: string, boost: number): Promise<void> {
   const kg = await ensureKnowledgeGraph(userId);
+  if (!kg) return;
 
   await prisma.conceptMastery.update({
     where: { userId_conceptId: { userId: kg.id, conceptId } },
@@ -478,6 +525,7 @@ async function boostMastery(userId: string, conceptId: string, boost: number): P
 
 async function updateNextReviewDate(userId: string, conceptId: string, succeeded: boolean): Promise<void> {
   const kg = await ensureKnowledgeGraph(userId);
+  if (!kg) return;
 
   const mastery = await prisma.conceptMastery.findUnique({
     where: { userId_conceptId: { userId: kg.id, conceptId } },
@@ -496,6 +544,7 @@ async function updateNextReviewDate(userId: string, conceptId: string, succeeded
 
 async function trackLearningStyle(userId: string, intent: string, wasHelpful: boolean): Promise<void> {
   const kg = await ensureKnowledgeGraph(userId);
+  if (!kg) return;
 
   const fullKg = await prisma.userKnowledgeGraph.findUnique({
     where: { id: kg.id },
@@ -525,6 +574,7 @@ async function recordProblemAttempt(
   solved: boolean
 ): Promise<void> {
   const kg = await ensureKnowledgeGraph(userId);
+  if (!kg) return;
 
   await prisma.problemAttempt.create({
     data: {

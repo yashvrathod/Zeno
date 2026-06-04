@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { runOnPiston } from '@/lib/piston';
 import { auth } from '@/lib/auth';
 import { updateAfterExecution } from '@/lib/executor/personalizationUpdater';
+import { wrapForExecution, supportsHarness } from '@/lib/executor/harness';
 
 function clampDbText(input: unknown, max = 800) {
   const s = typeof input === 'string' ? input : '';
@@ -47,13 +48,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   let sawRuntimeError = false;
   let lastRuntimeError: string | null = null;
 
+  // Apply the same stdin/function-harness wrap that /api/execute uses, so
+  // submitting matches running. The user code is expected to define a
+  // `solution(input)` function; without this wrap, the function is never
+  // called and the submit silently returns 0/N passed.
+  const submitHarnessUsed = supportsHarness(body.language);
+  const submitEffectiveCode =
+    submitHarnessUsed
+      ? wrapForExecution(body.code, body.language as 'javascript' | 'typescript' | 'python')
+      : body.code;
+
   for (const tc of problem.testCases) {
     let output = '';
     let thisTestRuntimeError = false;
 
     try {
       ({ output } = await runOnPiston({
-        code: body.code,
+        code: submitEffectiveCode,
         language: body.language,
         stdin: tc.input,
       }));

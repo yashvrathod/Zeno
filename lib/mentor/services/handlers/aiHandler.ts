@@ -23,6 +23,7 @@ import {
 } from "../../context/user";
 import type { HistoryMsg, UserStats } from "../../context/user";
 import { detectTone, buildMentorSystemPrompt } from "../../prompt/system";
+import type { PolicyDecision } from "@/lib/mentor/diagnosis/types";
 import { buildExecutionContext } from "../../prompt/execution";
 import { buildProblemMetadata } from "../../prompt/problemMetadata";
 import {
@@ -94,7 +95,7 @@ function applyGuardrails(
 
 function shouldAllowFullSolution(stage: TeachingStage, intent?: IntentClassification): boolean {
   if (stage === "REFLECT") return true;
-  if (intent?.intent === "help_me_solve" || intent?.intent === "debug") return true;
+  if (intent?.intent === "implementation_help" || intent?.intent === "debugging") return true;
   return false;
 }
 
@@ -154,6 +155,8 @@ async function buildPromptContext(params: {
   debuggerContext?: string;
   stale?: boolean;
   lastExecution?: LastExecution;
+  cudPolicyContext?: string | null;
+  cudPolicy?: PolicyDecision | null;
 }) {
   const { body, stage, rung, history, stats, conversationIntent, knowledgeGraph, debugAnalysis, traceContext, stale, lastExecution } = params;
 
@@ -249,6 +252,7 @@ async function buildPromptContext(params: {
     params.conversationIntent?.primaryIntent as any, history.length,
     executionContext,
     problemMetadata,
+    params.cudPolicyContext,
   );
 
   return {
@@ -474,6 +478,10 @@ export async function handleAiNeeded(params: {
   stale?: boolean;
   /** PR 3: structured result of the user's last execution. */
   lastExecution?: LastExecution;
+  /** CUD: short audit-only diagnostic policy string for the prompt. */
+  cudPolicyContext?: string | null;
+  /** CUD: full policy decision used for tone overrides. */
+  cudPolicy?: PolicyDecision | null;
 }): Promise<MentorResponse> {
   const { body, userId, problemId, mentorSession, history, stats, userAiSettings, existingSummary, apiConfig, intent, conversationIntent, knowledgeGraph, debugAnalysis, rung: rungFromOrch, traceContext, onChunk, stale = false, lastExecution } = params;
   const stage = mentorSession.stage as TeachingStage;
@@ -486,7 +494,10 @@ export async function handleAiNeeded(params: {
 
   const rollingSummaryMd = existingSummary?.summaryMd ?? null;
   const currentMessageCount = existingSummary?.messageCount ?? 0;
-  const tone = detectTone(history, body.userMessage, stage);
+  let tone = detectTone(history, body.userMessage, stage);
+  if (params.cudPolicy?.toneAction === "override" && params.cudPolicy.suggestedTone) {
+    tone = params.cudPolicy.suggestedTone;
+  }
   const previousRung = existingSummary?.lastRung ?? 1;
   const rung = detectLearningRung(history, stats, body.userMessage, body.userCode, previousRung);
 
@@ -520,7 +531,7 @@ export async function handleAiNeeded(params: {
   const promptCtx = await buildPromptContext({
     body, userId, stage, rung, history, stats, conversationIntent, knowledgeGraph, debugAnalysis, traceContext,
     rollingSummaryMd, tone, verbosity, loopDetected, weaknessContext, debuggerContext,
-    stale, lastExecution,
+    stale, lastExecution, cudPolicyContext: params.cudPolicyContext, cudPolicy: params.cudPolicy,
   });
 
   // ── Call LLM ──

@@ -33,6 +33,9 @@ import { logMentorInteraction, logDbError } from "./logging";
 import { classifyIntent } from "./intent/core";
 import type { IntentClassification } from "./intent/core";
 import { resolveStale, type LastExecution } from "./lastExecution";
+import { runFastPath, runSlowPath, type DiagnoseInput } from "./diagnosis";
+import { rebuildInertia } from "./diagnosis/projections";
+import type { PolicyDecision } from "./diagnosis/types";
 
 // ── Idempotency store ──
 // In-memory Map keyed by "userId:problemId:idempotencyKey"
@@ -379,12 +382,91 @@ export async function execute(params: {
     }
   }
 
+  // ── CUD: Code Understanding Diagnosis ──
+  // Heuristic-first fast path runs synchronously to enforce the <200ms p99
+  // budget. Slow path (LLM judge + DB snapshot) runs fire-and-forget after
+  // the response is generated. Diagnosis is gated to early messages and
+  // when execution is available, so the diagnostic engine is only invoked
+  // for cases where it has signal.
+  const userMessageCount = history.filter(m => m.role === "user").length;
+  const shouldDiagnose = userMessageCount <= 2 && body.lastExecution?.kind !== "no_execution_yet";
+
+  let cudOutput: Awaited<ReturnType<typeof runFastPath>>["output"] | null = null;
+  let cudPolicy: PolicyDecision | null = null;
+  let cudPolicyContext: ReturnType<typeof import("./diagnosis/promptContext").buildPolicyPromptContext> | null = null;
+  const stageAfterCud: TeachingStage = mentorSession.stage as TeachingStage;
+  let fastTrace: Awaited<ReturnType<typeof runFastPath>>["trace"] | null = null;
+
+  if (shouldDiagnose) {
+    const inertia = await rebuildInertia(mentorSession.id);
+    const decisionId = `dec_${mentorSession.id}_${Date.now()}`;
+    const diagnoseInput: DiagnoseInput = {
+      userCode: body.userCode,
+      problemStatementMd: body.problemStatementMd,
+      problemConstraintsMd: body.problemConstraintsMd,
+      publicTestCases: body.publicTestCases,
+      lastExecution: body.lastExecution,
+      history: history as Array<{ role: "user" | "assistant"; content: string }>,
+      userMessage: body.userMessage,
+      stats,
+      codeHash,
+      messageCount: userMessageCount,
+    };
+    const fastResult = await runFastPath({
+      input: diagnoseInput,
+      currentStage: mentorSession.stage as TeachingStage,
+      inertia,
+      sessionId: mentorSession.id,
+      decisionId,
+    });
+    cudOutput = fastResult.output;
+    cudPolicy = fastResult.output.policy;
+    fastTrace = fastResult.trace;
+    cudPolicyContext = (await import("./diagnosis/promptContext")).buildPolicyPromptContext(cudPolicy);
+  }
+
   const aiResponse = await handleAiNeeded({
     body, userId, problemId, mentorSession, history, stats, userAiSettings,
     existingSummary, apiConfig, intent, conversationIntent, knowledgeGraph,
     debugAnalysis: analysis, rung: currentRung, traceContext, onChunk,
     stale, lastExecution: body.lastExecution,
+    cudPolicyContext: cudPolicyContext || undefined,
+    cudPolicy: cudPolicy || undefined,
   });
+
+  // ── CUD slow path (fire-and-forget) ──
+  // The slow path runs the LLM judge, persists a snapshot, and reconciles
+  // the projection. All errors are swallowed — slow path is best-effort.
+  if (aiResponse.ok && shouldDiagnose && cudOutput && fastTrace) {
+    void (async () => {
+      try {
+        await runSlowPath({
+          userId,
+          problemId,
+          sessionId: mentorSession.id,
+          fastOutput: cudOutput!,
+          fastTrace: fastTrace!,
+          input: {
+            userCode: body.userCode,
+            problemStatementMd: body.problemStatementMd,
+            problemConstraintsMd: body.problemConstraintsMd,
+            publicTestCases: body.publicTestCases,
+            lastExecution: body.lastExecution,
+            history: history as Array<{ role: "user" | "assistant"; content: string }>,
+            userMessage: body.userMessage,
+            stats,
+            codeHash,
+            messageCount: userMessageCount,
+          },
+          stageBefore: mentorSession.stage as TeachingStage,
+          stageAfter: stageAfterCud,
+          apiConfig,
+        });
+      } catch (e) {
+        console.warn("CUD slow path failed (non-fatal):", e);
+      }
+    })();
+  }
 
   if (idKey) setIdempotentResponse(idKey, aiResponse);
   return aiResponse;

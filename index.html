@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scale AI - Reliable AI Systems</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; overflow-x: hidden; background: #000; }
+
+        /* Navbar */
+        .navbar {
+            position: fixed; top: 0; left: 0; right: 0;
+            z-index: 1000; padding: 20px 40px;
+            display: flex; justify-content: space-between; align-items: center;
+            transition: all 0.4s ease;
+        }
+        .navbar.scrolled { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); }
+        .navbar.scrolled .nav-link { color: #000; }
+        .navbar.scrolled .logo-text { fill: #000; }
+
+        .nav-links { display: flex; gap: 40px; align-items: center; }
+        .nav-link { color: #000; text-decoration: none; font-size: 14px; font-weight: 500; transition: opacity 0.3s; }
+        .nav-link:hover { opacity: 0.7; }
+
+        /* Hero Section */
+        .hero-container {
+            position: relative; width: 100%; height: 100vh;
+            overflow: hidden; background: #000;
+        }
+        .hero-video-container {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+        }
+        .hero-video-container img, .hero-video-container video {
+            width: 100%; height: 100%; object-fit: cover;
+        }
+        .hero-overlay {
+            position: absolute; inset: 0;
+            background: rgba(0,0,0,0.4);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .hero-text {
+            color: #fff; font-size: clamp(32px, 5vw, 64px);
+            font-weight: 500; text-align: center; line-height: 1.2;
+            max-width: 900px; padding: 0 20px;
+            text-shadow: 0 2px 20px rgba(0,0,0,0.3);
+        }
+        .scroll-indicator {
+            position: absolute; bottom: 40px; right: 40px;
+            display: flex; align-items: center; gap: 12px;
+            color: #fff; font-size: 12px; font-weight: 500;
+            opacity: 0.8;
+        }
+        .scroll-arrow {
+            width: 40px; height: 40px;
+            border: 1px solid rgba(255,255,255,0.4);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            animation: bounce 2s infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(8px); }
+        }
+
+        /* 3D Card Section */
+        .section-dark {
+            background: #000; min-height: 100vh;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            position: relative; overflow: hidden;
+            padding: 100px 20px;
+        }
+        .card-3d-container {
+            perspective: 1500px;
+            width: 100%; max-width: 800px; height: 500px;
+            position: relative; margin-bottom: 60px;
+        }
+        .card-3d {
+            width: 100%; height: 100%;
+            position: relative;
+            transform-style: preserve-3d;
+            transform: rotateY(-15deg) rotateX(5deg);
+            transition: transform 0.1s ease-out;
+        }
+        .card-layer {
+            position: absolute; inset: 0;
+            border-radius: 24px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.03);
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+        }
+        .card-layer:nth-child(1) { transform: translateZ(0px); }
+        .card-layer:nth-child(2) { transform: translateZ(40px) scale(0.95); opacity: 0.6; }
+        .card-layer:nth-child(3) { transform: translateZ(80px) scale(0.9); opacity: 0.3; }
+
+        .card-content-img {
+            width: 100%; height: 100%;
+            object-fit: cover; opacity: 0.8;
+        }
+        .card-wireframe {
+            position: absolute; inset: 0;
+            background:
+                linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px),
+                linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+        .card-nodes {
+            position: absolute; inset: 0;
+        }
+        .node {
+            position: absolute; width: 6px; height: 6px;
+            background: rgba(255,255,255,0.6);
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(255,255,255,0.4);
+        }
+        .connection-line {
+            position: absolute; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            transform-origin: left center;
+        }
+
+        .section-title {
+            color: #fff; font-size: clamp(28px, 4vw, 48px);
+            font-weight: 500; text-align: center; margin-bottom: 16px;
+        }
+        .section-subtitle {
+            color: rgba(255,255,255,0.6); font-size: 16px;
+            text-align: center; max-width: 600px; line-height: 1.6;
+        }
+
+        /* Applications Section */
+        .applications-section {
+            background: #000; min-height: 100vh;
+            display: flex; align-items: center;
+            padding: 100px 40px; gap: 60px;
+        }
+        .applications-left {
+            flex: 1; max-width: 500px;
+        }
+        .applications-label {
+            color: rgba(255,255,255,0.5); font-size: 12px;
+            text-transform: uppercase; letter-spacing: 2px;
+            margin-bottom: 24px; display: flex; align-items: center; gap: 8px;
+        }
+        .applications-label::before {
+            content: '▼'; font-size: 8px;
+        }
+        .applications-title {
+            color: #fff; font-size: clamp(32px, 4vw, 48px);
+            font-weight: 500; line-height: 1.2; margin-bottom: 20px;
+        }
+        .applications-desc {
+            color: rgba(255,255,255,0.6); font-size: 16px;
+            line-height: 1.6; margin-bottom: 32px;
+        }
+        .btn-primary {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: rgba(255,255,255,0.1); color: #fff;
+            padding: 12px 24px; border-radius: 8px;
+            text-decoration: none; font-size: 14px; font-weight: 500;
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: all 0.3s;
+        }
+        .btn-primary:hover { background: rgba(255,255,255,0.2); }
+
+        .applications-right {
+            flex: 1; display: flex; justify-content: center;
+        }
+
+        /* Data Section */
+        .data-section {
+            background: #000; min-height: 100vh;
+            display: flex; align-items: center;
+            padding: 100px 40px; gap: 60px;
+        }
+        .data-left { flex: 1; }
+        .data-right {
+            flex: 1; max-width: 500px;
+        }
+
+        /* Stats Section */
+        .stats-section {
+            background: #000; padding: 100px 40px;
+            display: flex; align-items: center; gap: 40px;
+        }
+        .stats-image {
+            flex: 0 0 300px; height: 400px;
+            border-radius: 16px; overflow: hidden;
+        }
+        .stats-image img {
+            width: 100%; height: 100%; object-fit: cover;
+        }
+        .stats-content {
+            flex: 1; background: #1a3a2a;
+            border-radius: 24px; padding: 60px;
+            min-height: 400px; display: flex; align-items: center;
+        }
+        .stats-text {
+            color: #fff; font-size: clamp(28px, 3.5vw, 42px);
+            font-weight: 500; line-height: 1.3;
+        }
+        .stats-text .highlight { color: #7dd87d; }
+
+        /* AI Section */
+        .ai-section {
+            background: #e8e8e8; min-height: 100vh;
+            padding: 120px 40px; position: relative; overflow: hidden;
+        }
+        .ai-title {
+            text-align: center; font-size: clamp(36px, 5vw, 64px);
+            font-weight: 500; color: #000; line-height: 1.2;
+            margin-bottom: 40px;
+        }
+        .ai-title .accent { color: #8b7355; }
+        .ai-cta {
+            text-align: center; margin-bottom: 80px;
+        }
+        .ai-btn {
+            display: inline-block; padding: 14px 32px;
+            background: transparent; color: #000;
+            border: 1px solid #000; border-radius: 8px;
+            text-decoration: none; font-size: 14px; font-weight: 500;
+            transition: all 0.3s;
+        }
+        .ai-btn:hover { background: #000; color: #fff; }
+
+        .floating-images {
+            position: relative; width: 100%; height: 500px;
+        }
+        .float-img {
+            position: absolute; border-radius: 12px;
+            overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            animation: float 6s ease-in-out infinite;
+        }
+        .float-img img { width: 100%; height: 100%; object-fit: cover; }
+        .float-img:nth-child(1) { width: 120px; height: 120px; top: 10%; left: 15%; animation-delay: 0s; }
+        .float-img:nth-child(2) { width: 100px; height: 100px; top: 5%; left: 40%; animation-delay: 1s; }
+        .float-img:nth-child(3) { width: 110px; height: 110px; top: 15%; left: 65%; animation-delay: 2s; }
+        .float-img:nth-child(4) { width: 90px; height: 90px; top: 40%; left: 80%; animation-delay: 3s; }
+        .float-img:nth-child(5) { width: 130px; height: 130px; top: 50%; left: 55%; animation-delay: 1.5s; }
+        .float-img:nth-child(6) { width: 100px; height: 100px; top: 45%; left: 30%; animation-delay: 2.5s; }
+        .float-img:nth-child(7) { width: 110px; height: 110px; top: 60%; left: 10%; animation-delay: 0.5s; }
+        .float-img:nth-child(8) { width: 95px; height: 95px; top: 70%; left: 45%; animation-delay: 3.5s; }
+        .float-img:nth-child(9) { width: 105px; height: 105px; top: 75%; left: 75%; animation-delay: 4s; }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(2deg); }
+        }
+
+        /* Testimonials */
+        .testimonials-section {
+            background: #e8e8e8; padding: 80px 40px;
+        }
+        .testimonials-header {
+            font-size: 32px; font-weight: 500; color: #000;
+            margin-bottom: 40px;
+        }
+        .testimonials-grid {
+            display: flex; gap: 24px; overflow-x: auto;
+            padding-bottom: 20px;
+        }
+        .testimonial-card {
+            flex: 0 0 320px; background: #fff;
+            border-radius: 16px; padding: 32px;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.05);
+        }
+        .testimonial-logo {
+            width: 40px; height: 40px; margin-bottom: 20px;
+            display: flex; align-items: center; justify-content: center;
+            background: #f5f5f5; border-radius: 8px;
+            font-weight: 700; font-size: 12px; color: #666;
+        }
+        .testimonial-text {
+            font-size: 16px; color: #333; line-height: 1.6;
+            margin-bottom: 20px;
+        }
+        .testimonial-author {
+            font-size: 14px; color: #666;
+        }
+
+        /* Logo strip */
+        .logo-strip {
+            display: flex; gap: 40px; margin-top: 40px;
+            opacity: 0.5;
+        }
+        .logo-item {
+            font-size: 12px; color: #fff; font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        /* Navigation arrows */
+        .nav-arrows {
+            display: flex; gap: 12px; margin-top: 40px;
+        }
+        .nav-arrow {
+            width: 48px; height: 48px;
+            border: 1px solid rgba(0,0,0,0.2);
+            border-radius: 50%; display: flex;
+            align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.3s;
+            background: transparent;
+        }
+        .nav-arrow:hover { background: #000; color: #fff; border-color: #000; }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar" id="navbar">
+        <a href="#" class="logo">
+            <svg width="80" height="24" viewBox="0 0 80 24" fill="none" class="logo-svg">
+                <path class="logo-text" d="M12.5 4C7.8 4 4 7.8 4 12.5S7.8 21 12.5 21 21 17.2 21 12.5 17.2 4 12.5 4zm0 14c-2.5 0-4.5-2-4.5-4.5s2-4.5 4.5-4.5 4.5 2 4.5 4.5-2 4.5-4.5 4.5z" fill="#000"/>
+                <path class="logo-text" d="M28 8h2v8h6v2h-8V8zm10 0h2v10h-2V8zm4 0h2v10h-2V8zm4 0h2v10h-2V8zm4 0h2v10h-2V8zm4 0h2v10h-2V8z" fill="#000"/>
+                <text x="32" y="17" class="logo-text" fill="#000" font-size="14" font-weight="600" font-family="Inter">SCALE</text>
+            </svg>
+        </a>
+        <div class="nav-links">
+            <a href="#" class="nav-link">Products</a>
+            <a href="#" class="nav-link">Solutions</a>
+            <a href="#" class="nav-link">Research</a>
+            <a href="#" class="nav-link">Resources</a>
+            <div style="display: flex; gap: 16px; margin-left: 20px;">
+                <a href="#" class="nav-link" style="border: 1px solid rgba(0,0,0,0.2); padding: 8px 20px; border-radius: 6px;">Log In</a>
+                <a href="#" class="nav-link" style="background: #000; color: #fff; padding: 8px 20px; border-radius: 6px;">Book Demo</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero-container" id="hero">
+        <div class="hero-video-container">
+            <img src="https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=1920&q=80" alt="City street with AI detection" id="heroImage">
+        </div>
+        <div class="hero-overlay">
+            <h1 class="hero-text">The world's most important decisions need reliable AI systems.</h1>
+        </div>
+        <div class="scroll-indicator">
+            <span>Scroll to explore</span>
+            <div class="scroll-arrow">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 5v14M19 12l-7 7-7-7"/>
+                </svg>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3D Card Section 1 -->
+    <section class="section-dark" id="section3d-1">
+        <div class="card-3d-container" id="card3d-1">
+            <div class="card-3d">
+                <div class="card-layer">
+                    <img src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&q=80" class="card-content-img" alt="Satellite imagery">
+                    <div class="card-wireframe"></div>
+                    <div class="card-nodes" id="nodes-1"></div>
+                </div>
+                <div class="card-layer">
+                    <div class="card-wireframe"></div>
+                </div>
+                <div class="card-layer">
+                    <div class="card-wireframe"></div>
+                </div>
+            </div>
+        </div>
+        <h2 class="section-title">Reliable AI has no shortcuts.</h2>
+        <p class="section-subtitle">Scale works across the AI stack, from the data that trains the models you rely on, to the systems that put them to work. Humans stay in the loop.</p>
+    </section>
+
+    <!-- Applications Section -->
+    <section class="applications-section" id="applications">
+        <div class="applications-left">
+            <div class="applications-label">Applications</div>
+            <h2 class="applications-title">AI systems that actually work.</h2>
+            <p class="applications-desc">Most AI deployments in enterprise and government fail. We find the right use case, build the system, and own the outcome.</p>
+            <a href="#" class="btn-primary">For Enterprise <span>→</span></a>
+            <div class="logo-strip">
+                <span class="logo-item">MAYO CLINIC</span>
+                <span class="logo-item">◆</span>
+                <span class="logo-item">CDAO</span>
+                <span class="logo-item">◆</span>
+                <span class="logo-item">META</span>
+            </div>
+        </div>
+        <div class="applications-right">
+            <div class="card-3d-container" style="height: 400px;">
+                <div class="card-3d" style="transform: rotateY(15deg) rotateX(-5deg);">
+                    <div class="card-layer">
+                        <img src="https://images.unsplash.com/photo-1524661135-423995f22d0b?w=800&q=80" class="card-content-img" alt="Map interface">
+                        <div class="card-wireframe"></div>
+                        <div class="card-nodes" id="nodes-2"></div>
+                    </div>
+                    <div class="card-layer">
+                        <div class="card-wireframe"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Data Section -->
+    <section class="data-section" id="data">
+        <div class="data-left">
+            <div class="card-3d-container" style="height: 400px;">
+                <div class="card-3d" style="transform: rotateY(-20deg) rotateX(5deg);">
+                    <div class="card-layer">
+                        <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80" class="card-content-img" alt="Terrain data">
+                        <div class="card-wireframe"></div>
+                        <div class="card-nodes" id="nodes-3"></div>
+                    </div>
+                    <div class="card-layer">
+                        <div class="card-wireframe"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="data-right">
+            <div class="applications-label">Data</div>
+            <h2 class="applications-title">The data powering the world's best AI.</h2>
+            <p class="applications-desc">The models at the frontier run on Scale data. We source contributors with precision (25% have advanced degrees) and deliver at the bar frontier AI demands.</p>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="stats-section" id="stats">
+        <div class="stats-image">
+            <img src="https://images.unsplash.com/photo-1559757175-5700dde675bc?w=400&q=80" alt="AI visualization">
+        </div>
+        <div class="stats-content">
+            <p class="stats-text">
+                <span class="highlight">90%</span> of the world's leading generative AI model builders are powered by Scale.
+            </p>
+        </div>
+    </section>
+
+    <!-- AI / Autonomy Section -->
+    <section class="ai-section" id="ai">
+        <div class="floating-images">
+            <div class="float-img"><img src="https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=200&q=80" alt="Robot"></div>
+            <div class="float-img"><img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&q=80" alt="Person"></div>
+            <div class="float-img"><img src="https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=200&q=80" alt="Car"></div>
+            <div class="float-img"><img src="https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=200&q=80" alt="Drone"></div>
+            <div class="float-img"><img src="https://images.unsplash.com/photo-1535378917042-10a22c95931a?w=200&q=80" alt="Robot arm"></div>
+            <div class="float-img"><img src="https://images.unsplash.com/photo-1581090464777-f3220bbe1b8b?w=200&q=80" alt="Lab"></div>
+            <div class="float-img"><img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&q=80" alt="Business"></div>
+            <div class="float-img"><img src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=200&q=80" alt="Watch"></div>
+            <div class="float-img"><img src="https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=200&q=80" alt="Office"></div>
+        </div>
+        <h2 class="ai-title">
+            Artificial Intelligence<br>
+            <span class="accent">Real Autonomy</span>
+        </h2>
+        <div class="ai-cta">
+            <a href="#" class="ai-btn">Get Started</a>
+        </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="testimonials-section" id="testimonials">
+        <h3 class="testimonials-header">Proven across every industry.</h3>
+        <div class="testimonials-grid">
+            <div class="testimonial-card">
+                <div class="testimonial-logo">SC</div>
+                <p class="testimonial-text">Building agentic AI that drives EBITDA gains across PE portfolio companies.</p>
+                <p class="testimonial-author">Shore Capital</p>
+            </div>
+            <div class="testimonial-card">
+                <div class="testimonial-logo">CD</div>
+                <p class="testimonial-text">Turning raw, classified data into actionable intelligence.</p>
+                <p class="testimonial-author">CDAO</p>
+            </div>
+            <div class="testimonial-card">
+                <div class="testimonial-logo" style="color: #0081fb;">∞</div>
+                <p class="testimonial-text">Partnering to accelerate Meta's LLM and Generative AI.</p>
+                <p class="testimonial-author">Meta</p>
+            </div>
+            <div class="testimonial-card">
+                <div class="testimonial-logo">MC</div>
+                <p class="testimonial-text">Reducing administrative load by turning medical records into insights.</p>
+                <p class="testimonial-author">Mayo Clinic</p>
+            </div>
+        </div>
+        <div class="nav-arrows">
+            <button class="nav-arrow">←</button>
+            <button class="nav-arrow">→</button>
+        </div>
+    </section>
+
+    <script>
+        // Navbar scroll effect
+        const navbar = document.getElementById('navbar');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 100) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        });
+
+        // Generate nodes and connections for 3D cards
+        function generateNodes(containerId, count = 15) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            for (let i = 0; i < count; i++) {
+                const node = document.createElement('div');
+                node.className = 'node';
+                node.style.left = Math.random() * 100 + '%';
+                node.style.top = Math.random() * 100 + '%';
+                container.appendChild(node);
+
+                // Add connection lines
+                if (i > 0) {
+                    const line = document.createElement('div');
+                    line.className = 'connection-line';
+                    const prev = container.children[i - 1];
+                    const x1 = parseFloat(prev.style.left);
+                    const y1 = parseFloat(prev.style.top);
+                    const x2 = parseFloat(node.style.left);
+                    const y2 = parseFloat(node.style.top);
+
+                    const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+                    const angle = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+
+                    line.style.width = length + '%';
+                    line.style.left = x1 + '%';
+                    line.style.top = y1 + '%';
+                    line.style.transform = `rotate(${angle}deg)`;
+                    container.appendChild(line);
+                }
+            }
+        }
+
+        generateNodes('nodes-1', 12);
+        generateNodes('nodes-2', 10);
+        generateNodes('nodes-3', 14);
+
+        // 3D Card mouse interaction
+        document.querySelectorAll('.card-3d-container').forEach(container => {
+            const card = container.querySelector('.card-3d');
+            if (!card) return;
+
+            container.addEventListener('mousemove', (e) => {
+                const rect = container.getBoundingClientRect();
+                const x = (e.clientX - rect.left) / rect.width - 0.5;
+                const y = (e.clientY - rect.top) / rect.height - 0.5;
+
+                card.style.transform = `rotateY(${x * 30}deg) rotateX(${-y * 30}deg)`;
+            });
+
+            container.addEventListener('mouseleave', () => {
+                card.style.transform = 'rotateY(-15deg) rotateX(5deg)';
+            });
+        });
+
+        // GSAP ScrollTrigger animations
+        gsap.registerPlugin(ScrollTrigger);
+
+        // Hero parallax
+        gsap.to('#heroImage', {
+            yPercent: 30,
+            ease: 'none',
+            scrollTrigger: {
+                trigger: '#hero',
+                start: 'top top',
+                end: 'bottom top',
+                scrub: true
+            }
+        });
+
+        // 3D card entrance
+        gsap.from('#card3d-1', {
+            opacity: 0,
+            y: 100,
+            rotateY: -45,
+            duration: 1.2,
+            ease: 'power3.out',
+            scrollTrigger: {
+                trigger: '#section3d-1',
+                start: 'top 80%',
+                toggleActions: 'play none none reverse'
+            }
+        });
+
+        // Applications section
+        gsap.from('#applications .applications-left', {
+            opacity: 0,
+            x: -50,
+            duration: 1,
+            scrollTrigger: {
+                trigger: '#applications',
+                start: 'top 70%'
+            }
+        });
+
+        gsap.from('#applications .card-3d-container', {
+            opacity: 0,
+            x: 50,
+            duration: 1,
+            delay: 0.3,
+            scrollTrigger: {
+                trigger: '#applications',
+                start: 'top 70%'
+            }
+        });
+
+        // Data section
+        gsap.from('#data .data-left', {
+            opacity: 0,
+            x: -50,
+            duration: 1,
+            scrollTrigger: {
+                trigger: '#data',
+                start: 'top 70%'
+            }
+        });
+
+        gsap.from('#data .data-right', {
+            opacity: 0,
+            x: 50,
+            duration: 1,
+            delay: 0.3,
+            scrollTrigger: {
+                trigger: '#data',
+                start: 'top 70%'
+            }
+        });
+
+        // Stats counter animation
+        const statsText = document.querySelector('.stats-text');
+        if (statsText) {
+            gsap.from('.stats-content', {
+                opacity: 0,
+                scale: 0.9,
+                duration: 1,
+                scrollTrigger: {
+                    trigger: '#stats',
+                    start: 'top 70%'
+                }
+            });
+        }
+
+        // AI section floating images
+        gsap.from('.float-img', {
+            opacity: 0,
+            y: 50,
+            stagger: 0.1,
+            duration: 0.8,
+            scrollTrigger: {
+                trigger: '#ai',
+                start: 'top 70%'
+            }
+        });
+
+        // Hero image cycling (simulating video)
+        const heroImages = [
+            'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=1920&q=80',
+            'https://images.unsplash.com/photo-1518182170546-0766bc6f9213?w=1920&q=80',
+            'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=1920&q=80'
+        ];
+        let currentHero = 0;
+        const heroImg = document.getElementById('heroImage');
+
+        setInterval(() => {
+            currentHero = (currentHero + 1) % heroImages.length;
+            heroImg.style.opacity = '0';
+            setTimeout(() => {
+                heroImg.src = heroImages[currentHero];
+                heroImg.style.opacity = '1';
+            }, 500);
+        }, 5000);
+
+        heroImg.style.transition = 'opacity 0.5s ease';
+
+        // Smooth scroll for nav links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

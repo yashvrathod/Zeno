@@ -46,7 +46,7 @@ export default function Sidebar() {
         {/* Logo */}
         <div className="pt-6 pb-10">
           <Link href="/" className="block">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-nx-accent to-nx-accent-deep flex items-center justify-center shadow-[0_4px_16px_rgba(212,165,83,0.2)]">
+            <div className="w-12 h-12 rounded-2xl  flex items-center justify-center shadow-[0_4px_16px_rgba(212,165,83,0.2)]">
               <img
                 src="/logo.png"
                 alt="neXode"

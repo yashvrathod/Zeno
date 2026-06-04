@@ -21,7 +21,7 @@ function escapeHtml(s: string) {
   });
 }
 
-// Minimal markdown renderer (headings + paragraphs + code fences) without external deps.
+// Premium markdown renderer with luxury typography and spacing.
 export function Markdown({ md }: { md: string | null | undefined }) {
   const html = React.useMemo(() => {
     if (!md) return '';
@@ -41,7 +41,7 @@ export function Markdown({ md }: { md: string | null | undefined }) {
         } else {
           inCode = false;
           const code = escapeHtml(codeBuf.join('\n'));
-          out.push(`<pre class=\"overflow-auto rounded-md bg-[#0f0f0f] border border-zinc-800 p-3\"><code class=\"text-xs text-gray-100\">${code}</code></pre>`);
+          out.push(`<pre class=\"overflow-auto rounded-2xl bg-black border border-white/10 p-6 my-6 shadow-inner\"><code class=\"text-[14px] font-mono text-zinc-300\">${code}</code></pre>`);
           codeLang = '';
         }
         continue;
@@ -56,17 +56,17 @@ export function Markdown({ md }: { md: string | null | undefined }) {
       if (h) {
         const level = h[1].length;
         const text = escapeHtml(h[2]);
-        const cls = level === 1 ? 'text-xl font-semibold' : level === 2 ? 'text-lg font-semibold' : 'text-base font-semibold';
-        out.push(`<h${level} class=\"${cls} text-white mt-4 mb-2\">${text}</h${level}>`);
+        const cls = level === 1 ? 'text-3xl font-black tracking-tight' : level === 2 ? 'text-2xl font-bold tracking-tight' : 'text-xl font-semibold tracking-tight';
+        out.push(`<h${level} class=\"${cls} text-white mt-10 mb-4\">${text}</h${level}>`);
         continue;
       }
 
       if (line.trim() === '') {
-        out.push('<div class="h-3"></div>');
+        out.push('<div class="h-6"></div>');
         continue;
       }
 
-      out.push(`<p class=\"text-sm text-gray-100 leading-relaxed\">${escapeHtml(line)}</p>`);
+      out.push(`<p class=\"text-[18px] lg:text-[20px] text-zinc-300 leading-[1.7] tracking-tight mb-4 font-normal\">${escapeHtml(line)}</p>`);
     }
 
     return out.join('\n');

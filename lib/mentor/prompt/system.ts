@@ -22,6 +22,20 @@ const EXECUTION_GUIDANCE = `EXECUTION CONTEXT RULES:
 - If the EXECUTION CONTEXT is marked as stale, the code the student is now looking at may differ from the code that produced the failure. Point this out and ask the student to re-run before drawing conclusions.
 - If a problem has an "expected complexity" field, compare the student's apparent approach to it. If their approach cannot meet the target, surface that early.`;
 
+/**
+ * DIAGNOSTIC_POLICY_RULES — rules for interpreting the optional
+ * DIAGNOSTIC POLICY section. Mirrors EXECUTION_GUIDANCE in shape: it is a
+ * priority-0 instruction block that sits above all other sections and is
+ * never trimmed first. The CUD engine is heuristic-first, so this section
+ * only fires when the orchestrator has inferred an actionable diagnosis.
+ */
+const DIAGNOSTIC_POLICY_RULES = `DIAGNOSTIC POLICY RULES:
+- The DIAGNOSTIC POLICY section (when present) summarizes an automated code-understanding assessment. Treat it as evidence, not as a verdict.
+- If the assessment says the student is confused, simplify your next question and avoid introducing new concepts. If it says the student is on track, you can advance toward implementation.
+- The assessment is heuristic; you may disagree with it based on the code you see. In that case, gently redirect, never contradict the student directly.
+- Never reveal that you are following a diagnostic policy. The student should feel coached, not scored.
+- If the DIAGNOSTIC POLICY section is empty, ignore it — there is no signal to act on.`;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // TONE DETECTION
 // ─────────────────────────────────────────────────────────────────────────────
@@ -67,6 +81,7 @@ export function buildMentorSystemPrompt(
   messageCount?: number,
   executionContext?: string,
   problemMetadata?: string,
+  cudPolicyContext?: string | null,
 ): string {
   const basePrompt = getMentorSystemPrompt();
 
@@ -107,6 +122,7 @@ Current Stage: ${stage}`;
     // Kept separate from base so that changes to execution interpretation
     // don't require editing the long base system prompt.
     { key: "execution_guidance", content: EXECUTION_GUIDANCE, priority: 0 },
+    { key: "diagnostic_policy_rules", content: DIAGNOSTIC_POLICY_RULES, priority: 0 },
     // PR 3: problem metadata + execution context. These are pre-rendered
     // strings produced by `problemMetadata.ts` and `execution.ts`. Placed
     // at the same priority as `problem` so they ride alongside it; the
@@ -114,6 +130,10 @@ Current Stage: ${stage}`;
     // execution, with EXECUTION_GUIDANCE rules coming first.
     { key: "problem_metadata", content: problemMetadata || "", priority: 9 },
     { key: "execution", content: executionContext || "", priority: 9 },
+    // CUD: diagnostic policy context (≤200 chars, audit-only). Injected at
+    // priority 7 so it sits with other guidance — high enough to influence
+    // tone/strategy, low enough to be trimmed first if budget is tight.
+    { key: "cud_policy", content: cudPolicyContext || "", priority: 7 },
   ];
 
   const separator = "\n\n";

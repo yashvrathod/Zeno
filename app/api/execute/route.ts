@@ -11,6 +11,8 @@ import {
   type RawTestStatus,
   type TestCaseView,
 } from '@/lib/mentor/lastExecution';
+import { wrapForExecution, supportsHarness } from '@/lib/executor/harness';
+import { getPistonUrls, PistonUnreachableError } from '@/lib/piston';
 
 type ExecutableLanguage = keyof typeof LANGUAGE_CONFIG;
 
@@ -63,11 +65,63 @@ export async function POST(request: NextRequest) {
     const { code, problemId, runAll } = body;
     const language = normalizeLanguage(body.language);
 
-    if (!code || !language) {
+    if (!code || !code.trim() || !language) {
       return NextResponse.json(
         { ok: false, error: language ? 'Missing code' : `Language "${body.language}" is not supported for execution` },
         { status: 400 }
       );
+    }
+
+    // Debug mode: append `?debug=1` to see the raw Piston response, the
+    // exact code that was sent, the harness that was applied (or skipped),
+    // and the per-test raw stdout/stderr. Stripped from the response unless
+    // requested — useful when "I don't see any output" comes up.
+    const url = new URL(request.url);
+    const debug = url.searchParams.get('debug') === '1';
+    const harnessUsed = supportsHarness(language);
+    const effectiveCode = harnessUsed ? wrapForExecution(code, language) : code;
+
+    // Diagnose mode: `?diagnose=1` short-circuits the executor and
+    // returns JUST the URL chain + which one (if any) actually served
+    // a /runtimes probe. Use this to verify "is my Docker Piston
+    // reachable from Next.js?" without running code. POST body still
+    // required because Next.js route handlers need a method.
+    if (url.searchParams.get('diagnose') === '1') {
+      const tried = [...getPistonUrls()];
+      const probes: Array<{ url: string; reachable: boolean; status?: number; err?: string; ms: number }> = [];
+      for (const u of tried) {
+        const start = Date.now();
+        try {
+          const res = await fetch(`${u}/runtimes`, {
+            method: 'GET',
+            signal: AbortSignal.timeout(3_000),
+          });
+          probes.push({
+            url: u,
+            reachable: res.ok,
+            status: res.status,
+            ms: Date.now() - start,
+          });
+        } catch (e) {
+          probes.push({
+            url: u,
+            reachable: false,
+            err: e instanceof Error ? e.message.slice(0, 200) : String(e),
+            ms: Date.now() - start,
+          });
+        }
+      }
+      return NextResponse.json({
+        ok: true,
+        diagnose: true,
+        triedUrls: tried,
+        probes,
+        env: {
+          PISTON_LOCAL_URL: process.env.PISTON_LOCAL_URL ?? null,
+          PISTON_API_URL: process.env.PISTON_API_URL ?? null,
+          PISTON_EXTRA_URLS: process.env.PISTON_EXTRA_URLS ?? null,
+        },
+      });
     }
 
     const problem = problemId ? await prisma.problem.findFirst({
@@ -99,17 +153,27 @@ export async function POST(request: NextRequest) {
       error?: string;
       errorKind?: ExecutionErrorKind;
       isHidden: boolean;
+      /** Raw stdout from Piston (debug only). Hidden from hidden tests. */
+      rawStdout?: string;
+      /** Raw stderr from Piston (debug only). Hidden from hidden tests. */
+      rawStderr?: string;
+      /** Which Piston URL served this test (debug only). */
+      _servedBy?: string;
     }> = [];
 
     for (const tc of testCases) {
       const start = Date.now();
       try {
-        const { output, runtimeMs, stderr, exitCode, signal } = await runOnPiston({
-          code,
+        const { output, runtimeMs, stderr, exitCode, signal, servedBy } = await runOnPiston({
+          code: effectiveCode,
           language,
           stdin: tc.input,
         });
 
+        // The harness prints to stdout; raw stderr is preserved separately.
+        // For a `wrong_answer` we want stdout; for `runtime_error` we want
+        // stderr. Don't merge them into the `actual` field — that breaks
+        // the diff against `expected` and pollutes the user-facing output.
         const actual = output.trim();
         const expectedTrimmed = tc.expected.trim();
 
@@ -124,6 +188,9 @@ export async function POST(request: NextRequest) {
             executionTime: runtimeMs,
             error: `Execution terminated by signal: ${signal}`,
             isHidden: tc.isHidden,
+            rawStdout: debug ? output : undefined,
+            rawStderr: debug ? stderr : undefined,
+            _servedBy: servedBy,
           });
           break;
         }
@@ -138,6 +205,9 @@ export async function POST(request: NextRequest) {
             executionTime: runtimeMs,
             error: `Runtime ${runtimeMs}ms exceeded limit ${timeLimitMs}ms`,
             isHidden: tc.isHidden,
+            rawStdout: debug ? output : undefined,
+            rawStderr: debug ? stderr : undefined,
+            _servedBy: servedBy,
           });
           break;
         }
@@ -155,6 +225,9 @@ export async function POST(request: NextRequest) {
             error: stderr || output || `Exit code ${exitCode}`,
             errorKind: kind,
             isHidden: tc.isHidden,
+            rawStdout: debug ? output : undefined,
+            rawStderr: debug ? stderr : undefined,
+            _servedBy: servedBy,
           });
           break;
         }
@@ -168,10 +241,19 @@ export async function POST(request: NextRequest) {
           actual,
           executionTime: runtimeMs,
           isHidden: tc.isHidden,
+          rawStdout: debug ? output : undefined,
+          rawStderr: debug ? stderr : undefined,
+          _servedBy: servedBy,
         });
 
         if (!passed) break;
       } catch (e) {
+        // PistonUnreachableError is a configuration problem, not a user
+        // code problem. Surface it as a clearer 502-class message so the
+        // UI can render a "set PISTON_LOCAL_URL" hint instead of a
+        // generic "Runtime error".
+        const isUnreachable = e instanceof PistonUnreachableError;
+        const message = e instanceof Error ? e.message : 'Runtime error';
         results.push({
           testCaseId: tc.id,
           status: 'runtime_error',
@@ -179,9 +261,10 @@ export async function POST(request: NextRequest) {
           expected: tc.expected,
           actual: '',
           executionTime: Date.now() - start,
-          error: e instanceof Error ? e.message : 'Runtime error',
-          errorKind: 'unknown',
+          error: message,
+          errorKind: isUnreachable ? 'runtime_error' : 'unknown',
           isHidden: tc.isHidden,
+          rawStderr: debug ? message : undefined,
         });
         break;
       }
@@ -229,6 +312,45 @@ export async function POST(request: NextRequest) {
       ),
     );
 
+    // When `?debug=1` is set, attach the raw Piston output per test so
+    // the user (or a developer) can see exactly what the runtime
+    // produced. Always include the harness diagnostics so we can verify
+    // the wrap was applied (or skipped for unsupported languages).
+    const lastServedBy = (results.find((r) => r._servedBy) as
+      | { _servedBy?: string }
+      | undefined)?._servedBy;
+    const debugInfo = debug
+      ? {
+          harness: {
+            applied: harnessUsed,
+            language,
+            // Show the first ~200 chars of the harness header to confirm
+            // the wrap actually happened. Avoids dumping the user's
+            // entire code back at them.
+            header: harnessUsed ? effectiveCode.split('\n').slice(0, 3).join('\n') : null,
+          },
+          // Which URLs were tried in the chain. If you see emkc.org
+          // here but you have a local Docker, you have an env override
+          // somewhere — check .env / PISTON_API_URL.
+          piston: {
+            triedUrls: [...getPistonUrls()],
+            servedBy: lastServedBy ?? '(none — chain failed)',
+          },
+          results: results.map((r, i) => ({
+            index: i,
+            status: r.status,
+            rawStdout: r.rawStdout ?? null,
+            rawStderr: r.rawStderr ?? null,
+            actual: r.actual,
+            expected: r.expected,
+            // For hidden tests we deliberately still attach the raw
+            // fields in debug mode — it's a server-side diagnostic, not
+            // a user-visible field. The buildTestCaseView above still
+            // redacts them from the regular `results` array.
+          })),
+        }
+      : undefined;
+
     return NextResponse.json({
       ok: true,
       results: views,
@@ -236,6 +358,7 @@ export async function POST(request: NextRequest) {
       pistonHardTimeoutMs: PISTON_HARD_TIMEOUT_MS,
       lastExecution,
       codeHash,
+      ...(debugInfo ? { debug: debugInfo } : {}),
     });
   } catch (error: unknown) {
     console.error('Execution error:', error);
