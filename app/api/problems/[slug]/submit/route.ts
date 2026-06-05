@@ -25,9 +25,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
 
     const { slug } = await params;
 
-    let body: { code: string; language: 'javascript' | 'python' | 'java' | 'cpp' };
+    let body: { code: string; language: 'python' | 'java' | 'cpp' };
     try {
-      body = (await req.json()) as { code: string; language: 'javascript' | 'python' | 'java' | 'cpp' };
+      body = (await req.json()) as { code: string; language: 'python' | 'java' | 'cpp' };
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }

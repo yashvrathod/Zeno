@@ -73,7 +73,6 @@ export default function AdminProblemEditPage() {
   const [publicTests, setPublicTests] = React.useState(''); // input => expected per block
   const [hiddenTests, setHiddenTests] = React.useState('');
 
-  const [starterJs, setStarterJs] = React.useState('');
   const [starterPy, setStarterPy] = React.useState('');
   const [starterJava, setStarterJava] = React.useState('');
   const [starterCpp, setStarterCpp] = React.useState('');
@@ -106,7 +105,6 @@ export default function AdminProblemEditPage() {
       setHiddenTests(serialize(hid));
 
       const sc = prob.starterCode ?? {};
-      setStarterJs(sc.javascript ?? '');
       setStarterPy(sc.python ?? '');
       setStarterJava(sc.java ?? '');
       setStarterCpp(sc.cpp ?? '');
@@ -151,7 +149,6 @@ export default function AdminProblemEditPage() {
       const testCases = [...parseTests(publicTests, false), ...parseTests(hiddenTests, true)];
 
       const starterCode = {
-        javascript: starterJs,
         python: starterPy,
         java: starterJava,
         cpp: starterCpp,
@@ -376,10 +373,6 @@ export default function AdminProblemEditPage() {
         <Card className="bg-[#1a1a1a] border-zinc-800 p-4 space-y-4">
           <div className="text-sm font-semibold">Starter code</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label>JavaScript</Label>
-              <textarea value={starterJs} onChange={(e) => setStarterJs(e.target.value)} className="w-full min-h-40 rounded-md bg-[#0f0f0f] border border-zinc-700 px-3 py-2 text-sm text-white" />
-            </div>
             <div>
               <Label>Python</Label>
               <textarea value={starterPy} onChange={(e) => setStarterPy(e.target.value)} className="w-full min-h-40 rounded-md bg-[#0f0f0f] border border-zinc-700 px-3 py-2 text-sm text-white" />

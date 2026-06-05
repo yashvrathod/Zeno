@@ -23,16 +23,6 @@ export async function POST(req: NextRequest) {
     }
 
     const { code, language, input } = body;
-    const isJsTs = language === "javascript";
-
-    if (isJsTs) {
-      return Response.json({
-        ok: true,
-        language,
-        note: "Use client-side tracing for JS via enhancedClientTrace",
-      });
-    }
-
     const trace = await pistonTraceExecution(code, language, input || "");
 
     if (trace.error && trace.frames.length === 0) {

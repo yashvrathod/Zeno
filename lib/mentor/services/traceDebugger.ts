@@ -235,12 +235,6 @@ function generateTraceStatement(line: string, lineNum: number, language: string)
   }
 
   switch (language) {
-    case "javascript":
-      if (vars.length > 0) {
-        return `console.log('[TRACE]', JSON.stringify({line:${lineNum},vars:{${[...new Set(vars)].map((v) => `${v}:${v}`).join(",")}}}));`;
-      }
-      return `console.log('[TRACE]', JSON.stringify({line:${lineNum},vars:{}}));`;
-
     case "python":
       if (vars.length > 0) {
         return `print(f'[TRACE] line=${lineNum} ${[...new Set(vars)].map((v) => `${v}={' + str(${v}) + '}'`).join(" ")}')`;

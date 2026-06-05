@@ -9,7 +9,7 @@ import { WeakPatternTag } from "./metadata";
  * Uses simple regex/AST-free checks that catch common mistakes.
  *
  * @param code - The user's submitted code
- * @param language - Programming language ("python" | "javascript" | "java" | "cpp")
+ * @param language - Programming language ("python" | "java" | "cpp")
  * @returns Array of detected weak pattern tags
  *
  * This function performs lightweight static analysis without requiring
@@ -17,7 +17,7 @@ import { WeakPatternTag } from "./metadata";
  */
 export function detectPatternsStatically(
   code: string,
-  language: "python" | "javascript" | "java" | "cpp"
+  language: "python" | "java" | "cpp"
 ): WeakPatternTag[] {
   const detectedPatterns = new Set<WeakPatternTag>();
 
@@ -71,7 +71,6 @@ function detectNullCheckMissing(
   // Check if function takes a node/pointer/list parameter
   const nullableParamPatterns: Record<string, RegExp> = {
     python: /def\s+\w+\s*\([^)]*(node|head|tail|root|ptr|pointer|list|ListNode|TreeNode)/i,
-    javascript: /function\s+\w+\s*\([^)]*(node|head|tail|root|ptr|pointer|list)/i,
     java: /\(.*?(Node|ListNode|TreeNode|List|head|tail|root)/i,
     cpp: /\(.*?(Node|ListNode|TreeNode|node|head|tail|root|ptr|pointer)/i,
   };
@@ -84,7 +83,6 @@ function detectNullCheckMissing(
   // Check for null/None/nullptr checks at the start
   const nullCheckPatterns: Record<string, RegExp> = {
     python: /if\s+(node|head|tail|root|ptr)\s+is\s+None/i,
-    javascript: /if\s*\(\s*(node|head|tail|root|ptr)\s*===?\s*null/i,
     java: /if\s*\(\s*(node|head|tail|root|ptr)\s*==\s*null\s*\)/i,
     cpp: /if\s*\(\s*(node|head|tail|root|ptr|ptr)\s*==\s*nullptr\s*\)/i,
   };
@@ -97,7 +95,6 @@ function detectNullCheckMissing(
   // Also check for early return pattern
   const earlyReturnPatterns: Record<string, RegExp> = {
     python: /if\s+not\s+(node|head|tail|root|ptr)\s*:/i,
-    javascript: /if\s*\(\s*!\s*(node|head|tail|root|ptr)\s*\)/i,
     java: /if\s*\(\s*(node|head|tail|root|ptr)\s*==\s*null\s*\)\s*\{\s*return/i,
     cpp: /if\s*\(\s*!\s*(node|head|tail|root|ptr)\s*\)/i,
   };
@@ -122,7 +119,6 @@ function detectIndexOutOfBounds(
   // Look for array access patterns
   const arrayAccessPatterns: Record<string, RegExp> = {
     python: /\[([a-zA-Z_]\w*|\d+)\]/g,
-    javascript: /\[([a-zA-Z_]\w*|\d+)\]/g,
     java: /\[([a-zA-Z_]\w*|\d+)\]/g,
     cpp: /\[([a-zA-Z_]\w*|\d+)\]/g,
   };
@@ -171,7 +167,6 @@ function detectWrongBaseCase(
   // Check if code contains a recursive function
   const recursivePatterns: Record<string, RegExp> = {
     python: /def\s+(\w+)\s*\([^)]*\)[\s\S]*?\1\s*\(/,
-    javascript: /function\s+(\w+)\s*\([^)]*\)[\s\S]*?\1\s*\(/,
     java: /(\w+)\s*\([^)]*\)\s*\{[\s\S]*?\1\s*\(/,
     cpp: /(\w+)\s*\([^)]*\)\s*\{[\s\S]*?\1\s*\(/,
   };
@@ -188,13 +183,6 @@ function detectWrongBaseCase(
       /if\s+not\s+\w+\s*:/i,
       /if\s+\w+\s*==\s*(None|0|''|\[\])\s*:/i,
       /if\s+len\s*\(\s*\w+\s*\)\s*==\s*0/i,
-    ],
-    javascript: [
-      /if\s*\(\s*!\w+\s*\)/i,
-      /if\s*\(\s*\w+\s*===?\s*null\s*\)/i,
-      /if\s*\(\s*\w+\s*===?\s*undefined\s*\)/i,
-      /if\s*\(\s*\w+\s*===?\s*0\s*\)/i,
-      /if\s*\(\s*\w+\.length\s*===?\s*0\s*\)/i,
     ],
     java: [
       /if\s*\(\s*\w+\s*==\s*null\s*\)/i,

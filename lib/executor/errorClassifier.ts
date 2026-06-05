@@ -12,7 +12,7 @@
 
 export type ExecutionErrorKind = "compile_error" | "runtime_error" | "unknown";
 
-type Language = "python" | "javascript" | "java" | "cpp";
+type Language = "python" | "java" | "cpp";
 
 interface CompiledPattern {
   // If any of these regexes match stderr, it's a compile error.
@@ -48,25 +48,6 @@ const PATTERNS: Record<Language, CompiledPattern> = {
       /^PermissionError:/im,
       /^IOError:/im,
       /^OSError:/im,
-    ],
-  },
-  javascript: {
-    compile: [
-      /^SyntaxError:/im,
-      /^Unexpected token/im,
-      /^Invalid or unexpected token/im,
-      /JSON\.parse:|eval|JSHint|ESLint/, // not strictly compile but parser-stage
-    ],
-    runtime: [
-      /^ReferenceError:/im,
-      /^TypeError:/im,
-      /^RangeError:/im,
-      /^URIError:/im,
-      /^EvalError:/im,
-      /^InternalError:/im,
-      /Cannot read propert(y|ies) of (null|undefined)/im,
-      /is not a function/im,
-      /is not defined/im,
     ],
   },
   java: {
@@ -116,8 +97,7 @@ const PATTERNS: Record<Language, CompiledPattern> = {
 function normalizeLanguage(lang: string): Language | null {
   const l = lang.toLowerCase();
   if (l === "py") return "python";
-  if (l === "js" || l === "node") return "javascript";
-  if (l === "python" || l === "javascript" || l === "java" || l === "cpp" || l === "c++" || l === "c") return l as Language;
+  if (l === "python" || l === "java" || l === "cpp" || l === "c++" || l === "c") return l as Language;
   return null;
 }
 

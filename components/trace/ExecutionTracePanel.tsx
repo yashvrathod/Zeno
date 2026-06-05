@@ -8,7 +8,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { StackFrameView } from "./StackFrameView";
 import { HeapMemoryView } from "./HeapMemoryView";
-import { enhancedClientTrace } from "@/lib/execution-trace/enhanced-executor";
 import type { EnhancedTraceEvent, HeapObject, Reference, CallStackFrame } from "@/lib/execution-trace/enhanced-types";
 
 interface ExecutionTracePanelProps {
@@ -64,32 +63,21 @@ export function ExecutionTracePanel({ code, language, defaultInput }: ExecutionT
     try {
       await new Promise(r => setTimeout(r, 50));
 
-      if (language === "javascript" || language === "typescript") {
-        const result = enhancedClientTrace(code, input);
-        if (result.error) {
-          setError(result.error);
-          setEvents([]);
-        } else {
-          setEvents(result.events);
-          setFinalOutput(result.finalOutput);
-        }
+      const res = await fetch("/api/trace/debug", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, language, input }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setError(data.error || "Trace failed");
+        setEvents([]);
+      } else if (data.trace) {
+        setEvents(data.trace.events || []);
+        setFinalOutput(data.trace.finalOutput || "");
       } else {
-        const res = await fetch("/api/trace/debug", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code, language, input }),
-        });
-        const data = await res.json();
-        if (!data.ok) {
-          setError(data.error || "Trace failed");
-          setEvents([]);
-        } else if (data.trace) {
-          setEvents(data.trace.events || []);
-          setFinalOutput(data.trace.finalOutput || "");
-        } else {
-          setError("No trace data returned");
-          setEvents([]);
-        }
+        setError("No trace data returned");
+        setEvents([]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Trace failed");

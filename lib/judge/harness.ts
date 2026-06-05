@@ -1,4 +1,4 @@
-import { HarnessMode, isDynamicLanguage, Language } from "./verdict";
+import { HarnessMode, Language } from "./verdict";
 import { JudgeTestCase, ProblemSignature } from "./types";
 
 export const HARNESS_VERSION = 1;
@@ -67,7 +67,7 @@ export function buildHarness(input: BuildHarnessInput): BuildHarnessResult {
 }
 
 type DynamicHarnessInput = {
-  language: "javascript" | "python";
+  language: "python";
   userCode: string;
   signature: ProblemSignature;
   mode: HarnessMode;
@@ -81,10 +81,6 @@ type JavaOrCppInput = {
 };
 
 function buildHarnessForLanguage(input: HarnessForLangInput): string {
-  if (input.language === "javascript") {
-    const dyn = input as DynamicHarnessInput;
-    return input.mode === "per-test" ? buildJsPerTest(dyn) : buildJsSingleExec(dyn);
-  }
   if (input.language === "python") {
     const dyn = input as DynamicHarnessInput;
     return input.mode === "per-test" ? buildPythonPerTest(dyn) : buildPythonSingleExec(dyn);
@@ -104,7 +100,7 @@ type HarnessForLangInput = {
   mode: HarnessMode;
 };
 
-function callExpression(language: "javascript" | "python", sig: ProblemSignature, argsExpr: string): string {
+function callExpression(language: "python", sig: ProblemSignature, argsExpr: string): string {
   if (sig.className) {
     if (language === "python") {
       return `${sig.className}().${sig.methodName}(${argsExpr})`;
@@ -112,78 +108,6 @@ function callExpression(language: "javascript" | "python", sig: ProblemSignature
     return `new ${sig.className}().${sig.methodName}(${argsExpr})`;
   }
   return `${sig.methodName}(${argsExpr})`;
-}
-
-function buildJsPerTest(input: DynamicHarnessInput): string {
-  const sig = input.signature;
-  const call = callExpression("javascript", sig, "...__args");
-  return `${HARNESS_HEADER_JS}
-${input.userCode}
-const __stdin = require('fs').readFileSync(0, 'utf-8');
-let __args;
-try {
-  __args = JSON.parse(__stdin);
-  if (!Array.isArray(__args)) __args = [__args];
-} catch (__e) {
-  console.error(${ERROR_PREFIX_LIT} + 'Failed to parse stdin as JSON args: ' + __e.message);
-  process.exit(1);
-}
-const __t0 = process.hrtime.bigint();
-let __result;
-try {
-  __result = ${call};
-} catch (__e) {
-  const __msg = __e && __e.stack ? __e.stack : String(__e);
-  console.error(${ERROR_PREFIX_LIT} + __msg);
-  process.exit(1);
-}
-const __t1 = process.hrtime.bigint();
-const __execMs = Number(__t1 - __t0) / 1e6;
-console.log(${RESULT_PREFIX_LIT} + JSON.stringify(__result));
-console.error(${EXEC_MS_PREFIX_LIT} + __execMs.toFixed(3));`;
-}
-
-function buildJsSingleExec(input: DynamicHarnessInput): string {
-  const sig = input.signature;
-  const call = callExpression("javascript", sig, "...__args");
-  return `${HARNESS_HEADER_JS}
-${input.userCode}
-const __stdin = require('fs').readFileSync(0, 'utf-8');
-let __cases;
-try {
-  __cases = JSON.parse(__stdin);
-  if (!Array.isArray(__cases)) {
-    console.error(${ERROR_PREFIX_LIT} + 'Expected JSON array of test cases on stdin');
-    process.exit(1);
-  }
-} catch (__e) {
-  console.error(${ERROR_PREFIX_LIT} + 'Failed to parse stdin: ' + __e.message);
-  process.exit(1);
-}
-const __results = [];
-const __t0 = process.hrtime.bigint();
-for (let __i = 0; __i < __cases.length; __i++) {
-  const __args = __cases[__i].args;
-  const __tCase0 = process.hrtime.bigint();
-  let __result;
-  let __err = null;
-  try {
-    __result = ${call};
-  } catch (__e) {
-    __err = __e && __e.stack ? __e.stack : String(__e);
-  }
-  const __tCase1 = process.hrtime.bigint();
-  __results.push({
-    index: __i,
-    result: __err ? null : __result,
-    execMs: Number(__tCase1 - __tCase0) / 1e6,
-    error: __err,
-  });
-  if (__err) break;
-}
-const __t1 = process.hrtime.bigint();
-console.log(${RESULTS_PREFIX_LIT} + JSON.stringify(__results));
-console.error(${EXEC_MS_PREFIX_LIT} + (Number(__t1 - __t0) / 1e6).toFixed(3));`;
 }
 
 function buildPythonPerTest(input: DynamicHarnessInput): string {
@@ -853,14 +777,6 @@ export function detectUndefinedMethod(
   methodName: string,
   language: Language,
 ): string | null {
-  if (language === "javascript") {
-    const re = new RegExp(
-      `\\b(function\\s+${methodName}\\b|const\\s+${methodName}\\s*=|let\\s+${methodName}\\s*=|var\\s+${methodName}\\s*=|class\\s+${methodName}\\b)`,
-    );
-    return re.test(userCode)
-      ? null
-      : `No top-level definition of '${methodName}' found. Define \`function ${methodName}(...)\` or \`const ${methodName} = ...\`.`;
-  }
   if (language === "python") {
     const re = new RegExp(`\\bdef\\s+${methodName}\\s*\\(`);
     return re.test(userCode)
@@ -893,18 +809,11 @@ export function buildExpectedCallSummary(
       ? `__result = ${call.replace("(...)", "(*__args)")}`
       : `__result = ${call.replace("(...)", "(__parse_stdin(sys.stdin.read()))")}`;
   }
-  if (language === "javascript") {
-    return mode === "per-test"
-      ? `const __result = ${call.replace("(...)", "(...__args)")}`
-      : `__result = ${call.replace("(...)", "(...__args)")}`;
-  }
   if (language === "java") {
     return `Object __result = ${call.replace("(...)", "(__toXxxArgs(...))")}`;
   }
   return `auto __result = ${call.replace("(...)", "(__toXxxArgs(...))")}`;
 }
-
-const HARNESS_HEADER_JS = `// auto-generated harness (lib/judge/harness.ts) v${HARNESS_VERSION}`;
 
 const ERROR_PREFIX_LIT = JSON.stringify(ERROR_PREFIX);
 const RESULT_PREFIX_LIT = JSON.stringify(RESULT_PREFIX);

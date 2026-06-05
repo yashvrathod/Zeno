@@ -132,8 +132,8 @@ export function wrapSanitizedCode(s: SanitizedCode): string {
 
 function detectLanguageHeuristic(code: string): string {
   if (/^\s*(def |from |import |class ).*:/m.test(code)) return "python";
-  if (/^\s*(function |const |let |=>)/m.test(code)) return "javascript";
   if (/^\s*(public |private |class |interface )/m.test(code)) return "java";
+  if (/^\s*(#include|using namespace|template )/m.test(code)) return "cpp";
   if (/^\s*(func |package |import )/m.test(code)) return "go";
   return "unknown";
 }

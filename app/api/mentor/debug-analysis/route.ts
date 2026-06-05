@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
     const analysis = await analyzeCodeForDebugging(
       code,
-      language || "javascript",
+      language || "python",
       errorMessage ? { errorMessage, failingTestCase, expectedOutput, actualOutput } : undefined
     );
 

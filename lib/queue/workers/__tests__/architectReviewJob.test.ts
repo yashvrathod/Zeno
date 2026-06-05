@@ -24,8 +24,8 @@ import { handleArchitectReviewJob } from "../architectReviewJob";
 const BASE_DATA = {
   userId: "u1",
   problemId: "p1",
-  code: "function solve(){}",
-  language: "javascript",
+  code: "def solve(): pass",
+  language: "python",
   sessionId: "s1",
   problemTitle: "Two Sum",
   codeHash: "abc123",
@@ -44,8 +44,8 @@ describe("handleArchitectReviewJob", () => {
     expect(arg).toEqual({
       userId: "u1",
       problemId: "p1",
-      code: "function solve(){}",
-      language: "javascript",
+      code: "def solve(): pass",
+      language: "python",
       problemTitle: "Two Sum",
       codeHash: "abc123",
     });

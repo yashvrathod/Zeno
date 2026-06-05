@@ -2,7 +2,6 @@
 
 export const LANGUAGE_CONFIG: Record<string, { language: string; preferredVersion?: string }> = {
   // NOTE: versions differ per Piston deployment; we treat these as preferences.
-  javascript: { language: 'javascript', preferredVersion: '18.15.0' },
   python: { language: 'python', preferredVersion: '3.10.0' },
   java: { language: 'java', preferredVersion: '15.0.2' },
   cpp: { language: 'c++', preferredVersion: '10.2.0' },
@@ -283,6 +282,5 @@ export async function runOnPiston({
 function fileName(language: keyof typeof LANGUAGE_CONFIG) {
   if (language === 'python') return 'main.py';
   if (language === 'java') return 'Main.java';
-  if (language === 'cpp') return 'main.cpp';
-  return 'main.js';
+  return 'main.cpp';
 }

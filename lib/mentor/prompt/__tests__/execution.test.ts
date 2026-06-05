@@ -77,12 +77,12 @@ describe("buildExecutionContext", () => {
       const le: LastExecution = {
         kind: "runtime_error",
         message: "TypeError: x is not a function",
-        language: "javascript",
+        language: "python",
         codeHash: "abc",
       };
       const rendered = buildExecutionContext(le, { isStale: false, limitMs: LIMIT_MS });
       expect(rendered).toContain("Runtime error");
-      expect(rendered).toContain("javascript");
+      expect(rendered).toContain("python");
       expect(rendered).toContain("TypeError");
     });
   });

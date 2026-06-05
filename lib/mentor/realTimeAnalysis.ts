@@ -117,20 +117,8 @@ async function analyzeCodeIssues(
   // Check for common syntax issues
   const lines = code.split('\n');
 
-  // Look for missing semicolons in JavaScript/TypeScript
-  if (language === 'javascript' || language === 'typescript') {
-    lines.forEach((line, index) => {
-      if (line.trim().length > 0 && !line.trim().endsWith(';') && line.includes('=')) {
-        issues.push({
-          type: 'warning',
-          line: index + 1,
-          column: line.length,
-          message: 'Missing semicolon',
-          code: 'missing-semicolon'
-        });
-      }
-    });
-  }
+  // (JavaScript/TypeScript missing-semicolon check was removed in PR 2b;
+  // the platform no longer supports those languages.)
 
   // Check for potential infinite loops
   if (code.includes('while (true)') || code.includes('for (;;)')) {

@@ -408,7 +408,7 @@ function parsePerTestOutput(
         compileError: {
           kind: "compile_error",
           message: rawMessage,
-          language: tc ? "javascript" : "javascript",
+          language: "python",
         },
       };
     }

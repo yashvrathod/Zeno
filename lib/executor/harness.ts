@@ -41,7 +41,7 @@ import {
 } from "@/lib/judge/harness";
 import type { ProblemSignature } from "@/lib/judge/types";
 
-export type HarnessLanguage = "javascript" | "python" | "java" | "cpp";
+export type HarnessLanguage = "python" | "java" | "cpp";
 
 export type WrappedSource = {
   code: string;
@@ -55,12 +55,11 @@ export type WrappedSource = {
 
 /**
  * Returns true if the harness supports wrapping this language.
- * All 4 supported languages are wrapped; compile-time languages reuse
+ * All 3 supported languages are wrapped; compile-time languages reuse
  * the judge harness from `lib/judge/harness.ts`.
  */
 export function supportsHarness(language: string): language is HarnessLanguage {
   return (
-    language === "javascript" ||
     language === "python" ||
     language === "java" ||
     language === "cpp"
@@ -84,10 +83,6 @@ export function wrapForExecution(
   signature: ProblemSignature,
   args?: unknown[],
 ): WrappedSource {
-  if (language === "javascript") {
-    if (hasOwnDriver(code, "javascript")) return { code };
-    return { code: wrapJavaScript(code, signature.methodName) };
-  }
   if (language === "python") {
     if (hasOwnDriver(code, "python")) return { code };
     return { code: wrapPython(code, signature.methodName) };
@@ -110,38 +105,11 @@ export function wrapForExecution(
   return { code: result.code, stdin: result.stdinJson };
 }
 
-function hasOwnDriver(code: string, language: "javascript" | "python"): boolean {
+function hasOwnDriver(code: string, language: "python"): boolean {
   if (language === "python") {
     return /\bsys\.stdin\b/.test(code) || /\binput\s*\(/.test(code);
   }
-  return (
-    /\breadFileSync\s*\(\s*0\b/.test(code) ||
-    /\bprocess\.stdin\b/.test(code) ||
-    /\brequire\s*\(\s*['"]readline['"]\s*\)/.test(code)
-  );
-}
-
-function wrapJavaScript(code: string, methodName: string): string {
-  return `// ── auto-generated harness (lib/executor/harness.ts) ──
-const __stdin = require('fs').readFileSync(0, 'utf-8');
-function __parseStdin(s) {
-  const trimmed = s.trim();
-  if (!trimmed) return '';
-  try { return JSON.parse(trimmed); } catch {}
-  return trimmed.split(/\\s+/);
-}
-try {
-  const __result = ${methodName}(__parseStdin(__stdin));
-  if (typeof __result === 'string') {
-    console.log(__result);
-  } else {
-    console.log(JSON.stringify(__result));
-  }
-} catch (e) {
-  console.error(e && e.stack ? e.stack : String(e));
-  process.exit(1);
-}
-${code}`;
+  return false;
 }
 
 function wrapPython(code: string, methodName: string): string {

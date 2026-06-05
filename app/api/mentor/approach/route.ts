@@ -274,7 +274,7 @@ export async function POST(req: NextRequest) {
     });
 
     // ── STEP 5: Detect weak patterns from approach text ──
-    const staticPatterns = detectPatternsStatically(userApproach, "javascript");
+    const staticPatterns = detectPatternsStatically(userApproach, "python");
 
     if (staticPatterns.length > 0) {
       await trackWeakPatterns(userId, staticPatterns);

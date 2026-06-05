@@ -52,10 +52,9 @@ type TestCase = {
   isSample: boolean;
 };
 
-type SupportedLanguage = 'javascript' | 'python' | 'java' | 'cpp';
+type SupportedLanguage = 'python' | 'java' | 'cpp';
 
 const LANGUAGE_CONFIG: Record<SupportedLanguage, { label: string; ext: string; monacoLang: string; executable: string }> = {
-  javascript: { label: 'JavaScript', ext: 'js', monacoLang: 'javascript', executable: 'javascript' },
   python: { label: 'Python', ext: 'py', monacoLang: 'python', executable: 'python' },
   java: { label: 'Java', ext: 'java', monacoLang: 'java', executable: 'java' },
   cpp: { label: 'C++', ext: 'cpp', monacoLang: 'cpp', executable: 'cpp' },
@@ -76,7 +75,7 @@ async function safeJsonParse(res: Response): Promise<any> {
 function pickStarterCode(starterCode: Record<string, string> | undefined, lang: SupportedLanguage): string {
   if (!starterCode) return DEFAULT_STARTER;
   if (starterCode[lang]) return starterCode[lang];
-  const fallbackOrder: SupportedLanguage[] = ['javascript', 'python', 'java', 'cpp'];
+  const fallbackOrder: SupportedLanguage[] = ['python', 'java', 'cpp'];
   for (const key of fallbackOrder) {
     if (starterCode[key]) return starterCode[key];
   }
@@ -226,7 +225,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; visualization?: {type: string; data: unknown}; architectReview?: unknown }>>([]);
   const [isMentorLoading, setIsMentorLoading] = useState(false);
   const [activeRightTab, setActiveRightTab] = useState<'editor' | 'testcases' | 'output' | 'debugger' | 'analysis'>('editor');
-  const [language, setLanguage] = useState<SupportedLanguage>('javascript');
+  const [language, setLanguage] = useState<SupportedLanguage>('python');
   const [code, setCode] = useState(DEFAULT_STARTER);
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);

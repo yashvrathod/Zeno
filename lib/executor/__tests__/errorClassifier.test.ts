@@ -3,6 +3,8 @@
  *
  * The classifier is pure: (stderr, language) -> "compile_error" | "runtime_error" | "unknown".
  * These cases cover the common failure modes for each language the executor supports.
+ *
+ * PR 2b: JavaScript was removed. The Language union is now {python, java, cpp}.
  */
 
 import { describe, it, expect } from "@jest/globals";
@@ -28,23 +30,6 @@ describe("classifyError", () => {
     it("flags IndexError as runtime_error", () => {
       const stderr = `IndexError: list index out of range`;
       expect(classifyError(stderr, "python")).toBe("runtime_error");
-    });
-  });
-
-  describe("JavaScript", () => {
-    it("flags ReferenceError as runtime_error", () => {
-      const stderr = `ReferenceError: x is not defined\n    at Object.<anonymous> (/tmp/main.js:2:1)`;
-      expect(classifyError(stderr, "javascript")).toBe("runtime_error");
-    });
-
-    it("flags SyntaxError as compile_error", () => {
-      const stderr = `SyntaxError: Unexpected token ')'`;
-      expect(classifyError(stderr, "javascript")).toBe("compile_error");
-    });
-
-    it("flags TypeError as runtime_error", () => {
-      const stderr = `TypeError: Cannot read properties of null (reading 'foo')`;
-      expect(classifyError(stderr, "javascript")).toBe("runtime_error");
     });
   });
 
@@ -75,11 +60,13 @@ describe("classifyError", () => {
   describe("Edge cases", () => {
     it("returns unknown for empty stderr", () => {
       expect(classifyError("", "python")).toBe("unknown");
-      expect(classifyError("   ", "javascript")).toBe("unknown");
+      expect(classifyError("   ", "java")).toBe("unknown");
     });
 
-    it("returns unknown for unsupported language", () => {
+    it("returns unknown for unsupported language (including javascript/typescript, removed in PR 2)", () => {
       expect(classifyError("TypeError: foo", "ruby")).toBe("unknown");
+      expect(classifyError("TypeError: foo", "javascript")).toBe("unknown");
+      expect(classifyError("error TS1: x", "typescript")).toBe("unknown");
     });
 
     it("returns unknown when stderr matches no patterns", () => {
@@ -90,13 +77,13 @@ describe("classifyError", () => {
       // A bogus message that hits both — compile check runs first
       const stderr = `SyntaxError: name 'x' is not defined`;
       // SyntaxError pattern should match (compile) before NameError pattern (runtime) would.
-      expect(classifyError(stderr, "javascript")).toBe("compile_error");
+      expect(classifyError(stderr, "python")).toBe("compile_error");
     });
 
     it("accepts common language aliases", () => {
       expect(classifyError("NameError: x", "py")).toBe("runtime_error");
-      expect(classifyError("TypeError: x", "js")).toBe("runtime_error");
       expect(classifyError("NameError: x", "PYTHON")).toBe("runtime_error");
+      expect(classifyError("error: cannot find symbol", "JAVA")).toBe("compile_error");
     });
   });
 });

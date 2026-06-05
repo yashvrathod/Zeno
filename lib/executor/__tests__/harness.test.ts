@@ -9,21 +9,20 @@
  * (or fails to find main) → 0/N passed.
  *
  * These tests pin:
- *   - JS code is wrapped with a stdin-reading driver
  *   - Python code is wrapped with a stdin-reading driver
- *   - Code that already has its own driver (sys.stdin / readFileSync(0))
- *     is NOT double-wrapped
+ *   - Code that already has its own driver (sys.stdin / input()) is
+ *     NOT double-wrapped
  *   - The user's code is emitted BEFORE the Python invocation so the
  *     function is in scope at call time (Python doesn't hoist `def`)
- *   - JS keeps the helper-then-user-then-call order (hoisting makes
- *     this forgiving, but file order is part of the contract)
  *   - The result is JSON-stringified for non-string returns
- *   - All 4 supported languages (javascript, python, java, cpp) return
- *     `supportsHarness() = true`; unknown languages return false
+ *   - All 3 supported languages (python, java, cpp) return
+ *     `supportsHarness() = true`; unknown languages (including
+ *     javascript and typescript, which were removed in PR 2a/2b)
+ *     return false
  *   - Java/C++ delegate to `buildHarness` from `lib/judge/harness.ts`
  *     and return `{code, stdin}` where `code` contains the entry
  *     point and `stdin` is the JSON-encoded args
- *   - A thrown user error surfaces via stderr (process.exit(1))
+ *   - A thrown user error surfaces via stderr (sys.exit(1))
  */
 
 import { describe, it, expect } from "@jest/globals";
@@ -61,73 +60,16 @@ const SIG_TWO_SUM: ProblemSignature = {
 };
 
 describe("supportsHarness", () => {
-  it("returns true for all 4 supported languages (javascript, python, java, cpp)", () => {
-    for (const lang of ["javascript", "python", "java", "cpp"] as const) {
+  it("returns true for all 3 supported languages (python, java, cpp)", () => {
+    for (const lang of ["python", "java", "cpp"] as const) {
       expect(supportsHarness(lang)).toBe(true);
     }
   });
-  it("returns false for unknown languages (including typescript, which is no longer supported)", () => {
+  it("returns false for unknown languages (including javascript and typescript, which were removed in PR 2a/2b)", () => {
+    expect(supportsHarness("javascript")).toBe(false);
     expect(supportsHarness("typescript")).toBe(false);
     expect(supportsHarness("ruby")).toBe(false);
     expect(supportsHarness("")).toBe(false);
-  });
-});
-
-describe("wrapForExecution — JavaScript", () => {
-  it("wraps a plain solution function with a stdin-reading driver", () => {
-    const userCode = `function solution(nums) { return nums.length; }`;
-    const wrapped = wrapForExecution(userCode, "javascript", SIG_SOLUTION);
-
-    expect(wrapped.stdin).toBeUndefined();
-    const harnessIdx = wrapped.code.indexOf("__stdin");
-    const userIdx = wrapped.code.indexOf("function solution");
-    expect(harnessIdx).toBeGreaterThanOrEqual(0);
-    expect(userIdx).toBeGreaterThan(harnessIdx);
-    expect(wrapped.code.trim().endsWith("function solution(nums) { return nums.length; }")).toBe(true);
-  });
-
-  it("does NOT double-wrap code that already reads stdin via readFileSync(0)", () => {
-    const userCode = `
-const input = require('fs').readFileSync(0, 'utf-8');
-const nums = input.split(' ').map(Number);
-console.log(nums.reduce((a, b) => a + b, 0));
-`;
-    const wrapped = wrapForExecution(userCode, "javascript", SIG_SOLUTION);
-    expect(wrapped.code).toBe(userCode);
-  });
-
-  it("does NOT double-wrap code that uses process.stdin", () => {
-    const userCode = `
-const chunks = [];
-process.stdin.on('data', c => chunks.push(c));
-process.stdin.on('end', () => console.log(chunks.join('').length));
-`;
-    const wrapped = wrapForExecution(userCode, "javascript", SIG_SOLUTION);
-    expect(wrapped.code).toBe(userCode);
-  });
-
-  it("does NOT double-wrap code that requires readline", () => {
-    const userCode = `
-const readline = require('readline');
-const rl = readline.createInterface({ input: process.stdin });
-rl.on('line', l => console.log(l.length));
-`;
-    const wrapped = wrapForExecution(userCode, "javascript", SIG_SOLUTION);
-    expect(wrapped.code).toBe(userCode);
-  });
-
-  it("emits a JSON.stringify wrapper for non-string returns", () => {
-    const userCode = `function solution() { return [1, 2, 3]; }`;
-    const wrapped = wrapForExecution(userCode, "javascript", SIG_SOLUTION);
-    expect(wrapped.code).toMatch(/JSON\.stringify/);
-  });
-
-  it("wraps the call in try/catch so a thrown user error surfaces via process.exit(1)", () => {
-    const userCode = `function solution() { throw new Error("nope"); }`;
-    const wrapped = wrapForExecution(userCode, "javascript", SIG_SOLUTION);
-    expect(wrapped.code).toMatch(/try\s*\{/);
-    expect(wrapped.code).toMatch(/catch/);
-    expect(wrapped.code).toMatch(/process\.exit\(1\)/);
   });
 });
 
@@ -189,16 +131,6 @@ describe("wrapForExecution — method name resolution (regression)", () => {
     );
     expect(wrapped.code).toContain("__result = isPalindrome(__parse_stdin");
     expect(wrapped.code).not.toMatch(/__result = solution\(/);
-  });
-
-  it("JavaScript wraps with custom method name", () => {
-    const wrapped = wrapForExecution(
-      "function isPalindrome(s) { return false; }",
-      "javascript",
-      SIG_IS_PALINDROME,
-    );
-    expect(wrapped.code).toContain("const __result = isPalindrome(__parseStdin");
-    expect(wrapped.code).not.toMatch(/const __result = solution\(/);
   });
 });
 

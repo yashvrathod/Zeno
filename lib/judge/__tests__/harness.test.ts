@@ -39,15 +39,15 @@ const TC: JudgeTestCase = {
 const T2: JudgeTestCase = { ...TC, id: "t2", order: 2, args: [[3, 2, 4], 6] };
 
 describe("buildHarness — language support", () => {
-  it("supports javascript", () => {
-    const r = buildHarness({
+  it("does NOT support javascript (removed in PR 2b)", () => {
+    buildHarness({
       userCode: "function solution(nums) { return nums.length; }",
       signature: FN_SIG,
       testCases: [TC],
       mode: "per-test",
+      // @ts-expect-error -- javascript is no longer in the Language union
       language: "javascript",
     });
-    expect(r.language).toBe("javascript");
   });
 
   it("does NOT support typescript (removed in PR 2a)", () => {
@@ -107,45 +107,45 @@ describe("buildHarness — per-test mode", () => {
   it("requires exactly 1 test case", () => {
     expect(() =>
       buildHarness({
-        userCode: "function solution() {}",
+        userCode: "def solution(): pass",
         signature: FN_SIG,
         testCases: [],
         mode: "per-test",
-        language: "javascript",
+        language: "python",
       }),
     ).toThrow();
     expect(() =>
       buildHarness({
-        userCode: "function solution() {}",
+        userCode: "def solution(): pass",
         signature: FN_SIG,
         testCases: [TC, { ...TC, id: "t2" }],
         mode: "per-test",
-        language: "javascript",
+        language: "python",
       }),
     ).toThrow();
   });
 
   it("emits the user code BEFORE the harness body (so the harness can call the user's function)", () => {
     const r = buildHarness({
-      userCode: "function solution(nums) { return nums.length; }",
+      userCode: "def solution(nums):\n    return len(nums)",
       signature: FN_SIG,
       testCases: [TC],
       mode: "per-test",
-      language: "javascript",
+      language: "python",
     });
-    const harnessIdx = r.code.indexOf("__stdin");
-    const userIdx = r.code.indexOf("function solution");
+    const harnessIdx = r.code.indexOf("sys.stdin");
+    const userIdx = r.code.indexOf("def solution");
     expect(harnessIdx).toBeGreaterThanOrEqual(0);
     expect(userIdx).toBeLessThan(harnessIdx);
   });
 
   it("serializes the test args as JSON for stdin", () => {
     const r = buildHarness({
-      userCode: "function solution() {}",
+      userCode: "def solution(): pass",
       signature: FN_SIG,
       testCases: [TC],
       mode: "per-test",
-      language: "javascript",
+      language: "python",
     });
     expect(r.stdinJson).toBe(JSON.stringify(TC.args));
     expect(JSON.parse(r.stdinJson)).toEqual([[2, 7, 11, 15], 9]);
@@ -153,52 +153,38 @@ describe("buildHarness — per-test mode", () => {
 
   it("emits __RESULT__: prefix and __EXEC_MS__: prefix references", () => {
     const r = buildHarness({
-      userCode: "function solution() {}",
+      userCode: "def solution(): pass",
       signature: FN_SIG,
       testCases: [TC],
       mode: "per-test",
-      language: "javascript",
+      language: "python",
     });
     expect(r.code).toContain(RESULT_PREFIX);
     expect(r.code).toContain(EXEC_MS_PREFIX);
     expect(r.code).toContain(HARNESS_VERSION.toString());
   });
 
-  it("uses `new Solution().methodName(...)` when className is set", () => {
+  it("uses `Solution().methodName(*__args)` when className is set (Python)", () => {
     const r = buildHarness({
-      userCode: "class Solution { twoSum() { return []; } }",
+      userCode: "class Solution:\n    def twoSum(self, nums, target):\n        return []",
       signature: CLASS_SIG,
       testCases: [TC],
       mode: "per-test",
-      language: "javascript",
+      language: "python",
     });
-    expect(r.code).toContain("new Solution().twoSum(...__args)");
+    expect(r.code).toContain("Solution().twoSum(*__args)");
   });
 
   it("calls sig.methodName as a free function when className is null and methodName === 'solution'", () => {
     const r = buildHarness({
-      userCode: "function solution() {}",
+      userCode: "def solution(): pass",
       signature: FN_SIG,
       testCases: [TC],
       mode: "per-test",
-      language: "javascript",
+      language: "python",
     });
-    expect(r.code).toMatch(/solution\(\.\.\.__args\)/);
-    expect(r.code).not.toContain("new Solution");
-  });
-
-  it("wraps the user call in try/catch and surfaces errors via __ERROR__:", () => {
-    const r = buildHarness({
-      userCode: "function solution() { throw new Error('x'); }",
-      signature: FN_SIG,
-      testCases: [TC],
-      mode: "per-test",
-      language: "javascript",
-    });
-    expect(r.code).toContain("try");
-    expect(r.code).toContain("catch");
-    expect(r.code).toContain(ERROR_PREFIX);
-    expect(r.code).toContain("process.exit(1)");
+    expect(r.code).toMatch(/solution\(\*__args\)/);
+    expect(r.code).not.toContain("Solution(");
   });
 
   it("Python per-test: uses time.perf_counter() and json.dumps", () => {
@@ -230,11 +216,11 @@ describe("buildHarness — per-test mode", () => {
 describe("buildHarness — single-exec mode", () => {
   it("accepts N test cases and JSON-serializes all of them with expected", () => {
     const r = buildHarness({
-      userCode: "function solution() {}",
+      userCode: "def solution(): pass",
       signature: FN_SIG,
       testCases: [TC, T2],
       mode: "single-exec",
-      language: "javascript",
+      language: "python",
     });
     const parsed = JSON.parse(r.stdinJson);
     expect(parsed).toHaveLength(2);
@@ -244,26 +230,14 @@ describe("buildHarness — single-exec mode", () => {
 
   it("emits __RESULTS__ prefix (plural) — the harness iterates and emits an array", () => {
     const r = buildHarness({
-      userCode: "function solution() {}",
+      userCode: "def solution(): pass",
       signature: FN_SIG,
       testCases: [TC, T2],
       mode: "single-exec",
-      language: "javascript",
+      language: "python",
     });
     expect(r.code).toContain(RESULTS_PREFIX);
     expect(r.code).not.toContain(RESULT_PREFIX);
-  });
-
-  it("iterates test cases and breaks on first error", () => {
-    const r = buildHarness({
-      userCode: "function solution() {}",
-      signature: FN_SIG,
-      testCases: [TC, T2],
-      mode: "single-exec",
-      language: "javascript",
-    });
-    expect(r.code).toMatch(/for\s*\(/);
-    expect(r.code).toMatch(/if\s*\(__err\)\s*break/);
   });
 
   it("Python single-exec uses enumerate and breaks on first error", () => {
@@ -454,18 +428,6 @@ describe("buildHarness — method name resolution (regression)", () => {
     returnType: "boolean",
   };
 
-  it("JavaScript per-test calls sig.methodName when methodName !== 'solution'", () => {
-    const r = buildHarness({
-      userCode: "function isPalindrome(s) { return false; }",
-      signature: isPalindromeSig,
-      testCases: [TC],
-      mode: "per-test",
-      language: "javascript",
-    });
-    expect(r.code).toMatch(/isPalindrome\(\.\.\.__args\)/);
-    expect(r.code).not.toMatch(/\bsolution\(/);
-  });
-
   it("Python per-test calls sig.methodName when methodName !== 'solution'", () => {
     const r = buildHarness({
       userCode: "def isPalindrome(s):\n    return False",
@@ -475,18 +437,6 @@ describe("buildHarness — method name resolution (regression)", () => {
       language: "python",
     });
     expect(r.code).toMatch(/__result = isPalindrome\(\*__args\)/);
-    expect(r.code).not.toMatch(/\bsolution\(/);
-  });
-
-  it("JavaScript single-exec calls sig.methodName when methodName !== 'solution'", () => {
-    const r = buildHarness({
-      userCode: "function isPalindrome(s) { return false; }",
-      signature: isPalindromeSig,
-      testCases: [TC, T2],
-      mode: "single-exec",
-      language: "javascript",
-    });
-    expect(r.code).toMatch(/__result = isPalindrome\(\.\.\.__args\)/);
     expect(r.code).not.toMatch(/\bsolution\(/);
   });
 
@@ -504,16 +454,6 @@ describe("buildHarness — method name resolution (regression)", () => {
 });
 
 describe("detectUndefinedMethod", () => {
-  it("returns null when JS code defines the function with `function`", () => {
-    expect(detectUndefinedMethod("function isPalindrome(s) { return true; }", "isPalindrome", "javascript")).toBeNull();
-  });
-
-  it("returns a diagnostic when JS code defines a different function name", () => {
-    const r = detectUndefinedMethod("function palindrome(s) { return true; }", "isPalindrome", "javascript");
-    expect(r).toContain("isPalindrome");
-    expect(r).toContain("function isPalindrome");
-  });
-
   it("returns null when Python code defines the function with `def`", () => {
     expect(detectUndefinedMethod("def isPalindrome(s):\n    return True", "isPalindrome", "python")).toBeNull();
   });
@@ -522,12 +462,6 @@ describe("detectUndefinedMethod", () => {
     const r = detectUndefinedMethod("def palindrome(s):\n    return True", "isPalindrome", "python");
     expect(r).toContain("isPalindrome");
     expect(r).toContain("def isPalindrome");
-  });
-
-  it("detects const/let/var JS declarations as valid", () => {
-    expect(detectUndefinedMethod("const isPalindrome = (s) => s;", "isPalindrome", "javascript")).toBeNull();
-    expect(detectUndefinedMethod("let isPalindrome = (s) => s;", "isPalindrome", "javascript")).toBeNull();
-    expect(detectUndefinedMethod("var isPalindrome = (s) => s;", "isPalindrome", "javascript")).toBeNull();
   });
 
   it("returns null for Java (compile error path is clearer)", () => {
@@ -560,10 +494,6 @@ describe("buildExpectedCallSummary", () => {
     expect(buildExpectedCallSummary(sig, "single-exec", "python")).toBe(
       "__result = isPalindrome(__parse_stdin(sys.stdin.read()))",
     );
-  });
-
-  it("JavaScript per-test: const __result = isPalindrome(...__args)", () => {
-    expect(buildExpectedCallSummary(sig, "per-test", "javascript")).toBe("const __result = isPalindrome(...__args)");
   });
 
   it("Java free function: Object __result = Main.isPalindrome(__toXxxArgs(...))", () => {

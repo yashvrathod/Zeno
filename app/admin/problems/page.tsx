@@ -67,7 +67,6 @@ export default function AdminProblemsPage() {
             { input: "10 20", expected: "30", isHidden: true },
           ],
           starterCode: {
-            javascript: "// write solution\n",
             python: "# write solution\n",
             java: "// write solution\n",
             cpp: "// write solution\n",
