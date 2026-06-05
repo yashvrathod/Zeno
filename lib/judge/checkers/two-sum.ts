@@ -29,7 +29,7 @@ function isTwoSumPair(p: unknown): p is [unknown, unknown] {
   return Array.isArray(p) && p.length === 2;
 }
 
-function isArrayOfPairs(v: unknown): v is unknown[][] {
+function isArrayOfPairs(v: unknown): v is [unknown, unknown][] {
   return Array.isArray(v) && v.length > 0 && v.every(isTwoSumPair);
 }
 
@@ -51,7 +51,7 @@ function twoSumMatches(actual: unknown, expected: unknown): boolean {
   return false;
 }
 
-registerChecker("two-sum", twoSumMatches);
-registerChecker("two-sum-ii", twoSumMatches);
+registerChecker("twoSum", twoSumMatches);
+registerChecker("twoSum2", twoSumMatches);
 
 export const twoSumChecker = twoSumMatches;

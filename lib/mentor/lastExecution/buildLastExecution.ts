@@ -24,11 +24,18 @@ export type RawTestStatus =
   | "runtime_error"
   | "compile_error"
   | "time_limit_exceeded"
+  | "output_limit_exceeded"
   | "tle";
 
 export type RawTestResult = {
   index: number;
   status: RawTestStatus;
+  /**
+   * DEPRECATED (PR 2): `rawInput` is the stringified user-input representation.
+   * The new judge path stringifies `args` at the API boundary; the legacy path
+   * reads `TestCase.input` directly. Kept for now; will be replaced by
+   * `args: unknown[]` once the legacy path is removed in a follow-up.
+   */
   rawInput: string;
   actual: string;
   expected: string;
@@ -111,6 +118,18 @@ export function buildLastExecution(input: BuildInput): LastExecution {
       kind: "tle",
       runtimeMs: tleResult.runtimeMs,
       limitMs,
+      language,
+      codeHash,
+    };
+  }
+
+  // 3b. Output limit exceeded — wins over wrong_answer (algorithmic signal,
+  //     like TLE: too much output usually means O(n²) or worse).
+  const oleResult = testResults.find((r) => r.status === "output_limit_exceeded");
+  if (oleResult) {
+    return {
+      kind: "output_limit_exceeded",
+      limitKb: 64,
       language,
       codeHash,
     };

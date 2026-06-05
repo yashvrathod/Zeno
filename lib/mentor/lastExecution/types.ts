@@ -28,6 +28,7 @@ export type FailureType =
   | "runtime_error"
   | "compile_error"
   | "tle"
+  | "output_limit_exceeded"
   | "edge_case"
   | "unknown";
 
@@ -60,4 +61,5 @@ export type LastExecution =
   | { kind: "compile_error"; message: string; language: string; codeHash: string }
   | { kind: "runtime_error"; message: string; language: string; codeHash: string }
   | { kind: "tle"; runtimeMs: number; limitMs: number; language: string; codeHash: string }
+  | { kind: "output_limit_exceeded"; limitKb: number; language: string; codeHash: string }
   | { kind: "no_execution_yet" };

@@ -209,16 +209,23 @@ describe("runJudge — single-exec mode", () => {
 });
 
 describe("runJudge — input validation", () => {
-  it("rejects java in PR 1 (UnsupportedLanguageError)", async () => {
+  it("supports java in PR 2 (calls Piston and parses result)", async () => {
+    mockRunOnPiston.mockResolvedValue(pistonOk(`${RESULT_PREFIX}[0,1]`, `${EXEC_MS_PREFIX}12.0`));
     const out = await runJudge({ ...baseInput("per-test"), language: "java", testCases: [TC1] });
-    expect(out.aggregate).toBe("compile_error");
-    expect(out.compileError!.message).toMatch(/not yet supported/);
-    expect(mockRunOnPiston).not.toHaveBeenCalled();
+    expect(out.aggregate).toBe("accepted");
+    expect(out.results).toHaveLength(1);
+    expect(out.results[0]!.verdict).toBe("accepted");
+    expect(out.results[0]!.actualJson).toEqual([0, 1]);
+    expect(mockRunOnPiston).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects cpp in PR 1 (UnsupportedLanguageError)", async () => {
+  it("supports cpp in PR 2 (calls Piston and parses result)", async () => {
+    mockRunOnPiston.mockResolvedValue(pistonOk(`${RESULT_PREFIX}[0,1]`, `${EXEC_MS_PREFIX}15.0`));
     const out = await runJudge({ ...baseInput("per-test"), language: "cpp", testCases: [TC1] });
-    expect(out.aggregate).toBe("compile_error");
-    expect(out.compileError!.message).toMatch(/not yet supported/);
+    expect(out.aggregate).toBe("accepted");
+    expect(out.results).toHaveLength(1);
+    expect(out.results[0]!.verdict).toBe("accepted");
+    expect(out.results[0]!.actualJson).toEqual([0, 1]);
+    expect(mockRunOnPiston).toHaveBeenCalledTimes(1);
   });
 });

@@ -111,7 +111,7 @@ function buildOutputBlock(
   }
 
   parts.push(`\n--- First failing test ---`);
-  if (status === 'runtime_error' || status === 'compile_error' || status === 'time_limit_exceeded') {
+  if (status === 'runtime_error' || status === 'compile_error' || status === 'time_limit_exceeded' || status === 'output_limit_exceeded') {
     parts.push(`Status: ${status}`);
     if (error) parts.push(`Error: ${truncate(error, 600)}`);
   }
@@ -965,7 +965,7 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
                               <span className="text-[10px] font-bold tracking-[0.2em] text-zinc-500 uppercase">Errors</span>
                               <div className="flex items-center gap-3">
                                 <AlertCircle size={24} className="text-amber-500/80" />
-                                <span className="text-white font-bold text-3xl font-mono">{testResults.filter(r => r.status === 'runtime_error' || r.status === 'time_limit_exceeded').length}</span>
+                                <span className="text-white font-bold text-3xl font-mono">{testResults.filter(r => r.status === 'runtime_error' || r.status === 'time_limit_exceeded' || r.status === 'compile_error' || r.status === 'output_limit_exceeded').length}</span>
                               </div>
                             </div>
                           </div>
@@ -975,16 +975,31 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
                             {testResults.map((r, i) => {
                               const isPassed = r.status === 'passed';
                               const isWrong = r.status === 'wrong_answer';
+                              const isOle = r.status === 'output_limit_exceeded';
+                              const isCompile = r.status === 'compile_error';
                               const borderClass = isPassed
                                 ? 'border-emerald-500/10 hover:border-emerald-500/20 bg-emerald-500/[0.01]'
                                 : isWrong
                                   ? 'border-rose-500/10 hover:border-rose-500/20 bg-rose-500/[0.01]'
-                                  : 'border-amber-500/10 hover:border-amber-500/20 bg-amber-500/[0.01]';
+                                  : isOle
+                                    ? 'border-cyan-500/10 hover:border-cyan-500/20 bg-cyan-500/[0.01]'
+                                    : isCompile
+                                      ? 'border-violet-500/10 hover:border-violet-500/20 bg-violet-500/[0.01]'
+                                      : 'border-amber-500/10 hover:border-amber-500/20 bg-amber-500/[0.01]';
                               const pillClass = isPassed
                                 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                                 : isWrong
                                   ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                                  : 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+                                  : isOle
+                                    ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                                    : isCompile
+                                      ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20'
+                                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+                              const iconBgClass = isPassed
+                                ? 'bg-emerald-500/10'
+                                : isWrong || isOle || isCompile
+                                  ? 'bg-rose-500/10'
+                                  : 'bg-amber-500/10';
                               return (
                                 <motion.div
                                   key={r.testCaseId}
@@ -995,9 +1010,10 @@ export default function ProblemDetailPage({ params }: { params: Promise<{ id: st
                                 >
                                   <div className="flex items-center justify-between mb-6">
                                     <div className="flex items-center gap-4">
-                                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${isPassed ? 'bg-emerald-500/10' : 'bg-rose-500/10'}`}>
+                                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${iconBgClass}`}>
                                         {isPassed ? <CheckCircle2 size={18} className="text-emerald-500/80" /> :
                                          isWrong ? <XCircle size={18} className="text-rose-500/80" /> :
+                                         isOle ? <AlertCircle size={18} className="text-cyan-500/80" /> :
                                          <AlertCircle size={18} className="text-amber-500/80" />}
                                       </div>
                                       <div>

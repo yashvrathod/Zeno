@@ -60,9 +60,14 @@ if (!quota.allowed) {
 
 ## Files
 
-- `codeExecutor.ts` - Main execution logic
-- `aiQuota.ts` - Cost guardrails
-- `__tests__/codeExecutor.test.ts` - Tests
+- `harness.ts` - Wraps user code for legacy Piston execution (JS/TS/Python only)
+- `errorClassifier.ts` - Classifies execution errors
+- `timeLimits.ts` - Per-problem time limits
+- `personalizationUpdater.ts` - Records attempts for the mentor pipeline
+- `userProblemStats.ts` - Per-user per-problem stats
+- `aiQuota.ts` - Cost guardrails (orphan, not yet wired up)
+
+Note: `codeExecutor.ts`, `core.ts`, `sandbox.ts`, `languages.ts` were removed in PR 2. The active code path is `lib/judge/` (new harness + runner); `lib/executor/` is kept only for the legacy path in `app/api/execute/runLegacy.ts` and the submit endpoint at `app/api/problems/[slug]/submit/route.ts`.
 
 ## Next Steps (Optional)
 
