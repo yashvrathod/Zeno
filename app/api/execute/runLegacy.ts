@@ -4,6 +4,7 @@ import { runOnPiston, LANGUAGE_CONFIG, PistonUnreachableError, getPistonUrls } f
 import { classifyError, type ExecutionErrorKind } from "@/lib/executor/errorClassifier";
 import { getProblemTimeLimit, PISTON_HARD_TIMEOUT_MS } from "@/lib/executor/timeLimits";
 import { wrapForExecution, supportsHarness } from "@/lib/executor/harness";
+import { buildExpectedCallSummary, detectUndefinedMethod } from "@/lib/judge/harness";
 import {
   buildLastExecution,
   buildTestCaseView,
@@ -87,6 +88,26 @@ export async function runLegacyJudge(
   }
 
   const effectiveCode = harnessUsed ? wrapForExecution(code, language, methodName) : code;
+
+  if (harnessUsed) {
+    const guard = detectUndefinedMethod(code, methodName, language as Parameters<typeof detectUndefinedMethod>[2]);
+    if (guard) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: guard,
+          code: "undefined_method",
+          expectedMethodName: methodName,
+          expectedCall: buildExpectedCallSummary(
+            { className: null, methodName, paramTypes: [], returnType: "unknown" },
+            "single-exec",
+            language as Parameters<typeof buildExpectedCallSummary>[2],
+          ),
+        },
+        { status: 400 },
+      );
+    }
+  }
 
   const results: Array<{
     testCaseId: string;
@@ -244,8 +265,14 @@ export async function runLegacyJudge(
         harness: {
           applied: harnessUsed,
           language,
+          methodName,
           header: harnessUsed ? effectiveCode.split("\n").slice(0, 3).join("\n") : null,
         },
+        expectedCall: buildExpectedCallSummary(
+          { className: null, methodName, paramTypes: [], returnType: "unknown" },
+          "single-exec",
+          language as Parameters<typeof buildExpectedCallSummary>[2],
+        ),
         piston: {
           triedUrls: [...getPistonUrls()],
           servedBy: lastServedBy ?? "(none — chain failed)",
@@ -260,6 +287,24 @@ export async function runLegacyJudge(
         })),
       }
     : undefined;
+
+  const aggregate: TestStatus =
+    results.length === 0
+      ? "runtime_error"
+      : results.every((r) => r.status === "passed")
+        ? "passed"
+        : (results.find((r) => r.status !== "passed")?.status ?? "runtime_error");
+
+  if (aggregate !== "passed") {
+    console.warn("[execute:legacy] failure", {
+      problemId,
+      language,
+      methodName,
+      aggregate,
+      firstFailing: results.find((r) => r.status !== "passed"),
+      wrappedCode: harnessUsed ? effectiveCode : undefined,
+    });
+  }
 
   return NextResponse.json({
     ok: true,

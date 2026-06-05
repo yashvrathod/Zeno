@@ -848,6 +848,62 @@ int main() {
 }`;
 }
 
+export function detectUndefinedMethod(
+  userCode: string,
+  methodName: string,
+  language: Language,
+): string | null {
+  if (language === "javascript" || language === "typescript") {
+    const re = new RegExp(
+      `\\b(function\\s+${methodName}\\b|const\\s+${methodName}\\s*=|let\\s+${methodName}\\s*=|var\\s+${methodName}\\s*=|class\\s+${methodName}\\b)`,
+    );
+    return re.test(userCode)
+      ? null
+      : `No top-level definition of '${methodName}' found. Define \`function ${methodName}(...)\` or \`const ${methodName} = ...\`.`;
+  }
+  if (language === "python") {
+    const re = new RegExp(`\\bdef\\s+${methodName}\\s*\\(`);
+    return re.test(userCode)
+      ? null
+      : `No \`def ${methodName}(...)\` found. Define \`def ${methodName}(...):\`.`;
+  }
+  if (language === "java") return null;
+  if (language === "cpp") {
+    const re = new RegExp(`\\b${methodName}\\s*\\(`);
+    return re.test(userCode) ? null : `No function named '${methodName}' found.`;
+  }
+  return null;
+}
+
+export function buildExpectedCallSummary(
+  sig: ProblemSignature,
+  mode: HarnessMode,
+  language: Language,
+): string {
+  const call = sig.className
+    ? language === "python"
+      ? `${sig.className}().${sig.methodName}(...)`
+      : `new ${sig.className}().${sig.methodName}(...)`
+    : language === "java"
+      ? `Main.${sig.methodName}(...)`
+      : `${sig.methodName}(...)`;
+
+  if (language === "python") {
+    return mode === "per-test"
+      ? `__result = ${call.replace("(...)", "(*__args)")}`
+      : `__result = ${call.replace("(...)", "(__parse_stdin(sys.stdin.read()))")}`;
+  }
+  if (language === "javascript" || language === "typescript") {
+    return mode === "per-test"
+      ? `const __result = ${call.replace("(...)", "(...__args)")}`
+      : `__result = ${call.replace("(...)", "(...__args)")}`;
+  }
+  if (language === "java") {
+    return `Object __result = ${call.replace("(...)", "(__toXxxArgs(...))")}`;
+  }
+  return `auto __result = ${call.replace("(...)", "(__toXxxArgs(...))")}`;
+}
+
 const HARNESS_HEADER_JS = `// auto-generated harness (lib/judge/harness.ts) v${HARNESS_VERSION}`;
 
 const ERROR_PREFIX_LIT = JSON.stringify(ERROR_PREFIX);

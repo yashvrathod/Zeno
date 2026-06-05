@@ -10,7 +10,7 @@ import {
   type TestCaseView,
 } from "@/lib/mentor/lastExecution";
 import { runJudge } from "@/lib/judge/runner";
-import { UnsupportedLanguageError } from "@/lib/judge/harness";
+import { buildExpectedCallSummary, detectUndefinedMethod, UnsupportedLanguageError } from "@/lib/judge/harness";
 import { isSupportedLanguage, type Language, type Verdict } from "@/lib/judge/verdict";
 import type { JudgeTestCase, ProblemSignature as JudgeSignature, PerTestResult, JudgeInput } from "@/lib/judge/types";
 import crypto from "crypto";
@@ -114,6 +114,20 @@ export async function runNewJudge(
     mode: "per-test",
   };
 
+  const guard = detectUndefinedMethod(code, sig.methodName, language);
+  if (guard) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: guard,
+        code: "undefined_method",
+        expectedMethodName: sig.methodName,
+        expectedCall: buildExpectedCallSummary(sig, judgeInput.mode, language),
+      },
+      { status: 400 },
+    );
+  }
+
   let output;
   try {
     output = await runJudge(judgeInput);
@@ -183,12 +197,26 @@ export async function runNewJudge(
           servedBy: output.servedBy ?? "(unknown)",
         },
         signature: sig,
+        expectedCall: buildExpectedCallSummary(sig, output.mode, language),
         piston: {
           triedUrls: [...getPistonUrls()],
           servedBy: output.servedBy ?? "(none — chain failed)",
         },
       }
     : undefined;
+
+  if (output.aggregate !== "accepted") {
+    console.warn("[execute:new] failure", {
+      problemId,
+      language,
+      methodName: sig.methodName,
+      className: sig.className,
+      aggregate: output.aggregate,
+      servedBy: output.servedBy ?? "(none — chain failed)",
+      firstFailing: output.results.find((r) => r.verdict !== "accepted"),
+      expectedCall: buildExpectedCallSummary(sig, output.mode, language),
+    });
+  }
 
   return NextResponse.json({
     ok: true,

@@ -1,6 +1,8 @@
 import { describe, it, expect } from "@jest/globals";
 import {
   buildHarness,
+  detectUndefinedMethod,
+  buildExpectedCallSummary,
   HARNESS_VERSION,
   RESULT_PREFIX,
   RESULTS_PREFIX,
@@ -510,5 +512,134 @@ describe("buildHarness — method name resolution (regression)", () => {
     });
     expect(r.code).toMatch(/__result = isPalindrome\(\*__args\)/);
     expect(r.code).not.toMatch(/\bsolution\(/);
+  });
+});
+
+describe("detectUndefinedMethod", () => {
+  it("returns null when JS code defines the function with `function`", () => {
+    expect(detectUndefinedMethod("function isPalindrome(s) { return true; }", "isPalindrome", "javascript")).toBeNull();
+  });
+
+  it("returns a diagnostic when JS code defines a different function name", () => {
+    const r = detectUndefinedMethod("function palindrome(s) { return true; }", "isPalindrome", "javascript");
+    expect(r).toContain("isPalindrome");
+    expect(r).toContain("function isPalindrome");
+  });
+
+  it("returns null when Python code defines the function with `def`", () => {
+    expect(detectUndefinedMethod("def isPalindrome(s):\n    return True", "isPalindrome", "python")).toBeNull();
+  });
+
+  it("returns a diagnostic when Python code defines a different function name", () => {
+    const r = detectUndefinedMethod("def palindrome(s):\n    return True", "isPalindrome", "python");
+    expect(r).toContain("isPalindrome");
+    expect(r).toContain("def isPalindrome");
+  });
+
+  it("detects const/let/var JS declarations as valid", () => {
+    expect(detectUndefinedMethod("const isPalindrome = (s) => s;", "isPalindrome", "javascript")).toBeNull();
+    expect(detectUndefinedMethod("let isPalindrome = (s) => s;", "isPalindrome", "javascript")).toBeNull();
+    expect(detectUndefinedMethod("var isPalindrome = (s) => s;", "isPalindrome", "javascript")).toBeNull();
+  });
+
+  it("returns null for Java (compile error path is clearer)", () => {
+    expect(detectUndefinedMethod("class Main { static int foo() { return 0; } }", "foo", "java")).toBeNull();
+  });
+
+  it("returns null when C++ code defines a free function with the same name", () => {
+    expect(detectUndefinedMethod("bool isPalindrome(string s) { return true; }", "isPalindrome", "cpp")).toBeNull();
+  });
+
+  it("returns a diagnostic when C++ code does not define a function with that name", () => {
+    const r = detectUndefinedMethod("bool palindrome(string s) { return true; }", "isPalindrome", "cpp");
+    expect(r).toContain("isPalindrome");
+  });
+});
+
+describe("buildExpectedCallSummary", () => {
+  const sig: ProblemSignature = {
+    className: null,
+    methodName: "isPalindrome",
+    paramTypes: [{ name: "s", type: "string" }],
+    returnType: "boolean",
+  };
+
+  it("Python per-test: __result = isPalindrome(*__args)", () => {
+    expect(buildExpectedCallSummary(sig, "per-test", "python")).toBe("__result = isPalindrome(*__args)");
+  });
+
+  it("Python single-exec: __result = isPalindrome(__parse_stdin(sys.stdin.read()))", () => {
+    expect(buildExpectedCallSummary(sig, "single-exec", "python")).toBe(
+      "__result = isPalindrome(__parse_stdin(sys.stdin.read()))",
+    );
+  });
+
+  it("JavaScript per-test: const __result = isPalindrome(...__args)", () => {
+    expect(buildExpectedCallSummary(sig, "per-test", "javascript")).toBe("const __result = isPalindrome(...__args)");
+  });
+
+  it("TypeScript per-test: const __result = isPalindrome(...__args)", () => {
+    expect(buildExpectedCallSummary(sig, "per-test", "typescript")).toBe("const __result = isPalindrome(...__args)");
+  });
+
+  it("Java free function: Object __result = Main.isPalindrome(__toXxxArgs(...))", () => {
+    expect(buildExpectedCallSummary(sig, "per-test", "java")).toBe(
+      "Object __result = Main.isPalindrome(__toXxxArgs(...))",
+    );
+  });
+
+  it("C++ free function: auto __result = isPalindrome(__toXxxArgs(...))", () => {
+    expect(buildExpectedCallSummary(sig, "per-test", "cpp")).toBe("auto __result = isPalindrome(__toXxxArgs(...))");
+  });
+
+  it("className set (Python): __result = Solution().twoSum(*__args)", () => {
+    const classSig: ProblemSignature = {
+      className: "Solution",
+      methodName: "twoSum",
+      paramTypes: [
+        { name: "nums", type: "number[]" },
+        { name: "target", type: "number" },
+      ],
+      returnType: "number[]",
+    };
+    expect(buildExpectedCallSummary(classSig, "per-test", "python")).toBe(
+      "__result = Solution().twoSum(*__args)",
+    );
+  });
+
+  it("className set (Java): Object __result = new Solution().twoSum(__toXxxArgs(...))", () => {
+    const classSig: ProblemSignature = {
+      className: "Solution",
+      methodName: "twoSum",
+      paramTypes: [
+        { name: "nums", type: "number[]" },
+        { name: "target", type: "number" },
+      ],
+      returnType: "number[]",
+    };
+    expect(buildExpectedCallSummary(classSig, "per-test", "java")).toBe(
+      "Object __result = new Solution().twoSum(__toXxxArgs(...))",
+    );
+  });
+});
+
+describe("buildHarness — signature/starter consistency (regression)", () => {
+  it("harness call matches starter code for tp-12 (isPalindrome)", () => {
+    const sig: ProblemSignature = {
+      className: null,
+      methodName: "isPalindrome",
+      paramTypes: [{ name: "s", type: "string" }],
+      returnType: "boolean",
+    };
+    const starter = "def isPalindrome(s):\n    return False\n";
+    const r = buildHarness({
+      userCode: starter,
+      signature: sig,
+      testCases: [TC],
+      mode: "per-test",
+      language: "python",
+    });
+    expect(r.code).toMatch(/__result = isPalindrome\(\*__args\)/);
+    expect(detectUndefinedMethod(starter, "isPalindrome", "python")).toBeNull();
   });
 });
