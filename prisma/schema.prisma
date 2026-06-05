@@ -177,6 +177,7 @@ model Problem {
   hints Hint[]
   patterns ProblemPattern[]
   testCases TestCase[]
+  signature ProblemSignature?
   userProblemStats UserProblemStats[]
 }
 
@@ -208,11 +209,27 @@ model TestCase {
   order Int
   input String
   expected String
+  // New LeetCode-style judge fields (populated by prisma/migrate-test-format.ts).
+  // Nullable in PR 1 to allow the schema change to ship before the data migration.
+  // A follow-up migration will make these required and drop `input`/`expected`.
+  args Json?
+  expectedJson Json?
   isHidden Boolean @default(false)
   problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 
   @@unique([problemId, order, isHidden])
   @@index([problemId])
+}
+
+model ProblemSignature {
+  problemId String @id
+  className String?
+  methodName String
+  paramTypes Json
+  returnType String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

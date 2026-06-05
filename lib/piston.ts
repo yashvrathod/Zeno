@@ -9,11 +9,19 @@ export const LANGUAGE_CONFIG: Record<string, { language: string; preferredVersio
 };
 
 type PistonExecuteResponse = {
+  language: string;
+  version: string;
   run: {
     stdout: string;
     stderr: string;
     code: number;
     signal: string | null;
+    output?: string;
+  };
+  compile?: {
+    stdout: string;
+    stderr: string;
+    code: number;
     output?: string;
   };
 };
@@ -163,6 +171,7 @@ const RUNTIMES_PROBE_TIMEOUT_MS = 3_000;
 const EXECUTE_TIMEOUT_MS = 25_000;
 
 export type PistonResult = {
+  stdout: string;
   output: string;
   runtimeMs: number;
   stderr: string;
@@ -197,10 +206,14 @@ export async function runOnPiston({
   code,
   language,
   stdin,
+  compileTimeoutMs,
+  runTimeoutMs,
 }: {
   code: string;
   language: keyof typeof LANGUAGE_CONFIG;
   stdin: string;
+  compileTimeoutMs?: number;
+  runTimeoutMs?: number;
 }): Promise<PistonResult> {
   const langConfig = LANGUAGE_CONFIG[language];
   if (!langConfig) throw new Error(`Language ${language} not supported`);
@@ -218,15 +231,18 @@ export async function runOnPiston({
       if (process.env.PISTON_DEBUG === '1') {
         console.debug(`[piston] ${apiUrl} → ${runtime.language}@${runtime.version || '(default)'}`);
       }
+      const body: Record<string, unknown> = {
+        language: runtime.language,
+        version: runtime.version,
+        files: [{ name: fileName(language), content: code }],
+        stdin,
+      };
+      if (compileTimeoutMs !== undefined) body.compile_timeout = compileTimeoutMs;
+      if (runTimeoutMs !== undefined) body.run_timeout = runTimeoutMs;
       const res = await fetchWithTimeout(`${apiUrl}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          language: runtime.language,
-          version: runtime.version,
-          files: [{ name: fileName(language), content: code }],
-          stdin,
-        }),
+        body: JSON.stringify(body),
         timeoutMs: EXECUTE_TIMEOUT_MS,
       });
 
@@ -248,6 +264,7 @@ export async function runOnPiston({
       const output = (stdout + (stderr ? `\n${stderr}` : '')).trim();
 
       return {
+        stdout,
         output,
         runtimeMs: Date.now() - startedAt,
         stderr,

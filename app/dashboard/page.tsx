@@ -7,23 +7,20 @@ import { motion } from 'framer-motion';
 import {
   Brain, TrendingUp, Target, Zap, Activity, Award,
   AlertTriangle, BarChart3, Flame, Layers, ArrowRight,
-  Play, Trophy, Code, Sparkles, Clock,
-  Star, ChevronRight, CheckCircle2, GitBranch, Timer,
-  Activity as Pulse,
+  Play, Trophy, Sparkles, CheckCircle2,
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
-import { StatCard } from '@/components/dashboard/StatCard';
-import { ConceptRing } from '@/components/dashboard/ConceptRing';
+import { MiniStatCard } from '@/components/dashboard/MiniStatCard';
+import { ConceptImageCard, ConceptStripCard } from '@/components/dashboard/ConceptImageCard';
 import { EnhancementChart } from '@/components/dashboard/EnhancementChart';
-import { ActivityTimeline } from '@/components/dashboard/ActivityTimeline';
-import { WeakAreaBar } from '@/components/dashboard/WeakAreaBar';
-import { ReviewQueue } from '@/components/dashboard/ReviewQueue';
 import { QuickActionCard } from '@/components/dashboard/QuickActionCard';
-import { HeroSection } from '@/components/dashboard/HeroSection';
+import { FeaturedHeroCard } from '@/components/dashboard/FeaturedHeroCard';
 import { AIMentorInsight } from '@/components/dashboard/AIMentorInsight';
-import { StatusPill } from '@/components/dashboard/StatusPill';
+import { AIMentorInsightCompact } from '@/components/dashboard/AIMentorInsightCompact';
 import { FilterTabs } from '@/components/dashboard/FilterTabs';
-import { DateRangePill } from '@/components/dashboard/DateRangePill';
+import { ImageOverlayCard } from '@/components/dashboard/ImageOverlayCard';
+import { LimeProgramCard } from '@/components/dashboard/LimeProgramCard';
+import { PillCTA } from '@/components/dashboard/PillCTA';
 import { useDashboardEntrance } from '@/hooks/use-dashboard-entrance';
 import { GoldParticles } from '@/components/effects/GoldParticles';
 import { SectionDivider } from '@/components/effects/SectionDivider';
@@ -62,11 +59,6 @@ export default function DashboardPage() {
 
   const hasData = data && data.overallStats.problemsAttempted > 0;
   const entranceRef = useDashboardEntrance(!!data);
-
-  const topWeaknesses = useMemo(() => {
-    if (!data) return [];
-    return [...data.weakAreas].sort((a, b) => b.count - a.count).slice(0, 5);
-  }, [data]);
 
   const groupedConcepts = useMemo(() => {
     if (!data) return { mastered: [], learning: [], weak: [] };
@@ -181,52 +173,7 @@ export default function DashboardPage() {
             ref={entranceRef}
             className="space-y-5"
           >
-            <div className="entrance-hero">
-              <HeroSection
-                name={session?.user?.name}
-                interviewReadiness={data.overallStats.interviewReadiness}
-                conceptMastery={data.conceptMastery}
-                weakAreas={data.weakAreas}
-                dailyChallengeSlug={dailyChallenge?.problem?.slug}
-              />
-            </div>
-
-            <div className="entrance-section glass-pill rounded-2xl p-3 flex flex-wrap items-center gap-2">
-              <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
-                <StatusPill icon={<GitBranch size={11} />} label="Solved" value={`${data.overallStats.problemsSolved}/${data.overallStats.problemsAttempted}`} variant="accent" />
-                <StatusPill icon={<Trophy size={11} />} label="Rate" value={`${data.overallStats.successRate}%`} variant="success" />
-                <StatusPill icon={<Flame size={11} />} label="Streak" value={`${data.overallStats.currentStreak}d`} variant="warning" />
-                <StatusPill icon={<Brain size={11} />} label="Patterns" value={data.masteredPatterns.length} variant="info" />
-                <StatusPill icon={<Target size={11} />} label="Ready" value={`${data.overallStats.interviewReadiness}%`} variant="default" />
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <DateRangePill label="Last 7 days" />
-              </div>
-            </div>
-
-            <div className="entrance-section flex flex-wrap items-center gap-3">
-              <FilterTabs
-                tabs={[
-                  { label: 'All', count: tabCounts.all },
-                  { label: 'Mastered', count: tabCounts.mastered, variant: 'success' },
-                  { label: 'Learning', count: tabCounts.learning, variant: 'warning' },
-                  { label: 'Not Started', count: tabCounts.weak, variant: 'danger' },
-                ]}
-                active={filterTab}
-                onChange={setFilterTab}
-              />
-              <div className="flex items-center gap-1.5 ml-auto">
-                <span className="text-[9px] font-bold tracking-[0.2em] text-nx-muted uppercase">Show charts</span>
-                <div className="w-7 h-4 rounded-full bg-nx-accent/20 border border-nx-accent/30 flex items-center px-0.5">
-                  <div className="w-3 h-3 rounded-full bg-nx-accent shadow-[0_0_6px_rgba(212,165,83,0.5)]" />
-                </div>
-                <span className="text-[9px] font-bold tracking-[0.2em] text-nx-muted uppercase">Show alerts</span>
-                <div className="w-7 h-4 rounded-full bg-nx-accent/20 border border-nx-accent/30 flex items-center px-0.5">
-                  <div className="w-3 h-3 rounded-full bg-nx-accent shadow-[0_0_6px_rgba(212,165,83,0.5)]" />
-                </div>
-              </div>
-            </div>
-
+            {/* ==================== ROW 1 — KIFF Asymmetric Hero ==================== */}
             {!hasData ? (
               <div className="entrance-section flex flex-col items-center justify-center py-20 lg:py-28 space-y-8">
                 <div className="relative">
@@ -246,55 +193,147 @@ export default function DashboardPage() {
               </div>
             ) : (
               <>
-                <div className="entrance-section">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="lg:col-span-2">
-                      <StatCard
-                        icon={<Brain size={16} />}
-                        label="Problems Solved"
+                {/* ROW 1: Asymmetric 3-column KIFF layout */}
+                <div className="entrance-section grid grid-cols-1 lg:grid-cols-12 gap-4">
+                  {/* LEFT col-3: AI Mentor + Mini stats + Quick actions */}
+                  <div className="lg:col-span-3 flex flex-col gap-3">
+                    <AIMentorInsightCompact
+                      conceptMastery={data.conceptMastery}
+                      weakAreas={data.weakAreas}
+                    />
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <MiniStatCard
+                        icon={<Brain size={14} />}
+                        label="Mastered"
                         value={data.overallStats.problemsSolved}
-                        sub={`/ ${data.overallStats.problemsAttempted} attempted`}
-                        gradient="from-nx-accent to-amber-600"
+                        sub={`/ ${data.overallStats.problemsAttempted}`}
+                        gradient="from-emerald-500 to-teal-500"
+                        delay={0.05}
+                      />
+                      <MiniStatCard
+                        icon={<Trophy size={14} />}
+                        label="Success"
+                        value={data.overallStats.successRate}
+                        suffix="%"
+                        sub="rate"
+                        gradient="from-amber-500 to-orange-500"
+                        delay={0.1}
+                      />
+                      <MiniStatCard
+                        icon={<Flame size={14} />}
+                        label="Streak"
+                        value={data.overallStats.currentStreak}
+                        suffix="d"
+                        sub={`Best ${data.overallStats.longestStreak}d`}
+                        gradient="from-orange-500 to-rose-500"
+                        delay={0.15}
+                      />
+                      <MiniStatCard
+                        icon={<Award size={14} />}
+                        label="Patterns"
+                        value={data.masteredPatterns.length}
+                        sub="mastered"
+                        gradient="from-cyan-500 to-blue-500"
+                        delay={0.2}
                       />
                     </div>
-                    <StatCard
-                      icon={<Trophy size={16} />}
-                      label="Success Rate"
-                      value={data.overallStats.successRate}
-                      suffix="%"
-                      sub={`${data.overallStats.totalSubmitCount} submissions`}
-                      gradient="from-emerald-500 to-teal-500"
-                    />
-                    <StatCard
-                      icon={<Flame size={16} />}
-                      label="Current Streak"
-                      value={data.overallStats.currentStreak}
-                      suffix="d"
-                      sub={`Best: ${data.overallStats.longestStreak}d`}
-                      gradient="from-orange-500 to-amber-500"
+                  </div>
+
+                  {/* CENTER col-6: Featured Hero card (image-overlay pattern) */}
+                  <div className="lg:col-span-6 entrance-hero">
+                    <FeaturedHeroCard
+                      name={session?.user?.name}
+                      interviewReadiness={data.overallStats.interviewReadiness}
+                      conceptMastery={data.conceptMastery}
+                      weakAreas={data.weakAreas}
+                      dailyChallengeSlug={dailyChallenge?.problem?.slug}
                     />
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                    <StatCard
-                      icon={<Award size={16} />}
-                      label="Mastered Patterns"
-                      value={data.masteredPatterns.length}
-                      sub="Across all problems"
-                      gradient="from-cyan-500 to-blue-500"
-                    />
-                    <StatCard
-                      icon={<Target size={16} />}
-                      label="Interview Readiness"
-                      value={data.overallStats.interviewReadiness}
-                      suffix="%"
-                      sub="Overall readiness score"
-                      gradient="from-nx-accent to-amber-600"
+
+                  {/* RIGHT col-3: Lime "Programm" + Stuck Problems + Mentor recommendation */}
+                  <div className="lg:col-span-3 flex flex-col gap-3">
+                    {dailyChallenge?.problem ? (
+                      <LimeProgramCard
+                        variant="daily"
+                        badge="Daily Challenge"
+                        title={dailyChallenge.problem.title}
+                        subtitle={`${dailyChallenge.problem.difficulty} · ${dailyChallenge.problem.totalSolvers} solved`}
+                        meta={dailyChallenge.date}
+                        href={`/problems/${dailyChallenge.problem.slug}`}
+                        icon={<Zap size={14} className="text-black" />}
+                      />
+                    ) : (
+                      <LimeProgramCard
+                        variant="program"
+                        badge="Programs"
+                        title="Browse all"
+                        subtitle="Explore problem sets and curated tracks"
+                        meta="Discover →"
+                        href="/problems"
+                      />
+                    )}
+
+                    {stuckProblems.length > 0 ? (
+                      <ImageOverlayCard
+                        variant="rose"
+                        title={stuckProblems[0]}
+                        subtitle={`${stuckProblems.length} problem${stuckProblems.length === 1 ? '' : 's'} need a nudge`}
+                        meta="Stuck · Tap to mentor"
+                        href="/problems"
+                        height="md"
+                        showArrow
+                      />
+                    ) : (
+                      <ImageOverlayCard
+                        variant="mastered"
+                        title="No stuck problems"
+                        subtitle="All caught up — keep the momentum going"
+                        meta="On fire"
+                        href="/problems"
+                        height="md"
+                      />
+                    )}
+
+                    <ImageOverlayCard
+                      variant="cyan"
+                      title={mentorProgress?.recommendedNextProblem ?? "AI Pick Awaits"}
+                      subtitle={mentorProgress?.recommendedNextProblem ? "Curated by your AI mentor" : "Solve a few to unlock picks"}
+                      meta="Recommended"
+                      href="/problems"
+                      height="sm"
+                      showArrow
                     />
                   </div>
                 </div>
 
+                {/* ==================== ROW 2 — Concept Strip (3 image-overlay cards) ==================== */}
+                <div className="entrance-section grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <ConceptStripCard
+                    label="Mastered"
+                    count={groupedConcepts.mastered.length}
+                    total={data.conceptMastery.length}
+                    variant="mastered"
+                    icon={CheckCircle2}
+                  />
+                  <ConceptStripCard
+                    label="Learning"
+                    count={groupedConcepts.learning.length}
+                    total={data.conceptMastery.length}
+                    variant="learning"
+                    icon={Sparkles}
+                  />
+                  <ConceptStripCard
+                    label="Not Started"
+                    count={groupedConcepts.weak.length}
+                    total={data.conceptMastery.length}
+                    variant="weak"
+                    icon={AlertTriangle}
+                  />
+                </div>
+
                 <SectionDivider />
 
+                {/* ==================== ROW 3 — AI Mentor Insight (full) + Next Up ==================== */}
                 <div className="entrance-section grid grid-cols-1 lg:grid-cols-3 gap-4">
                   <div className="lg:col-span-2">
                     <AIMentorInsight
@@ -320,13 +359,11 @@ export default function DashboardPage() {
                             This problem matches your mastered patterns and will help strengthen your understanding.
                           </p>
                           <div className="mt-auto">
-                            <Link
+                            <PillCTA
+                              label="Start Now"
                               href="/problems"
-                              className="group w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-nx-accent to-nx-accent-deep text-nx-bg text-xs font-bold tracking-[0.2em] uppercase hover:from-nx-accent-bright hover:to-nx-accent transition-all duration-300 shadow-lg warm-glow-amber"
-                            >
-                              Continue Learning
-                              <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                            </Link>
+                              iconBgClass="bg-gradient-to-br from-nx-accent to-amber-600"
+                            />
                           </div>
                         </>
                       ) : (
@@ -336,13 +373,11 @@ export default function DashboardPage() {
                             Begin solving problems and the AI mentor will recommend the best next challenge based on your progress.
                           </p>
                           <div className="mt-auto">
-                            <Link
+                            <PillCTA
+                              label="Browse"
                               href="/problems"
-                              className="group w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl glass-panel border border-white/[0.06] text-nx-text text-xs font-bold tracking-[0.2em] uppercase hover:bg-white/[0.06] transition-all duration-300"
-                            >
-                              Browse Problems
-                              <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                            </Link>
+                              iconBgClass="bg-gradient-to-br from-zinc-700 to-zinc-900"
+                            />
                           </div>
                         </>
                       )}
@@ -352,104 +387,60 @@ export default function DashboardPage() {
 
                 <SectionDivider />
 
-                <div className="entrance-section grid grid-cols-1 lg:grid-cols-3 gap-4">
-                  <div className="lg:col-span-2 glass-panel-warm rounded-2xl p-6 lg:p-7">
-                    <div className="flex items-center justify-between mb-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-lg bg-nx-accent-soft flex items-center justify-center">
-                          <Layers size={14} className="text-nx-accent" />
-                        </div>
-                        <span className="text-[10px] font-bold tracking-[0.25em] text-nx-accent/70 uppercase">Concept Mastery</span>
+                {/* ==================== ROW 4 — Concept Mastery detail (image cards) ==================== */}
+                <div className="entrance-section">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-nx-accent-soft flex items-center justify-center">
+                        <Layers size={15} className="text-nx-accent" />
                       </div>
-                      <span className="text-[10px] text-nx-muted font-medium">{groupedConcepts.mastered.length}/{data.conceptMastery.length} mastered</span>
-                    </div>
-
-                    {groupedConcepts.mastered.length > 0 && (
-                      <div className="mb-5">
-                        <div className="flex items-center gap-2 mb-3">
-                          <CheckCircle2 size={10} className="text-emerald-400" />
-                          <span className="text-[8px] font-bold tracking-[0.2em] text-emerald-400/70 uppercase">Mastered</span>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                          {groupedConcepts.mastered.map((c, i) => (
-                            <ConceptRing key={c.concept} concept={c} index={i} />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {groupedConcepts.learning.length > 0 && (
-                      <div className="mb-5">
-                        <div className="flex items-center gap-2 mb-3">
-                          <Sparkles size={10} className="text-nx-accent" />
-                          <span className="text-[8px] font-bold tracking-[0.2em] text-nx-accent/70 uppercase">Learning</span>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                          {groupedConcepts.learning.map((c, i) => (
-                            <ConceptRing key={c.concept} concept={c} index={i} />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {groupedConcepts.weak.length > 0 && (
                       <div>
-                        <div className="flex items-center gap-2 mb-3">
-                          <AlertTriangle size={10} className="text-rose-400" />
-                          <span className="text-[8px] font-bold tracking-[0.2em] text-rose-400/70 uppercase">Not Started</span>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                          {groupedConcepts.weak.map((c, i) => (
-                            <ConceptRing key={c.concept} concept={c} index={i} />
-                          ))}
-                        </div>
+                        <span className="text-[11px] font-bold tracking-[0.25em] text-nx-accent/80 uppercase">Concept Mastery</span>
+                        <p className="text-[10px] text-nx-muted mt-0.5">
+                          {groupedConcepts.mastered.length}/{data.conceptMastery.length} mastered
+                        </p>
                       </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-5">
-                    <div className="glass-panel-strong rounded-2xl p-6 lg:p-7">
-                      <div className="flex items-center gap-3 mb-5">
-                        <div className="w-7 h-7 rounded-lg bg-rose-500/15 flex items-center justify-center border border-rose-500/20">
-                          <AlertTriangle size={14} className="text-rose-400" />
-                        </div>
-                        <span className="text-[10px] font-bold tracking-[0.25em] text-rose-400/70 uppercase">Weakness Heatmap</span>
-                      </div>
-                      {topWeaknesses.length > 0 ? (
-                        <div className="space-y-2.5">
-                          {topWeaknesses.map((w, i) => (
-                            <WeakAreaBar key={w.tag} area={w} index={i} />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="py-6 text-center text-nx-muted text-sm">No weak patterns detected. Great work!</div>
-                      )}
                     </div>
-
-                    {data.reviewQueue.length > 0 && (
-                      <div className="glass-panel-strong rounded-2xl p-6 lg:p-7">
-                        <div className="flex items-center justify-between mb-5">
-                          <div className="flex items-center gap-3">
-                            <div className="w-7 h-7 rounded-lg bg-teal-500/15 flex items-center justify-center border border-teal-500/20">
-                              <Clock size={14} className="text-teal-400" />
-                            </div>
-                            <span className="text-[10px] font-bold tracking-[0.25em] text-teal-400/70 uppercase">Review Queue</span>
-                          </div>
-                          <span className="text-[9px] text-nx-muted font-medium">{data.reviewQueue.length} items</span>
-                        </div>
-                        <ReviewQueue items={data.reviewQueue} />
-                      </div>
-                    )}
+                    <FilterTabs
+                      tabs={[
+                        { label: 'All', count: tabCounts.all },
+                        { label: 'Mastered', count: tabCounts.mastered, variant: 'success' },
+                        { label: 'Learning', count: tabCounts.learning, variant: 'warning' },
+                        { label: 'Not Started', count: tabCounts.weak, variant: 'danger' },
+                      ]}
+                      active={filterTab}
+                      onChange={setFilterTab}
+                    />
                   </div>
+
+                  {(() => {
+                    const filtered: { key: string; list: ConceptMasteryItem[]; variant: 'mastered' | 'learning' | 'weak' }[] = [];
+                    if (filterTab === 'All' || filterTab === 'Mastered') filtered.push({ key: 'mastered', list: groupedConcepts.mastered, variant: 'mastered' });
+                    if (filterTab === 'All' || filterTab === 'Learning') filtered.push({ key: 'learning', list: groupedConcepts.learning, variant: 'learning' });
+                    if (filterTab === 'All' || filterTab === 'Not Started') filtered.push({ key: 'weak', list: groupedConcepts.weak, variant: 'weak' });
+
+                    return (
+                      <div className="space-y-3">
+                        {filtered.map(group => (
+                          <div key={group.key} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5">
+                            {group.list.slice(0, 12).map(c => (
+                              <ConceptImageCard key={c.concept} concept={c} href="/problems" />
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <SectionDivider />
 
+                {/* ==================== ROW 5 — Interview Readiness ==================== */}
                 <div className="entrance-section">
                   <div className="glass-panel-warm rounded-2xl p-6 lg:p-7">
                     <div className="flex items-center justify-between mb-6">
                       <div className="flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-lg bg-nx-accent-soft flex items-center justify-center border border-nx-accent/20">
+                        <div className="w-7 h-7 rounded-lg bg-nx-accent-soft flex items-center justify-center">
                           <BarChart3 size={14} className="text-nx-accent" />
                         </div>
                         <span className="text-[10px] font-bold tracking-[0.25em] text-nx-accent/70 uppercase">Interview Readiness</span>
@@ -483,45 +474,41 @@ export default function DashboardPage() {
                 </div>
 
                 {stuckProblems.length > 0 && (
-                  <div className="entrance-section">
-                    <div className="glass-panel-strong rounded-2xl p-6 lg:p-7 border-l-2 border-l-nx-accent/60 relative overflow-hidden">
-                      <div className="absolute inset-0 bg-gradient-to-r from-nx-accent/[0.04] to-transparent" />
-                      <div className="relative">
-                        <div className="flex items-center gap-3 mb-5">
+                  <>
+                    <SectionDivider />
+
+                    {/* ==================== ROW 6 — Stuck Problems (image cards) ==================== */}
+                    <div className="entrance-section">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
                           <div className="w-7 h-7 rounded-lg bg-nx-accent/15 flex items-center justify-center border border-nx-accent/25">
                             <AlertTriangle size={14} className="text-amber-400" />
                           </div>
                           <span className="text-[10px] font-bold tracking-[0.25em] text-nx-accent/70 uppercase">Stuck Problems</span>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {stuckProblems.slice(0, 6).map((title, i) => (
-                            <motion.div
-                              key={title}
-                              initial={{ opacity: 0, y: 8 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: i * 0.04, duration: 0.3 }}
-                              className="bg-white/[0.02] rounded-xl px-4 py-3.5 border border-white/[0.04] flex items-center justify-between gap-3"
-                            >
-                              <div className="flex items-center gap-3 min-w-0">
-                                <Code size={14} className="text-nx-muted shrink-0" />
-                                <span className="text-sm text-nx-text truncate">{title}</span>
-                              </div>
-                              <Link
-                                href="/problems"
-                                className="shrink-0 text-[9px] font-bold tracking-[0.15em] px-3 py-1.5 rounded-lg bg-nx-accent-soft border border-nx-accent/20 text-nx-accent hover:bg-nx-accent/15 transition-all duration-200 uppercase"
-                              >
-                                Mentor
-                              </Link>
-                            </motion.div>
-                          ))}
-                        </div>
+                        <span className="text-[9px] text-nx-muted font-mono">{stuckProblems.length} items</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {stuckProblems.slice(0, 6).map((title) => (
+                          <ImageOverlayCard
+                            key={title}
+                            title={title}
+                            subtitle="Multiple failed attempts — try a hint"
+                            meta="Tap to mentor"
+                            variant="rose"
+                            href="/problems"
+                            height="sm"
+                            showArrow
+                          />
+                        ))}
                       </div>
                     </div>
-                  </div>
+                  </>
                 )}
 
                 <SectionDivider />
 
+                {/* ==================== ROW 7 — Velocity + Activity (chart + image cards) ==================== */}
                 <div className="entrance-section grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div className="glass-panel-warm rounded-2xl p-6 lg:p-7">
                     <div className="flex items-center gap-3 mb-6">
@@ -533,8 +520,8 @@ export default function DashboardPage() {
                     <EnhancementChart points={data.learningVelocity} />
                   </div>
 
-                  <div className="glass-panel-warm rounded-2xl p-6 lg:p-7">
-                    <div className="flex items-center justify-between mb-6">
+                  <div className="flex flex-col gap-2.5">
+                    <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-3">
                         <div className="w-7 h-7 rounded-lg bg-blue-500/15 flex items-center justify-center border border-blue-500/20">
                           <Activity size={14} className="text-blue-400" />
@@ -545,112 +532,75 @@ export default function DashboardPage() {
                         View All <ArrowRight size={10} />
                       </Link>
                     </div>
-                    <ActivityTimeline items={data.recentActivity} />
+                    {data.recentActivity.slice(0, 4).map((item) => {
+                      const variant = item.type === 'solved' ? 'mastered' : item.type === 'attempted' ? 'cyan' : item.type === 'review' ? 'amber' : 'violet';
+                      return (
+                        <ImageOverlayCard
+                          key={item.id}
+                          title={item.problemTitle}
+                          subtitle={item.detail}
+                          meta={new Date(item.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          variant={variant as 'mastered' | 'cyan' | 'amber' | 'violet'}
+                          href={`/problems/${item.problemSlug}`}
+                          height="sm"
+                        />
+                      );
+                    })}
                   </div>
                 </div>
 
                 <SectionDivider />
 
+                {/* ==================== ROW 8 — Roadmap (image cards) ==================== */}
                 <div className="entrance-section">
-                  <div className="glass-panel-warm rounded-2xl p-6 lg:p-7">
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="w-7 h-7 rounded-lg bg-nx-accent-soft flex items-center justify-center border border-nx-accent/20">
-                        <Layers size={14} className="text-nx-accent" />
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-nx-accent-soft flex items-center justify-center border border-nx-accent/20">
+                        <Layers size={15} className="text-nx-accent" />
                       </div>
-                      <span className="text-[10px] font-bold tracking-[0.25em] text-nx-accent/70 uppercase">Learning Roadmap</span>
+                      <div>
+                        <span className="text-[11px] font-bold tracking-[0.25em] text-nx-accent/80 uppercase">Learning Roadmap</span>
+                        <p className="text-[10px] text-nx-muted mt-0.5">Tap any concept to dive in</p>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-3 justify-center">
-                      {roadmapItems.map((item, i) => {
-                        const isMastered = item.status === 'mastered';
-                        const isLearning = item.status === 'learning';
-                        return (
-                          <motion.div
-                            key={item.concept}
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: i * 0.03, duration: 0.3 }}
-                            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border transition-all duration-300 ${
-                              isMastered
-                                ? 'bg-emerald-500/8 border-emerald-500/20 text-emerald-300'
-                                : isLearning
-                                ? 'bg-nx-accent-soft border-nx-accent/20 text-nx-accent'
-                                : 'bg-white/[0.02] border-white/[0.04] text-nx-muted'
-                            }`}
-                          >
-                            {isMastered ? (
-                              <CheckCircle2 size={12} className="text-emerald-400" />
-                            ) : isLearning ? (
-                              <Sparkles size={12} className="text-nx-accent" />
-                            ) : (
-                              <ChevronRight size={12} />
-                            )}
-                            <span className="text-[10px] font-semibold capitalize whitespace-nowrap">
-                              {item.concept.replace(/_/g, ' ')}
-                            </span>
-                            <span className={`text-[8px] font-mono ${
-                              isMastered ? 'text-emerald-400/60' : isLearning ? 'text-nx-accent/60' : 'text-zinc-700'
-                            }`}>
-                              {item.mastery}%
-                            </span>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5">
+                    {roadmapItems.slice(0, 12).map(item => {
+                      const variant = item.status === 'mastered' ? 'mastered' : item.status === 'learning' ? 'learning' : 'weak';
+                      return (
+                        <ImageOverlayCard
+                          key={item.concept}
+                          title={item.concept.replace(/_/g, ' ')}
+                          count={item.mastery}
+                          unit="%"
+                          meta={item.status.replace(/_/g, ' ')}
+                          variant={variant}
+                          href="/problems"
+                          height="sm"
+                          showArrow
+                        />
+                      );
+                    })}
                   </div>
                 </div>
 
                 <SectionDivider />
 
+                {/* ==================== ROW 9 — Programs (lime) + Quick actions ==================== */}
                 <div className="entrance-section grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {dailyChallenge?.problem ? (
-                    <div className="glass-panel-warm rounded-2xl p-6 lg:p-7 relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-[200px] h-[200px] bg-amber-500/4 rounded-full blur-[80px] pointer-events-none" />
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center border border-amber-500/25">
-                          <Zap size={16} className="text-amber-400" />
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-bold tracking-[0.25em] text-amber-400/70 uppercase">Daily Challenge</span>
-                          <p className="text-[9px] text-nx-muted">{dailyChallenge.date}</p>
-                        </div>
-                      </div>
-                      <p className="text-lg font-semibold text-nx-text-bright mb-2">{dailyChallenge.problem.title}</p>
-                      <div className="flex items-center gap-4 mb-5">
-                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border ${
-                          dailyChallenge.problem.difficulty === 'EASY' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                          dailyChallenge.problem.difficulty === 'MEDIUM' ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
-                          'bg-rose-500/10 border-rose-500/20 text-rose-400'
-                        }`}>
-                          {dailyChallenge.problem.difficulty}
-                        </span>
-                        <span className="text-[10px] text-nx-muted flex items-center gap-1">
-                          <Star size={10} className="text-amber-500/60" />
-                          {dailyChallenge.problem.totalSolvers} solved
-                        </span>
-                      </div>
-                      <Link
-                        href={`/problems/${dailyChallenge.problem.slug}`}
-                        className="group inline-flex items-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-600 text-nx-bg text-xs font-bold tracking-[0.2em] uppercase hover:from-amber-500 hover:to-orange-500 transition-all duration-300 shadow-lg warm-glow-warning"
-                      >
-                        Start Challenge
-                        <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                      </Link>
-                    </div>
-                  ) : (
-                    <div className="glass-panel-strong rounded-2xl p-6 lg:p-7">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-8 h-8 rounded-xl bg-zinc-500/10 flex items-center justify-center border border-zinc-500/20">
-                          <Zap size={16} className="text-zinc-500" />
-                        </div>
-                        <span className="text-[10px] font-bold tracking-[0.25em] text-zinc-500 uppercase">Daily Challenge</span>
-                      </div>
-                      <p className="text-sm text-nx-muted">No challenge available today.</p>
-                    </div>
-                  )}
+                  <LimeProgramCard
+                    variant="program"
+                    badge="Programs"
+                    title="Skill Tracks"
+                    subtitle="Curated paths through patterns, data structures, and interview prep"
+                    meta="Browse all tracks"
+                    href="/profile/skills"
+                    icon={<Layers size={14} className="text-black" />}
+                  />
 
                   <div className="glass-panel-warm rounded-2xl p-6 lg:p-7">
                     <div className="flex items-center gap-3 mb-5">
-                      <div className="w-7 h-7 rounded-lg bg-nx-accent-soft flex items-center justify-center border border-nx-accent/20">
+                      <div className="w-7 h-7 rounded-lg bg-nx-accent-soft flex items-center justify-center">
                         <Zap size={14} className="text-nx-accent" />
                       </div>
                       <span className="text-[10px] font-bold tracking-[0.25em] text-nx-accent/70 uppercase">Quick Actions</span>
@@ -658,29 +608,29 @@ export default function DashboardPage() {
                     <div className="grid grid-cols-2 gap-3">
                       <QuickActionCard
                         icon={<Play size={16} />}
-                        label="Continue Learning"
-                        sub="Resume your progress"
+                        label="Continue"
+                        sub="Resume progress"
                         href="/problems"
                         gradient="from-nx-accent to-amber-600"
                       />
                       <QuickActionCard
                         icon={<Brain size={16} />}
                         label="AI Mentor"
-                        sub="Get personalized help"
+                        sub="Personalized help"
                         href="/problems"
                         gradient="from-blue-600 to-cyan-600"
                       />
                       <QuickActionCard
                         icon={<Target size={16} />}
                         label="Weaknesses"
-                        sub="Review error patterns"
+                        sub="Error patterns"
                         href="/profile/skills"
                         gradient="from-rose-600 to-orange-600"
                       />
                       <QuickActionCard
                         icon={<Layers size={16} />}
                         label="Skill Tree"
-                        sub="Track concept mastery"
+                        sub="Mastery map"
                         href="/profile/skills"
                         gradient="from-emerald-600 to-teal-600"
                       />

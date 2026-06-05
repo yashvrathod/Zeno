@@ -1,7 +1,18 @@
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import crypto from "crypto";
 
-const prisma = new PrismaClient();
+function createPrismaClient() {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not set. Cannot run seed.");
+  }
+  const adapter = new PrismaPg({ connectionString });
+  return new PrismaClient({ adapter });
+}
+
+const prisma = createPrismaClient();
 
 function sha256Hash(text) {
   return crypto.createHash("sha256").update(text).digest("hex");
@@ -31,14 +42,14 @@ async function main() {
       title: "The Royal Banquet Pairing",
       category: "Opposite Ends",
       difficulty: "EASY",
-      statementMd: "### Story\nKing Aldric is hosting a grand banquet. He has N guests seated in a line, each with a known appetite score. The royal chef can only prepare one special dish that exactly feeds two guests simultaneously — the dish size equals the sum of their appetite scores. Given a target dish size T, find any two guests whose combined appetite equals T. The guests are already seated in increasing order of appetite (the king's seating rule).\n\n### Task\nGiven a sorted array A of N integers and a target T, find indices (1-indexed) of any two elements that sum to T. If no such pair exists, print -1.",
+      statementMd: "### Story\nKing Aldric is hosting a grand banquet. He has N guests seated in a line, each with a known appetite score. The royal chef can only prepare one special dish that exactly feeds two guests simultaneously — the dish size equals the sum of their appetite scores. Given a target dish size T, find any two guests whose combined appetite equals T. The guests are already seated in increasing order of appetite (the king's seating rule).\n\n### Task\nGiven a sorted array A of N integers and a target T, return the indices (0-indexed) of any two elements that sum to T. If no such pair exists, return -1.",
       constraintsMd: "2 ≤ N ≤ 2×10⁵\n1 ≤ A[i] ≤ 10⁹\n1 ≤ T ≤ 2×10⁹",
       tags: JSON.stringify(["two-pointers", "opposite-ends", "array"]),
       testCases: [
-        { order: 1, input: "5 9\n1 3 5 7 8\n", expected: "2 4\n", isHidden: false },
-        { order: 2, input: "4 10\n2 4 6 8\n", expected: "2 4\n", isHidden: false },
-        { order: 3, input: "3 100\n1 2 3\n", expected: "-1\n", isHidden: false },
-        { order: 4, input: "2 2\n1 1\n", expected: "1 2\n", isHidden: false },
+        { order: 1, input: "[[1,3,5,7,8], 9]\n",  expected: "[1, 3]\n",  isHidden: false },
+        { order: 2, input: "[[2,4,6,8], 10]\n",     expected: "[1, 3]\n",  isHidden: false },
+        { order: 3, input: "[[1,2,3], 100]\n",      expected: "-1\n",       isHidden: false },
+        { order: 4, input: "[[1,1], 2]\n",          expected: "[0, 1]\n",  isHidden: false },
       ],
       hints: [
         { order: 1, textMd: "Place one pointer at the leftmost guest and one at the rightmost.", hintType: "strategy", escalationLevel: 1 },
@@ -53,13 +64,13 @@ async function main() {
       title: "The Wizard's Triplet Spell",
       category: "Opposite Ends",
       difficulty: "EASY",
-      statementMd: "### Story\nWizard Merinda needs to cast a stability spell using exactly three crystals whose combined power equals zero (positive and negative energies cancel). She has N crystals with integer power values. Find ALL unique triplets — no duplicate triplet should appear twice, even if crystals are identical. The order of crystals in a triplet does not matter.\n\n### Task\nGiven array A of N integers, find all unique triplets (a, b, c) with a ≤ b ≤ c such that a + b + c = 0. Print the count on the first line, then each triplet.",
+      statementMd: "### Story\nWizard Merinda needs to cast a stability spell using exactly three crystals whose combined power equals zero (positive and negative energies cancel). She has N crystals with integer power values. Find ALL unique triplets — no duplicate triplet should appear twice, even if crystals are identical. The order of crystals in a triplet does not matter.\n\n### Task\nGiven array A of N integers, return an array of all unique triplets (a, b, c) with a ≤ b ≤ c such that a + b + c = 0. The order of triplets in the array does not matter.",
       constraintsMd: "3 ≤ N ≤ 3000\n-10⁵ ≤ A[i] ≤ 10⁵",
       tags: JSON.stringify(["two-pointers", "opposite-ends", "3sum"]),
       testCases: [
-        { order: 1, input: "6\n-1 0 1 2 -1 -4\n", expected: "2\n-1 -1 2\n-1 0 1\n", isHidden: false },
-        { order: 2, input: "5\n0 0 0 0 0\n", expected: "1\n0 0 0\n", isHidden: false },
-        { order: 3, input: "4\n1 2 3 4\n", expected: "0\n", isHidden: false },
+        { order: 1, input: "[[-1,0,1,2,-1,-4]]\n",  expected: "[[-1,-1,2],[-1,0,1]]\n", isHidden: false },
+        { order: 2, input: "[[0,0,0,0,0]]\n",       expected: "[[0,0,0]]\n",            isHidden: false },
+        { order: 3, input: "[[1,2,3,4]]\n",          expected: "[]\n",                     isHidden: false },
       ],
       hints: [
         { order: 1, textMd: "Sort the array first to make it easier to handle duplicates and use two pointers.", hintType: "strategy", escalationLevel: 1 },
@@ -74,13 +85,13 @@ async function main() {
         title: "The Harbour Container Stack",
         category: "Opposite Ends",
         difficulty: "EASY",
-        statementMd: "### Story\nPort master Elena oversees N vertical pillars along a harbour. She wants to choose two pillars to form the walls of a water reservoir. The amount of water the reservoir holds equals the distance between the pillars multiplied by the height of the shorter pillar. Find the maximum water the reservoir can hold. Elena cannot tilt or move pillars — only choose which two to use.\n\n### Task\nGiven N pillar heights, find the maximum water volume (width × min-height) achievable by choosing any two pillars.",
+        statementMd: "### Story\nPort master Elena oversees N vertical pillars along a harbour. She wants to choose two pillars to form the walls of a water reservoir. The amount of water the reservoir holds equals the distance between the pillars multiplied by the height of the shorter pillar. Find the maximum water the reservoir can hold. Elena cannot tilt or move pillars — only choose which two to use.\n\n### Task\nGiven N pillar heights, return the maximum water volume (width × min-height) achievable by choosing any two pillars.",
         constraintsMd: "2 ≤ N ≤ 10⁵\n1 ≤ H[i] ≤ 10⁴",
         tags: JSON.stringify(["two-pointers", "opposite-ends", "max-area"]),
         testCases: [
-          { order: 1, input: "9\n1 8 6 2 5 4 8 3 7\n", expected: "49\n", isHidden: false },
-          { order: 2, input: "2\n1 1\n", expected: "1\n", isHidden: false },
-          { order: 3, input: "6\n4 3 2 1 4\n", expected: "16\n", isHidden: false },
+          { order: 1, input: "[[1,8,6,2,5,4,8,3,7]]\n", expected: "49\n", isHidden: false },
+          { order: 2, input: "[[1,1]]\n",                 expected: "1\n",   isHidden: false },
+          { order: 3, input: "[[4,3,2,1,4]]\n",            expected: "16\n",  isHidden: false },
         ],
         hints: [
           { order: 1, textMd: "Start with the widest possible reservoir (both ends).", hintType: "strategy", escalationLevel: 1 },
@@ -95,13 +106,13 @@ async function main() {
         title: "The Plague Doctor's Quarantine",
         category: "Same Direction",
         difficulty: "EASY",
-        statementMd: "### Story\nPlague doctor Silas must record only unique patient IDs in a scroll. The IDs arrive pre-sorted. He has limited ink and cannot use extra scrolls — he must overwrite the original list in-place, keeping only the first occurrence of each ID, and report how many unique patients there are. The remaining positions in the scroll are ignored.\n\n### Task\nGiven a sorted array A of N integers, remove duplicates in-place and return the count of unique elements. Modify A such that A[0..k-1] holds the k unique elements in order. Print k, then the first k elements.",
+        statementMd: "### Story\nPlague doctor Silas must record only unique patient IDs in a scroll. The IDs arrive pre-sorted. He has limited ink and cannot use extra scrolls — he must overwrite the original list in-place, keeping only the first occurrence of each ID, and report how many unique patients there are. The remaining positions in the scroll are ignored.\n\n### Task\nGiven a sorted array A of N integers, return the array of unique elements in their first-occurrence order. Duplicates beyond the first occurrence are dropped.",
         constraintsMd: "1 ≤ N ≤ 10⁵\n-10⁹ ≤ A[i] ≤ 10⁹",
         tags: JSON.stringify(["two-pointers", "same-direction", "in-place"]),
         testCases: [
-          { order: 1, input: "6\n1 1 2 3 3 4\n", expected: "4\n1 2 3 4\n", isHidden: false },
-          { order: 2, input: "5\n1 1 1 1 1\n", expected: "1\n1\n", isHidden: false },
-          { order: 3, input: "4\n-3 -1 0 5\n", expected: "4\n-3 -1 0 5\n", isHidden: false },
+          { order: 1, input: "[[1,1,2,3,3,4]]\n",  expected: "[1,2,3,4]\n",     isHidden: false },
+          { order: 2, input: "[[1,1,1,1,1]]\n",    expected: "[1]\n",           isHidden: false },
+          { order: 3, input: "[[-3,-1,0,5]]\n",    expected: "[-3,-1,0,5]\n",   isHidden: false },
         ],
         hints: [
           { order: 1, textMd: "Use two pointers: a 'read' pointer (fast) and a 'write' pointer (slow).", hintType: "strategy", escalationLevel: 1 },
@@ -116,14 +127,14 @@ async function main() {
         title: "The Flood Model — Trapped Rainwater",
         category: "Partition",
         difficulty: "MEDIUM",
-        statementMd: "### Story\nClimate scientist Nora models a mountain terrain as an elevation map. After heavy rain, water gets trapped between peaks. She needs to compute the total volume of trapped rainwater. The terrain is given as a height array. Walls at both ends are implicitly zero. No water flows off the sides.\n\n### Task\nGiven array H of N non-negative integers representing the terrain height at each unit, compute total units of water trapped after rain.",
+        statementMd: "### Story\nClimate scientist Nora models a mountain terrain as an elevation map. After heavy rain, water gets trapped between peaks. She needs to compute the total volume of trapped rainwater. The terrain is given as a height array. Walls at both ends are implicitly zero. No water flows off the sides.\n\n### Task\nGiven array H of N non-negative integers representing the terrain height at each unit, return the total units of water trapped after rain.",
         constraintsMd: "1 ≤ N ≤ 3×10⁴\n0 ≤ H[i] ≤ 10⁴",
         tags: JSON.stringify(["two-pointers", "partition", "trapping-rainwater"]),
         testCases: [
-          { order: 1, input: "12\n0 1 0 2 1 0 1 3 2 1 2 1\n", expected: "6\n", isHidden: false },
-          { order: 2, input: "6\n4 2 0 3 2 5\n", expected: "9\n", isHidden: false },
-          { order: 3, input: "4\n1 0 1 0\n", expected: "1\n", isHidden: false },
-          { order: 4, input: "4\n3 3 0 3\n", expected: "3\n", isHidden: false },
+          { order: 1, input: "[[0,1,0,2,1,0,1,3,2,1,2,1]]\n", expected: "6\n", isHidden: false },
+          { order: 2, input: "[[4,2,0,3,2,5]]\n",            expected: "9\n", isHidden: false },
+          { order: 3, input: "[[1,0,1,0]]\n",                 expected: "1\n", isHidden: false },
+          { order: 4, input: "[[3,3,0,3]]\n",                 expected: "3\n", isHidden: false },
         ],
         hints: [
           { order: 1, textMd: "Water at any position is limited by the shorter of the maximum heights to its left and right.", hintType: "strategy", escalationLevel: 1 },
@@ -138,14 +149,14 @@ async function main() {
         title: "The Oracle's Mirror Validation",
         category: "Strings",
         difficulty: "EASY",
-        statementMd: "### Story\nOracle Thessaly receives prophecies written on stone tablets. A prophecy is considered 'mirrored' (palindrome) if it reads the same forwards and backwards, ignoring spaces and punctuation (only letters and digits count, and case is ignored). She has Q prophecies to validate before the eclipse.\n\n### Task\nFor each query string, determine if it is a valid palindrome (ignoring non-alphanumeric characters and case). Print YES or NO.",
-        constraintsMd: "1 ≤ Q ≤ 100\n1 ≤ |S| ≤ 10⁵",
+        statementMd: "### Story\nOracle Thessaly receives a single prophecy written on a stone tablet. A prophecy is considered 'mirrored' (palindrome) if it reads the same forwards and backwards, ignoring spaces and punctuation (only letters and digits count, and case is ignored).\n\n### Task\nGiven a string `s`, return **true** if it is a palindrome (ignoring non-alphanumeric characters and case), or **false** otherwise.",
+        constraintsMd: "1 ≤ s.length ≤ 10⁵",
         tags: JSON.stringify(["two-pointers", "strings", "palindrome"]),
         testCases: [
-          { order: 1, input: "1\nA man, a plan, a canal: Panama\n", expected: "YES\n", isHidden: false },
-          { order: 2, input: "1\nrace a car\n", expected: "NO\n", isHidden: false },
-          { order: 3, input: "1\n \n", expected: "YES\n", isHidden: false },
-          { order: 4, input: "1\nNo 'x' in Nixon\n", expected: "YES\n", isHidden: false },
+          { order: 1, input: "[\"A man, a plan, a canal: Panama\"]\n", expected: "true\n", isHidden: false },
+          { order: 2, input: "[\"race a car\"]\n", expected: "false\n", isHidden: false },
+          { order: 3, input: "[\" \"]\n", expected: "true\n", isHidden: false },
+          { order: 4, input: "[\"No 'x' in Nixon\"]\n", expected: "true\n", isHidden: true },
         ],
         hints: [
           { order: 1, textMd: "Preprocess the string to remove non-alphanumeric characters or skip them using pointers.", hintType: "strategy", escalationLevel: 1 },

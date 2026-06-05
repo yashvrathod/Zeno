@@ -308,10 +308,10 @@ async function main() {
       patternName: "Two Pointers",
       tags: ["string", "two-pointers"],
       testCases: [
-        { order: 1, input: "A man, a plan, a canal: Panama\n", expected: "true\n", isHidden: false },
-        { order: 2, input: "race a car\n", expected: "false\n", isHidden: false },
-        { order: 3, input: " \n", expected: "true\n", isHidden: false },
-        { order: 99, input: "0P\n", expected: "false\n", isHidden: true },
+        { order: 1, input: "[\"A man, a plan, a canal: Panama\"]\n", expected: "true\n", isHidden: false },
+        { order: 2, input: "[\"race a car\"]\n", expected: "false\n", isHidden: false },
+        { order: 3, input: "[\" \"]\n", expected: "true\n", isHidden: false },
+        { order: 99, input: "[\"0P\"]\n", expected: "false\n", isHidden: true },
       ],
       hints: [
         { order: 1, textMd: "Think about what characters actually matter in a palindrome check.", hintType: "concept", escalationLevel: 1 },
@@ -333,10 +333,10 @@ async function main() {
       patternName: "Hash Map",
       tags: ["array", "hash-map"],
       testCases: [
-        { order: 1, input: "[2,7,11,15], 9\n", expected: "[0,1]\n", isHidden: false },
-        { order: 2, input: "[3,2,4], 6\n", expected: "[1,2]\n", isHidden: false },
-        { order: 3, input: "[3,3], 6\n", expected: "[0,1]\n", isHidden: false },
-        { order: 99, input: "[1,5,7,-1], 6\n", expected: "[0,1]\n", isHidden: true },
+        { order: 1, input: "[[2,7,11,15], 9]\n", expected: "[0,1]\n", isHidden: false },
+        { order: 2, input: "[[3,2,4], 6]\n", expected: "[1,2]\n", isHidden: false },
+        { order: 3, input: "[[3,3], 6]\n", expected: "[0,1]\n", isHidden: false },
+        { order: 99, input: "[[1,5,7,-1], 6]\n", expected: "[0,1]\n", isHidden: true },
       ],
       hints: [
         { order: 1, textMd: "A brute force approach would check every pair. But can you do better?", hintType: "concept", escalationLevel: 1 },
@@ -357,10 +357,10 @@ async function main() {
       patternName: "Binary Search",
       tags: ["array", "binary-search"],
       testCases: [
-        { order: 1, input: "[-1,0,3,5,9,12], 9\n", expected: "4\n", isHidden: false },
-        { order: 2, input: "[-1,0,3,5,9,12], 2\n", expected: "-1\n", isHidden: false },
-        { order: 3, input: "[5], 5\n", expected: "0\n", isHidden: false },
-        { order: 99, input: "[1,3,5,7,9], 6\n", expected: "-1\n", isHidden: true },
+        { order: 1, input: "[[-1,0,3,5,9,12], 9]\n", expected: "4\n", isHidden: false },
+        { order: 2, input: "[[-1,0,3,5,9,12], 2]\n", expected: "-1\n", isHidden: false },
+        { order: 3, input: "[[5], 5]\n", expected: "0\n", isHidden: false },
+        { order: 99, input: "[[1,3,5,7,9], 6]\n", expected: "-1\n", isHidden: true },
       ],
       hints: [
         { order: 1, textMd: "Since the array is sorted, you dont need to check every element.", hintType: "concept", escalationLevel: 1 },
@@ -679,6 +679,11 @@ async function main() {
 
     console.log(`  ✓ All dashboard data seeded`);
   }
+
+  // ── Two Pointers seed (sibling .mjs) ──────────────────────────────────
+  const { execSync } = require("child_process");
+  console.log("\nRunning Two Pointers seed...");
+  execSync("node prisma/seed-two-pointers.mjs", { stdio: "inherit" });
 
   // ── Report ────────────────────────────────────────────────────────────
   const counts = {
