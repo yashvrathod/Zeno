@@ -77,6 +77,7 @@ export type ExecutionStats = {
 
 export type ProblemContext = {
   problemId: string;
+  problemSlug?: string;
   concepts: string[]; // e.g., ['binary_search', 'two_pointer']
   patterns: string[]; // e.g., ['sliding_window']
   difficulty: 'EASY' | 'MEDIUM' | 'HARD';
@@ -576,11 +577,20 @@ async function recordProblemAttempt(
   const kg = await ensureKnowledgeGraph(userId);
   if (!kg) return;
 
+  let problemSlug = problemContext.problemSlug;
+  if (!problemSlug) {
+    const problem = await prisma.problem.findUnique({
+      where: { id: problemContext.problemId },
+      select: { slug: true },
+    });
+    problemSlug = problem?.slug ?? problemContext.problemId;
+  }
+
   await prisma.problemAttempt.create({
     data: {
       userId: kg.id,
       problemId: problemContext.problemId,
-      problemSlug: problemContext.problemId,
+      problemSlug,
       concepts: problemContext.concepts,
       patterns: problemContext.patterns,
       attempts: attemptCount,

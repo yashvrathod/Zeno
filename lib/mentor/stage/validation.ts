@@ -31,8 +31,8 @@ export const TRANSITION_RULES: TransitionRule[] = [
   {
     from: "IMPLEMENT",
     to: "REFLECT",
-    requiredContext: (ctx) => ctx.codeCorrect === true,
-    reason: "Cannot mark REFLECT — code must be correct",
+    requiredContext: (ctx) => ctx.codeCorrect === true && ctx.isOptimal === true,
+    reason: "Cannot mark REFLECT — code must be correct AND optimal",
   },
   {
     from: "IMPLEMENT",
@@ -93,9 +93,11 @@ export async function canTransition(
     if (process.env.DEBUG_STAGE !== "0") {
       debug.stage(`  ❌ No rule found for ${from} → ${to}`);
     }
+    const validNext = TRANSITION_RULES.filter((r) => r.from === from).map((r) => r.to);
+    const validList = validNext.length > 0 ? validNext.join(", ") : "(terminal stage)";
     return {
       allowed: false,
-      reason: `Invalid transition: "${from}" → "${to}" is not allowed.`,
+      reason: `Invalid transition: "${from}" → "${to}" is not allowed. Valid transitions from ${from}: ${validList}`,
     };
   }
 

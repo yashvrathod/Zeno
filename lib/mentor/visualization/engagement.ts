@@ -16,6 +16,8 @@ export function calculateEngagementScore(
   metrics: EngagementMetrics,
   sessionDuration: number
 ): number {
+  if (metrics.totalInteractions === 0) return 0;
+
   let score = 0;
 
   const interactionTypes = Object.keys(metrics.interactionsByType).length;
