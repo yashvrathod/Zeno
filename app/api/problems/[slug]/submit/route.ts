@@ -3,7 +3,13 @@ import prisma from '@/lib/prisma';
 import { runOnPiston } from '@/lib/piston';
 import { auth } from '@/lib/auth';
 import { updateAfterExecution } from '@/lib/executor/personalizationUpdater';
-import { wrapForExecution, supportsHarness } from '@/lib/executor/harness';
+import {
+  checkUndefinedMethodGuard,
+  prepareHarnessForTestCase,
+  supportsHarness,
+  type HarnessGuardFailure,
+} from '@/lib/executor/harness';
+import type { ProblemSignature } from '@/lib/judge/types';
 
 function clampDbText(input: unknown, max = 800) {
   const s = typeof input === 'string' ? input : '';
@@ -31,7 +37,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     select: {
       id: true,
       isPublished: true,
-      signature: { select: { methodName: true } },
+      signature: {
+        select: { className: true, methodName: true, paramTypes: true, returnType: true },
+      },
       testCases: {
         orderBy: [{ isHidden: 'asc' }, { order: 'asc' }],
         select: { order: true, input: true, expected: true, isHidden: true },
@@ -43,34 +51,52 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
+  const submitSignature: ProblemSignature = problem.signature
+    ? {
+        className: problem.signature.className,
+        methodName: problem.signature.methodName,
+        paramTypes:
+          (problem.signature.paramTypes as unknown as ProblemSignature["paramTypes"]) ?? [],
+        returnType: problem.signature.returnType,
+      }
+    : { className: null, methodName: "solution", paramTypes: [], returnType: "unknown" };
+
+  const submitGuard = checkUndefinedMethodGuard(
+    body.code,
+    body.language as unknown as Parameters<typeof checkUndefinedMethodGuard>[1],
+    submitSignature,
+  );
+  if (submitGuard) {
+    return NextResponse.json(
+      { error: submitGuard.error, code: "undefined_method" } satisfies Pick<HarnessGuardFailure, "error"> & {
+        code: string;
+      },
+      { status: 400 },
+    );
+  }
+
   let passedCount = 0;
   const details: Array<{ order: number; isHidden: boolean; passed: boolean; output?: string }> = [];
 
   let sawRuntimeError = false;
   let lastRuntimeError: string | null = null;
 
-  // Apply the same stdin/function-harness wrap that /api/execute uses, so
-  // submitting matches running. The user code is expected to define a
-  // `${methodName}(input)` function (from the problem's ProblemSignature;
-  // defaults to "solution" for back-compat with non-ProblemSignature problems);
-  // without this wrap, the function is never called and the submit silently
-  // returns 0/N passed.
-  const submitHarnessUsed = supportsHarness(body.language);
-  const submitMethodName = problem.signature?.methodName ?? "solution";
-  const submitEffectiveCode =
-    submitHarnessUsed
-      ? wrapForExecution(body.code, body.language as 'javascript' | 'typescript' | 'python', submitMethodName)
-      : body.code;
-
   for (const tc of problem.testCases) {
     let output = '';
     let thisTestRuntimeError = false;
 
+    const prepared = prepareHarnessForTestCase(
+      body.code,
+      body.language as unknown as Parameters<typeof prepareHarnessForTestCase>[1],
+      submitSignature,
+      tc.input,
+    );
+
     try {
       ({ output } = await runOnPiston({
-        code: submitEffectiveCode,
+        code: prepared.effectiveCode,
         language: body.language,
-        stdin: tc.input,
+        stdin: prepared.stdin,
       }));
     } catch (e) {
       // Don’t leak hidden test IO. We only store a short error string.

@@ -3,8 +3,12 @@ import prisma from "@/lib/prisma";
 import { runOnPiston, LANGUAGE_CONFIG, PistonUnreachableError, getPistonUrls } from "@/lib/piston";
 import { classifyError, type ExecutionErrorKind } from "@/lib/executor/errorClassifier";
 import { getProblemTimeLimit, PISTON_HARD_TIMEOUT_MS } from "@/lib/executor/timeLimits";
-import { wrapForExecution, supportsHarness } from "@/lib/executor/harness";
-import { buildExpectedCallSummary, detectUndefinedMethod } from "@/lib/judge/harness";
+import {
+  checkUndefinedMethodGuard as checkUndefinedMethodGuardInternal,
+  prepareHarnessForTestCase,
+  type HarnessGuardFailure,
+} from "@/lib/executor/harness";
+import { buildExpectedCallSummary } from "@/lib/judge/harness";
 import {
   buildLastExecution,
   buildTestCaseView,
@@ -12,6 +16,7 @@ import {
   type RawTestStatus,
   type TestCaseView,
 } from "@/lib/mentor/lastExecution";
+import type { ProblemSignature } from "@/lib/judge/types";
 import crypto from "crypto";
 
 type ExecutableLanguage = keyof typeof LANGUAGE_CONFIG;
@@ -37,16 +42,6 @@ export type LegacyRequest = {
   debug?: boolean;
 };
 
-function normalizeLanguage(language: string): ExecutableLanguage | null {
-  if (language === "typescript") return "javascript";
-  if (language in LANGUAGE_CONFIG) return language as ExecutableLanguage;
-  return null;
-}
-
-function asLegacyLanguage(language: string): ExecutableLanguage | null {
-  return normalizeLanguage(language);
-}
-
 function computeCodeHash(code: string | undefined): string | null {
   if (!code || code.trim().length < 10) return null;
   return crypto.createHash("sha256").update(code).digest("hex").slice(0, 12);
@@ -57,19 +52,27 @@ function toRawTestStatus(status: TestStatus): RawTestStatus {
   return status;
 }
 
+const FALLBACK_SIGNATURE: ProblemSignature = {
+  className: null,
+  methodName: "solution",
+  paramTypes: [],
+  returnType: "unknown",
+};
+
 export async function runLegacyJudge(
   body: LegacyRequest,
   debug: boolean,
 ): Promise<NextResponse> {
   const { code, problemId, runAll, language } = body;
-  const harnessUsed = supportsHarness(language);
 
   const problem = problemId
     ? await prisma.problem.findFirst({
         where: { OR: [{ id: problemId }, { slug: problemId }] },
         select: {
           timeLimitMs: true,
-          signature: { select: { methodName: true } },
+          signature: {
+            select: { className: true, methodName: true, paramTypes: true, returnType: true },
+          },
           testCases: {
             where: runAll ? undefined : { isHidden: false },
             orderBy: { order: "asc" },
@@ -81,32 +84,30 @@ export async function runLegacyJudge(
 
   const timeLimitMs = getProblemTimeLimit({ timeLimitMs: problem?.timeLimitMs ?? null });
   const testCases = (problem?.testCases ?? []) as unknown as LegacyProblem["testCases"];
-  const methodName = problem?.signature?.methodName ?? "solution";
+  const signature: ProblemSignature = problem?.signature
+    ? {
+        className: problem.signature.className,
+        methodName: problem.signature.methodName,
+        paramTypes:
+          (problem.signature.paramTypes as unknown as ProblemSignature["paramTypes"]) ?? [],
+        returnType: problem.signature.returnType,
+      }
+    : FALLBACK_SIGNATURE;
 
   if (testCases.length === 0) {
     return NextResponse.json({ ok: false, error: "No test cases available" }, { status: 400 });
   }
 
-  const effectiveCode = harnessUsed ? wrapForExecution(code, language, methodName) : code;
-
-  if (harnessUsed) {
-    const guard = detectUndefinedMethod(code, methodName, language as Parameters<typeof detectUndefinedMethod>[2]);
-    if (guard) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: guard,
-          code: "undefined_method",
-          expectedMethodName: methodName,
-          expectedCall: buildExpectedCallSummary(
-            { className: null, methodName, paramTypes: [], returnType: "unknown" },
-            "single-exec",
-            language as Parameters<typeof buildExpectedCallSummary>[2],
-          ),
-        },
-        { status: 400 },
-      );
-    }
+  const guardFailure = checkUndefinedMethodGuardInternal(
+    code,
+    language as unknown as Parameters<typeof checkUndefinedMethodGuardInternal>[1],
+    signature,
+  );
+  if (guardFailure) {
+    return NextResponse.json(
+      { ok: false, code: "undefined_method", ...guardFailure },
+      { status: 400 },
+    );
   }
 
   const results: Array<{
@@ -126,15 +127,22 @@ export async function runLegacyJudge(
 
   for (const tc of testCases) {
     const start = Date.now();
+    const prepared = prepareHarnessForTestCase(
+      code,
+      language as unknown as Parameters<typeof prepareHarnessForTestCase>[1],
+      signature,
+      tc.input,
+    );
     try {
       const { output, runtimeMs, stderr, exitCode, signal, servedBy } = await runOnPiston({
-        code: effectiveCode,
+        code: prepared.effectiveCode,
         language,
-        stdin: tc.input,
+        stdin: prepared.stdin,
       });
 
-      const actual = output.trim();
+      const actual = extractActualOutput(output);
       const expectedTrimmed = tc.expected.trim();
+      const cleanedStderr = stripHarnessErrorPrefix(stderr);
 
       if (signal) {
         results.push({
@@ -171,7 +179,7 @@ export async function runLegacyJudge(
       }
 
       if (exitCode !== null && exitCode !== 0) {
-        const kind = classifyError(stderr, language);
+        const kind = classifyError(cleanedStderr, language);
         const status: TestStatus = kind === "compile_error" ? "compile_error" : "runtime_error";
         results.push({
           testCaseId: tc.id,
@@ -180,7 +188,7 @@ export async function runLegacyJudge(
           expected: tc.expected,
           actual,
           executionTime: runtimeMs,
-          error: stderr || output || `Exit code ${exitCode}`,
+          error: cleanedStderr || output || `Exit code ${exitCode}`,
           errorKind: kind,
           isHidden: tc.isHidden,
           rawStdout: debug ? output : undefined,
@@ -262,16 +270,11 @@ export async function runLegacyJudge(
   const lastServedBy = (results.find((r) => r._servedBy) as { _servedBy?: string } | undefined)?._servedBy;
   const debugInfo = debug
     ? {
-        harness: {
-          applied: harnessUsed,
-          language,
-          methodName,
-          header: harnessUsed ? effectiveCode.split("\n").slice(0, 3).join("\n") : null,
-        },
+        signature,
         expectedCall: buildExpectedCallSummary(
-          { className: null, methodName, paramTypes: [], returnType: "unknown" },
+          signature,
           "single-exec",
-          language as Parameters<typeof buildExpectedCallSummary>[2],
+          language as unknown as Parameters<typeof buildExpectedCallSummary>[2],
         ),
         piston: {
           triedUrls: [...getPistonUrls()],
@@ -296,13 +299,23 @@ export async function runLegacyJudge(
         : (results.find((r) => r.status !== "passed")?.status ?? "runtime_error");
 
   if (aggregate !== "passed") {
+    const firstFailingTc = testCases[results.findIndex((r) => r.status !== "passed")];
+    const preparedForFailing = firstFailingTc
+      ? prepareHarnessForTestCase(
+          code,
+          language as unknown as Parameters<typeof prepareHarnessForTestCase>[1],
+          signature,
+          firstFailingTc.input,
+        )
+      : null;
     console.warn("[execute:legacy] failure", {
       problemId,
       language,
-      methodName,
+      methodName: signature.methodName,
+      className: signature.className,
       aggregate,
       firstFailing: results.find((r) => r.status !== "passed"),
-      wrappedCode: harnessUsed ? effectiveCode : undefined,
+      wrappedCode: preparedForFailing?.effectiveCode,
     });
   }
 
@@ -316,3 +329,47 @@ export async function runLegacyJudge(
     ...(debugInfo ? { debug: debugInfo } : {}),
   });
 }
+
+/**
+ * Extract the harness result from Piston stdout. The shared judge
+ * harness (lib/judge/harness.ts) prefixes per-test results with
+ * `__RESULT__:`. Returns a trimmed JSON string ready for legacy
+ * string-compare against `expected.trim()`.
+ *
+ * If no prefix is present (e.g. raw stdout, error path), returns the
+ * raw trimmed output so the legacy path still has a best-effort value.
+ */
+function extractActualOutput(output: string): string {
+  const stripped = stripResultPrefixLocal(output);
+  if (stripped === null) return output.trim();
+  return stripped;
+}
+
+function stripResultPrefixLocal(output: string): string | null {
+  if (!output) return null;
+  const lines = output.split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("__RESULT__:")) {
+      return trimmed.slice("__RESULT__:".length).trim();
+    }
+    if (trimmed.startsWith("__RESULTS__:")) {
+      return trimmed.slice("__RESULTS__:".length).trim();
+    }
+  }
+  return null;
+}
+
+function stripHarnessErrorPrefix(stderr: string | undefined): string {
+  if (!stderr) return "";
+  const lines = stderr.split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("__ERROR__:")) {
+      return trimmed.slice("__ERROR__:".length).trim();
+    }
+  }
+  return stderr;
+}
+
+export type { HarnessGuardFailure };
