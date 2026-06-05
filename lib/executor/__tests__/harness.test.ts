@@ -18,7 +18,7 @@
  *   - JS keeps the helper-then-user-then-call order (hoisting makes
  *     this forgiving, but file order is part of the contract)
  *   - The result is JSON-stringified for non-string returns
- *   - All 5 supported languages (js, ts, python, java, cpp) return
+ *   - All 4 supported languages (javascript, python, java, cpp) return
  *     `supportsHarness() = true`; unknown languages return false
  *   - Java/C++ delegate to `buildHarness` from `lib/judge/harness.ts`
  *     and return `{code, stdin}` where `code` contains the entry
@@ -61,12 +61,13 @@ const SIG_TWO_SUM: ProblemSignature = {
 };
 
 describe("supportsHarness", () => {
-  it("returns true for all 5 supported languages (js, ts, python, java, cpp)", () => {
-    for (const lang of ["javascript", "typescript", "python", "java", "cpp"] as const) {
+  it("returns true for all 4 supported languages (javascript, python, java, cpp)", () => {
+    for (const lang of ["javascript", "python", "java", "cpp"] as const) {
       expect(supportsHarness(lang)).toBe(true);
     }
   });
-  it("returns false for unknown languages", () => {
+  it("returns false for unknown languages (including typescript, which is no longer supported)", () => {
+    expect(supportsHarness("typescript")).toBe(false);
     expect(supportsHarness("ruby")).toBe(false);
     expect(supportsHarness("")).toBe(false);
   });
@@ -176,14 +177,6 @@ print(x)
     const parseBlock = wrapped.code.match(/def __parse_stdin[\s\S]+?return s\.split\(\)/);
     expect(parseBlock).toBeTruthy();
     expect(wrapped.code.indexOf("json.loads")).toBeLessThan(wrapped.code.indexOf("s.split()"));
-  });
-});
-
-describe("wrapForExecution — typescript", () => {
-  it("is treated as javascript for harness purposes (Piston runs it as JS anyway)", () => {
-    const userCode = `function solution(): number { return 42; }`;
-    const wrapped = wrapForExecution(userCode, "typescript", SIG_SOLUTION);
-    expect(wrapped.code).toMatch(/require\('fs'\)/);
   });
 });
 

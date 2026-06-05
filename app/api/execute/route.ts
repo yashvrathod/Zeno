@@ -8,7 +8,6 @@ import { isSupportedLanguage, type Language } from "@/lib/judge/verdict";
 type ExecutableLanguage = keyof typeof LANGUAGE_CONFIG;
 
 function normalizeLanguage(language: string): ExecutableLanguage | null {
-  if (language === "typescript") return "javascript";
   if (language in LANGUAGE_CONFIG) return language as ExecutableLanguage;
   return null;
 }

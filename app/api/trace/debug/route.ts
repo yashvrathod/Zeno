@@ -23,13 +23,13 @@ export async function POST(req: NextRequest) {
     }
 
     const { code, language, input } = body;
-    const isJsTs = language === "javascript" || language === "typescript";
+    const isJsTs = language === "javascript";
 
     if (isJsTs) {
       return Response.json({
         ok: true,
         language,
-        note: "Use client-side tracing for JS/TS via enhancedClientTrace",
+        note: "Use client-side tracing for JS via enhancedClientTrace",
       });
     }
 

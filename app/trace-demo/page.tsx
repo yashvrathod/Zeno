@@ -198,7 +198,6 @@ export default function TraceDemoPage() {
               className="px-3 py-2 text-sm bg-muted border rounded-lg"
             >
               <option value="javascript">JavaScript</option>
-              <option value="typescript">TypeScript</option>
               <option value="python">Python</option>
             </select>
 

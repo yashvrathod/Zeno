@@ -12,7 +12,7 @@
 
 export type ExecutionErrorKind = "compile_error" | "runtime_error" | "unknown";
 
-type Language = "python" | "javascript" | "typescript" | "java" | "cpp";
+type Language = "python" | "javascript" | "java" | "cpp";
 
 interface CompiledPattern {
   // If any of these regexes match stderr, it's a compile error.
@@ -69,17 +69,6 @@ const PATTERNS: Record<Language, CompiledPattern> = {
       /is not defined/im,
     ],
   },
-  typescript: {
-    compile: [
-      /^error TS\d+:/im, // TypeScript compiler error codes
-      /SyntaxError:/im,
-    ],
-    runtime: [
-      /^ReferenceError:/im,
-      /^TypeError:/im,
-      /^RangeError:/im,
-    ],
-  },
   java: {
     compile: [
       /error: cannot find symbol/im,
@@ -128,8 +117,7 @@ function normalizeLanguage(lang: string): Language | null {
   const l = lang.toLowerCase();
   if (l === "py") return "python";
   if (l === "js" || l === "node") return "javascript";
-  if (l === "ts") return "typescript";
-  if (l === "python" || l === "javascript" || l === "typescript" || l === "java" || l === "cpp" || l === "c++" || l === "c") return l as Language;
+  if (l === "python" || l === "javascript" || l === "java" || l === "cpp" || l === "c++" || l === "c") return l as Language;
   return null;
 }
 

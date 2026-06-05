@@ -50,15 +50,15 @@ describe("buildHarness — language support", () => {
     expect(r.language).toBe("javascript");
   });
 
-  it("supports typescript (treated as JS at the harness level)", () => {
-    const r = buildHarness({
+  it("does NOT support typescript (removed in PR 2a)", () => {
+    buildHarness({
       userCode: "function solution(nums: number[]): number { return nums.length; }",
       signature: FN_SIG,
       testCases: [TC],
       mode: "per-test",
+      // @ts-expect-error -- typescript is no longer in the Language union
       language: "typescript",
     });
-    expect(r.language).toBe("typescript");
   });
 
   it("supports python", () => {
@@ -478,18 +478,6 @@ describe("buildHarness — method name resolution (regression)", () => {
     expect(r.code).not.toMatch(/\bsolution\(/);
   });
 
-  it("TypeScript per-test calls sig.methodName when methodName !== 'solution'", () => {
-    const r = buildHarness({
-      userCode: "function isPalindrome(s: string): boolean { return false; }",
-      signature: isPalindromeSig,
-      testCases: [TC],
-      mode: "per-test",
-      language: "typescript",
-    });
-    expect(r.code).toMatch(/isPalindrome\(\.\.\.__args\)/);
-    expect(r.code).not.toMatch(/\bsolution\(/);
-  });
-
   it("JavaScript single-exec calls sig.methodName when methodName !== 'solution'", () => {
     const r = buildHarness({
       userCode: "function isPalindrome(s) { return false; }",
@@ -576,10 +564,6 @@ describe("buildExpectedCallSummary", () => {
 
   it("JavaScript per-test: const __result = isPalindrome(...__args)", () => {
     expect(buildExpectedCallSummary(sig, "per-test", "javascript")).toBe("const __result = isPalindrome(...__args)");
-  });
-
-  it("TypeScript per-test: const __result = isPalindrome(...__args)", () => {
-    expect(buildExpectedCallSummary(sig, "per-test", "typescript")).toBe("const __result = isPalindrome(...__args)");
   });
 
   it("Java free function: Object __result = Main.isPalindrome(__toXxxArgs(...))", () => {

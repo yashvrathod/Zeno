@@ -177,25 +177,7 @@ describeIf("runJudge — integration (RUN_INTEGRATION=1)", () => {
     expect(out.results).toHaveLength(3);
   }, 30000);
 
-  it("TypeScript is treated like JavaScript at the harness level (per-test)", async () => {
-    if (skipIfRuntimeMissing("typescript", available) && skipIfRuntimeMissing("javascript", available)) return;
-    const input: JudgeInput = {
-      code: `function solution(nums: number[], target: number): number[] {
-  const m = new Map<number, number>();
-  for (let i = 0; i < nums.length; i++) {
-    const c = target - nums[i]!;
-    if (m.has(c)) return [m.get(c)!, i];
-    m.set(nums[i]!, i);
-  }
-  return [];
-}`,
-      language: "typescript",
-      signature: SIG_FN,
-      testCases: [TC1],
-      timeLimitMs: 5000,
-      mode: "per-test",
-    };
-    const out = await runJudge(input);
-    expect(out.aggregate).toBe("accepted");
-  }, 30000);
+  it("(typescript was removed in PR 2a; no integration probe needed)", () => {
+    expect(true).toBe(true);
+  });
 });

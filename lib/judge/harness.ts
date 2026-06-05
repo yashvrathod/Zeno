@@ -67,7 +67,7 @@ export function buildHarness(input: BuildHarnessInput): BuildHarnessResult {
 }
 
 type DynamicHarnessInput = {
-  language: "javascript" | "typescript" | "python";
+  language: "javascript" | "python";
   userCode: string;
   signature: ProblemSignature;
   mode: HarnessMode;
@@ -81,7 +81,7 @@ type JavaOrCppInput = {
 };
 
 function buildHarnessForLanguage(input: HarnessForLangInput): string {
-  if (input.language === "javascript" || input.language === "typescript") {
+  if (input.language === "javascript") {
     const dyn = input as DynamicHarnessInput;
     return input.mode === "per-test" ? buildJsPerTest(dyn) : buildJsSingleExec(dyn);
   }
@@ -104,7 +104,7 @@ type HarnessForLangInput = {
   mode: HarnessMode;
 };
 
-function callExpression(language: "javascript" | "typescript" | "python", sig: ProblemSignature, argsExpr: string): string {
+function callExpression(language: "javascript" | "python", sig: ProblemSignature, argsExpr: string): string {
   if (sig.className) {
     if (language === "python") {
       return `${sig.className}().${sig.methodName}(${argsExpr})`;
@@ -853,7 +853,7 @@ export function detectUndefinedMethod(
   methodName: string,
   language: Language,
 ): string | null {
-  if (language === "javascript" || language === "typescript") {
+  if (language === "javascript") {
     const re = new RegExp(
       `\\b(function\\s+${methodName}\\b|const\\s+${methodName}\\s*=|let\\s+${methodName}\\s*=|var\\s+${methodName}\\s*=|class\\s+${methodName}\\b)`,
     );
@@ -893,7 +893,7 @@ export function buildExpectedCallSummary(
       ? `__result = ${call.replace("(...)", "(*__args)")}`
       : `__result = ${call.replace("(...)", "(__parse_stdin(sys.stdin.read()))")}`;
   }
-  if (language === "javascript" || language === "typescript") {
+  if (language === "javascript") {
     return mode === "per-test"
       ? `const __result = ${call.replace("(...)", "(...__args)")}`
       : `__result = ${call.replace("(...)", "(...__args)")}`;

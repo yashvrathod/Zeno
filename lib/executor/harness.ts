@@ -41,7 +41,7 @@ import {
 } from "@/lib/judge/harness";
 import type { ProblemSignature } from "@/lib/judge/types";
 
-export type HarnessLanguage = "javascript" | "typescript" | "python" | "java" | "cpp";
+export type HarnessLanguage = "javascript" | "python" | "java" | "cpp";
 
 export type WrappedSource = {
   code: string;
@@ -55,13 +55,12 @@ export type WrappedSource = {
 
 /**
  * Returns true if the harness supports wrapping this language.
- * All 5 supported languages are wrapped; compile-time languages reuse
+ * All 4 supported languages are wrapped; compile-time languages reuse
  * the judge harness from `lib/judge/harness.ts`.
  */
 export function supportsHarness(language: string): language is HarnessLanguage {
   return (
     language === "javascript" ||
-    language === "typescript" ||
     language === "python" ||
     language === "java" ||
     language === "cpp"
@@ -85,7 +84,7 @@ export function wrapForExecution(
   signature: ProblemSignature,
   args?: unknown[],
 ): WrappedSource {
-  if (language === "javascript" || language === "typescript") {
+  if (language === "javascript") {
     if (hasOwnDriver(code, "javascript")) return { code };
     return { code: wrapJavaScript(code, signature.methodName) };
   }
