@@ -68,6 +68,7 @@ export async function runLegacyJudge(
         where: { OR: [{ id: problemId }, { slug: problemId }] },
         select: {
           timeLimitMs: true,
+          signature: { select: { methodName: true } },
           testCases: {
             where: runAll ? undefined : { isHidden: false },
             orderBy: { order: "asc" },
@@ -79,12 +80,13 @@ export async function runLegacyJudge(
 
   const timeLimitMs = getProblemTimeLimit({ timeLimitMs: problem?.timeLimitMs ?? null });
   const testCases = (problem?.testCases ?? []) as unknown as LegacyProblem["testCases"];
+  const methodName = problem?.signature?.methodName ?? "solution";
 
   if (testCases.length === 0) {
     return NextResponse.json({ ok: false, error: "No test cases available" }, { status: 400 });
   }
 
-  const effectiveCode = harnessUsed ? wrapForExecution(code, language) : code;
+  const effectiveCode = harnessUsed ? wrapForExecution(code, language, methodName) : code;
 
   const results: Array<{
     testCaseId: string;

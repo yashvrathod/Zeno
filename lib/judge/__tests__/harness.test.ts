@@ -173,7 +173,7 @@ describe("buildHarness — per-test mode", () => {
     expect(r.code).toContain("new Solution().twoSum(...__args)");
   });
 
-  it("uses `solution(...)` when className is null (functional style)", () => {
+  it("calls sig.methodName as a free function when className is null and methodName === 'solution'", () => {
     const r = buildHarness({
       userCode: "function solution() {}",
       signature: FN_SIG,
@@ -441,5 +441,74 @@ describe("buildHarness — C++ (PR 2)", () => {
       language: "cpp",
     });
     expect(r.code).toContain("__cases[__i].arr");
+  });
+});
+
+describe("buildHarness — method name resolution (regression)", () => {
+  const isPalindromeSig: ProblemSignature = {
+    className: null,
+    methodName: "isPalindrome",
+    paramTypes: [{ name: "s", type: "string" }],
+    returnType: "boolean",
+  };
+
+  it("JavaScript per-test calls sig.methodName when methodName !== 'solution'", () => {
+    const r = buildHarness({
+      userCode: "function isPalindrome(s) { return false; }",
+      signature: isPalindromeSig,
+      testCases: [TC],
+      mode: "per-test",
+      language: "javascript",
+    });
+    expect(r.code).toMatch(/isPalindrome\(\.\.\.__args\)/);
+    expect(r.code).not.toMatch(/\bsolution\(/);
+  });
+
+  it("Python per-test calls sig.methodName when methodName !== 'solution'", () => {
+    const r = buildHarness({
+      userCode: "def isPalindrome(s):\n    return False",
+      signature: isPalindromeSig,
+      testCases: [TC],
+      mode: "per-test",
+      language: "python",
+    });
+    expect(r.code).toMatch(/__result = isPalindrome\(\*__args\)/);
+    expect(r.code).not.toMatch(/\bsolution\(/);
+  });
+
+  it("TypeScript per-test calls sig.methodName when methodName !== 'solution'", () => {
+    const r = buildHarness({
+      userCode: "function isPalindrome(s: string): boolean { return false; }",
+      signature: isPalindromeSig,
+      testCases: [TC],
+      mode: "per-test",
+      language: "typescript",
+    });
+    expect(r.code).toMatch(/isPalindrome\(\.\.\.__args\)/);
+    expect(r.code).not.toMatch(/\bsolution\(/);
+  });
+
+  it("JavaScript single-exec calls sig.methodName when methodName !== 'solution'", () => {
+    const r = buildHarness({
+      userCode: "function isPalindrome(s) { return false; }",
+      signature: isPalindromeSig,
+      testCases: [TC, T2],
+      mode: "single-exec",
+      language: "javascript",
+    });
+    expect(r.code).toMatch(/__result = isPalindrome\(\.\.\.__args\)/);
+    expect(r.code).not.toMatch(/\bsolution\(/);
+  });
+
+  it("Python single-exec calls sig.methodName when methodName !== 'solution'", () => {
+    const r = buildHarness({
+      userCode: "def isPalindrome(s):\n    return False",
+      signature: isPalindromeSig,
+      testCases: [TC, T2],
+      mode: "single-exec",
+      language: "python",
+    });
+    expect(r.code).toMatch(/__result = isPalindrome\(\*__args\)/);
+    expect(r.code).not.toMatch(/\bsolution\(/);
   });
 });

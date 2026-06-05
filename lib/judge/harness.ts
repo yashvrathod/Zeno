@@ -111,10 +111,7 @@ function callExpression(language: "javascript" | "typescript" | "python", sig: P
     }
     return `new ${sig.className}().${sig.methodName}(${argsExpr})`;
   }
-  if (language === "python") {
-    return `solution(${argsExpr})`;
-  }
-  return `solution(${argsExpr})`;
+  return `${sig.methodName}(${argsExpr})`;
 }
 
 function buildJsPerTest(input: DynamicHarnessInput): string {

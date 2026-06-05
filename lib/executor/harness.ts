@@ -35,22 +35,28 @@ export function supportsHarness(language: string): language is HarnessLanguage {
 }
 
 /**
- * Wraps `code` (which is expected to define `solution(input)`) with a
+ * Wraps `code` (which is expected to define `${methodName}(input)`) with a
  * stdin-reading driver. The resulting string is what we send to Piston.
+ *
+ * `methodName` defaults to `"solution"` for backward compatibility with
+ * call sites that haven't been updated to fetch the problem's
+ * ProblemSignature. Callers that have the signature should pass the
+ * actual methodName so problems like `tp-12-oracle-mirror-validation`
+ * (methodName: "isPalindrome") work correctly.
  *
  * Detection: if the code already contains a top-level `read(0, ...)` /
  * `readFileSync(0, ...)` / `sys.stdin` reference, we assume the user
  * wrote their own driver and return the code unchanged. This prevents
  * double-wrapping for power users.
  */
-export function wrapForExecution(code: string, language: HarnessLanguage): string {
+export function wrapForExecution(code: string, language: HarnessLanguage, methodName: string = "solution"): string {
   if (hasOwnDriver(code, language)) return code;
   switch (language) {
     case "javascript":
     case "typescript":
-      return wrapJavaScript(code);
+      return wrapJavaScript(code, methodName);
     case "python":
-      return wrapPython(code);
+      return wrapPython(code, methodName);
   }
 }
 
@@ -62,12 +68,12 @@ function hasOwnDriver(code: string, language: HarnessLanguage): boolean {
   return /\breadFileSync\s*\(\s*0\b/.test(code) || /\bprocess\.stdin\b/.test(code) || /\brequire\s*\(\s*['"]readline['"]\s*\)/.test(code);
 }
 
-function wrapJavaScript(code: string): string {
-  // Wrap the user's `solution(input)` function with a stdin reader.
+function wrapJavaScript(code: string, methodName: string): string {
+  // Wrap the user's `${methodName}(input)` function with a stdin reader.
   // Strategy:
   //   - require('fs') and read all of stdin
   //   - try JSON.parse; fall back to whitespace tokens
-  //   - call solution(parsed)
+  //   - call ${methodName}(parsed)
   //   - print result (stringify if not a string)
   // We use `try/catch` around the call so a thrown user error doesn't
   // crash the harness — it surfaces as a stderr line that the executor
@@ -81,7 +87,7 @@ function __parseStdin(s) {
   return trimmed.split(/\\s+/);
 }
 try {
-  const __result = solution(__parseStdin(__stdin));
+  const __result = ${methodName}(__parseStdin(__stdin));
   if (typeof __result === 'string') {
     console.log(__result);
   } else {
@@ -94,7 +100,7 @@ try {
 ${code}`;
 }
 
-function wrapPython(code: string): string {
+function wrapPython(code: string, methodName: string): string {
   return `# ── auto-generated harness (lib/executor/harness.ts) ──
 import sys, json
 def __parse_stdin(s):
@@ -106,7 +112,7 @@ def __parse_stdin(s):
     except Exception:
         return s.split()
 try:
-    __result = solution(__parse_stdin(sys.stdin.read()))
+    __result = ${methodName}(__parse_stdin(sys.stdin.read()))
     if isinstance(__result, str):
         print(__result)
     else:
