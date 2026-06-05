@@ -11,9 +11,10 @@ interface QuickActionCardProps {
   sub: string;
   href: string;
   gradient: string;
+  compact?: boolean;
 }
 
-export function QuickActionCard({ icon, label, sub, href, gradient }: QuickActionCardProps) {
+export function QuickActionCard({ icon, label, sub, href, gradient, compact = false }: QuickActionCardProps) {
   return (
     <motion.div
       whileHover={{ scale: 1.02, y: -2 }}
@@ -21,30 +22,32 @@ export function QuickActionCard({ icon, label, sub, href, gradient }: QuickActio
     >
       <Link
         href={href}
-        className="group relative glass-panel-strong rounded-2xl p-5 overflow-hidden block hover:border-white/[0.08] transition-colors duration-300"
+        className={`group relative glass-panel-strong rounded-2xl overflow-hidden block hover:border-white/[0.08] transition-colors duration-300 ${compact ? 'p-3' : 'p-5'}`}
       >
         <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-[0.06] transition-opacity duration-500`} />
         <div className={`absolute -top-8 -right-8 w-24 h-24 rounded-full bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-[0.04] blur-3xl transition-opacity duration-700`} />
-        <div className="relative flex items-center gap-4">
+        <div className={`relative flex items-center gap-4 ${compact ? 'flex-col items-start gap-2' : ''}`}>
           <motion.div
-            className={`w-10 h-10 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center text-white shadow-lg shrink-0`}
+            className={`${compact ? 'w-8 h-8 rounded-lg' : 'w-10 h-10 rounded-xl'} bg-gradient-to-br ${gradient} flex items-center justify-center text-white shadow-lg shrink-0`}
             whileHover={{ rotate: -5, scale: 1.05 }}
             transition={{ type: 'spring', stiffness: 400, damping: 15 }}
           >
             {icon}
           </motion.div>
           <div className="flex-1 min-w-0">
-            <p className="text-white font-semibold text-sm">{label}</p>
-            <p className="text-[10px] text-zinc-600">{sub}</p>
+            <p className={`text-white font-semibold ${compact ? 'text-[11px]' : 'text-sm'}`}>{label}</p>
+            <p className={`${compact ? 'text-[9px]' : 'text-[10px]'} text-zinc-600 truncate`}>{sub}</p>
           </div>
-          <motion.div
-            className="shrink-0"
-            initial={{ x: 0 }}
-            whileHover={{ x: 3 }}
-            transition={{ type: 'spring', stiffness: 300 }}
-          >
-            <ArrowRight size={16} className="text-zinc-700 group-hover:text-white transition-colors duration-300" />
-          </motion.div>
+          {!compact && (
+            <motion.div
+              className="shrink-0"
+              initial={{ x: 0 }}
+              whileHover={{ x: 3 }}
+              transition={{ type: 'spring', stiffness: 300 }}
+            >
+              <ArrowRight size={16} className="text-zinc-700 group-hover:text-white transition-colors duration-300" />
+            </motion.div>
+          )}
         </div>
       </Link>
     </motion.div>

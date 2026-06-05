@@ -161,3 +161,30 @@ describe("wrapForExecution — typescript", () => {
     expect(wrapped).toMatch(/require\('fs'\)/);
   });
 });
+
+describe("wrapForExecution — method name resolution (regression)", () => {
+  it("Python wraps with custom method name (regression: was hardcoded 'solution')", () => {
+    const wrapped = wrapForExecution(
+      "def isPalindrome(s):\n    return s == s[::-1]",
+      "python",
+      "isPalindrome",
+    );
+    expect(wrapped).toContain("__result = isPalindrome(__parse_stdin");
+    expect(wrapped).not.toMatch(/__result = solution\(/);
+  });
+
+  it("JavaScript wraps with custom method name", () => {
+    const wrapped = wrapForExecution(
+      "function isPalindrome(s) { return false; }",
+      "javascript",
+      "isPalindrome",
+    );
+    expect(wrapped).toContain("const __result = isPalindrome(__parseStdin");
+    expect(wrapped).not.toMatch(/const __result = solution\(/);
+  });
+
+  it("default methodName is 'solution' when not provided (back-compat)", () => {
+    const wrapped = wrapForExecution("def solution(x): return x", "python");
+    expect(wrapped).toContain("__result = solution(__parse_stdin");
+  });
+});

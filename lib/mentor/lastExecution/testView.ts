@@ -30,8 +30,20 @@ export type TestStatus =
   | "wrong_answer"
   | "runtime_error"
   | "compile_error"
-  | "time_limit_exceeded";
+  | "time_limit_exceeded"
+  | "output_limit_exceeded";
 
+/**
+ * DEPRECATED columns note (PR 2): The `concrete` view below still carries
+ * stringified `input` / `expected` / `actual` for the existing UI renderer.
+ * The new judge path (`app/api/execute/runNewJudge.ts`) stringifies `args` /
+ * `expectedJson` from the DB at the API boundary and feeds them into this
+ * view. The legacy path (`runLegacy.ts`) still reads the deprecated
+ * `TestCase.input` / `TestCase.expected` columns directly. The DB columns
+ * are kept populated for now; dropping them is deferred to a follow-up
+ * migration. UI should prefer the `redacted` view's shape descriptors for
+ * hidden tests (already enforced).
+ */
 export type TestCaseView =
   | {
       kind: "concrete";

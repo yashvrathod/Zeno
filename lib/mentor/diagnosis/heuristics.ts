@@ -195,6 +195,11 @@ function pickKind(
     return { kind: "code_doesnt_run", signals, failureMix, chatSilence };
   }
 
+  if (le.kind === "output_limit_exceeded") {
+    signals.push("output_limit_exceeded");
+    return { kind: "code_doesnt_run", signals, failureMix, chatSilence };
+  }
+
   if (le.kind === "all_passed") {
     signals.push("all_passed");
     if (features.nestedLoopDepth >= 3) signals.push("nested_loop_brute_force");

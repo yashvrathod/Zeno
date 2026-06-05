@@ -31,6 +31,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     select: {
       id: true,
       isPublished: true,
+      signature: { select: { methodName: true } },
       testCases: {
         orderBy: [{ isHidden: 'asc' }, { order: 'asc' }],
         select: { order: true, input: true, expected: true, isHidden: true },
@@ -50,12 +51,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
 
   // Apply the same stdin/function-harness wrap that /api/execute uses, so
   // submitting matches running. The user code is expected to define a
-  // `solution(input)` function; without this wrap, the function is never
-  // called and the submit silently returns 0/N passed.
+  // `${methodName}(input)` function (from the problem's ProblemSignature;
+  // defaults to "solution" for back-compat with non-ProblemSignature problems);
+  // without this wrap, the function is never called and the submit silently
+  // returns 0/N passed.
   const submitHarnessUsed = supportsHarness(body.language);
+  const submitMethodName = problem.signature?.methodName ?? "solution";
   const submitEffectiveCode =
     submitHarnessUsed
-      ? wrapForExecution(body.code, body.language as 'javascript' | 'typescript' | 'python')
+      ? wrapForExecution(body.code, body.language as 'javascript' | 'typescript' | 'python', submitMethodName)
       : body.code;
 
   for (const tc of problem.testCases) {

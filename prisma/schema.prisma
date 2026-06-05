@@ -177,6 +177,7 @@ model Problem {
   hints Hint[]
   patterns ProblemPattern[]
   testCases TestCase[]
+  signature ProblemSignature?
   userProblemStats UserProblemStats[]
 }
 
@@ -206,13 +207,35 @@ model TestCase {
   id String @id @default(cuid())
   problemId String
   order Int
+  // DEPRECATED in PR 2: kept populated for the legacy path (lib/executor/harness.ts
+  // + runLegacy.ts + problems/[slug]/submit/route.ts). The new judge uses
+  // `args` / `expectedJson` below. Drop deferred to a follow-up PR — audit showed
+  // 10+ consumers (runLegacy, submit, debug-analysis, problem GET, seed scripts,
+  // tests) still read these columns.
   input String
   expected String
+  // New LeetCode-style judge fields (populated by prisma/seed-signatures.ts and
+  // prisma/seed-two-pointers.ts). Nullable in PR 1 to allow the schema change to
+  // ship before the data migration. PR 2 will make these required and the legacy
+  // `input` / `expected` columns will be removed in a follow-up migration.
+  args Json?
+  expectedJson Json?
   isHidden Boolean @default(false)
   problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 
   @@unique([problemId, order, isHidden])
   @@index([problemId])
+}
+
+model ProblemSignature {
+  problemId String @id
+  className String?
+  methodName String
+  paramTypes Json
+  returnType String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

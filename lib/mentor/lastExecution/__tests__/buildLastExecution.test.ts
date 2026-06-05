@@ -86,6 +86,41 @@ describe("buildLastExecution", () => {
     });
   });
 
+  describe("output_limit_exceeded wins over wrong_answer", () => {
+    it("returns output_limit_exceeded when any test produced too much output, even with many wrong_answers", () => {
+      const result = buildLastExecution({
+        testResults: [
+          makeResult(0, "wrong_answer"),
+          makeResult(1, "output_limit_exceeded"),
+          makeResult(2, "wrong_answer"),
+          makeResult(3, "wrong_answer"),
+        ],
+        problem: PROBLEM,
+        language: "python",
+        codeHash: CODE_HASH,
+      });
+      expect(result.kind).toBe("output_limit_exceeded");
+      if (result.kind === "output_limit_exceeded") {
+        expect(result.limitKb).toBe(64);
+        expect(result.language).toBe("python");
+        expect(result.codeHash).toBe(CODE_HASH);
+      }
+    });
+
+    it("TLE wins over output_limit_exceeded (TLE is the more fundamental signal)", () => {
+      const result = buildLastExecution({
+        testResults: [
+          makeResult(0, "output_limit_exceeded"),
+          makeResult(1, "tle", { runtimeMs: 5000 }),
+        ],
+        problem: PROBLEM,
+        language: "python",
+        codeHash: CODE_HASH,
+      });
+      expect(result.kind).toBe("tle");
+    });
+  });
+
   describe("compile_error wins over runtime_error and wrong_answer", () => {
     it("returns compile_error when any test failed to compile, even with runtime errors", () => {
       const result = buildLastExecution({
