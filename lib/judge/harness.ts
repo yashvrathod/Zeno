@@ -66,33 +66,6 @@ export function buildHarness(input: BuildHarnessInput): BuildHarnessResult {
   return { code, language: input.language, mode: "single-exec", stdinJson };
 }
 
-type DynamicHarnessInput = {
-  language: "python";
-  userCode: string;
-  signature: ProblemSignature;
-  mode: HarnessMode;
-};
-
-type JavaOrCppInput = {
-  language: "java" | "cpp";
-  userCode: string;
-  signature: ProblemSignature;
-  mode: HarnessMode;
-};
-
-function buildHarnessForLanguage(input: HarnessForLangInput): string {
-  if (input.language === "python") {
-    const dyn = input as DynamicHarnessInput;
-    return input.mode === "per-test" ? buildPythonPerTest(dyn) : buildPythonSingleExec(dyn);
-  }
-  if (input.language === "java") {
-    const jc = input as JavaOrCppInput;
-    return input.mode === "per-test" ? buildJavaPerTest(jc) : buildJavaSingleExec(jc);
-  }
-  const cpp = input as JavaOrCppInput;
-  return input.mode === "per-test" ? buildCppPerTest(cpp) : buildCppSingleExec(cpp);
-}
-
 type HarnessForLangInput = {
   language: Language;
   userCode: string;
@@ -100,17 +73,73 @@ type HarnessForLangInput = {
   mode: HarnessMode;
 };
 
-function callExpression(language: "python", sig: ProblemSignature, argsExpr: string): string {
+type PythonHarnessInput = HarnessForLangInput & { language: "python" };
+type JavaHarnessInput = HarnessForLangInput & { language: "java" };
+type CppHarnessInput = HarnessForLangInput & { language: "cpp" };
+
+function buildHarnessForLanguage(input: HarnessForLangInput): string {
+  if (input.language === "python") {
+    const typed = input as PythonHarnessInput;
+    return input.mode === "per-test"
+      ? buildPythonPerTest(typed)
+      : buildPythonSingleExec(typed);
+  }
+  if (input.language === "java") {
+    const typed = input as JavaHarnessInput;
+    return input.mode === "per-test"
+      ? buildJavaPerTest(typed)
+      : buildJavaSingleExec(typed);
+  }
+  if (input.language === "cpp") {
+    const typed = input as CppHarnessInput;
+    return input.mode === "per-test"
+      ? buildCppPerTest(typed)
+      : buildCppSingleExec(typed);
+  }
+  // Exhaustive guard — if Language gains a new value this becomes a compile error
+  const _exhaustive: never = input.language;
+  throw new UnsupportedLanguageError(_exhaustive);
+}
+
+// ---------------------------------------------------------------------------
+// Shared helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the call expression for all three languages, handling both free
+ * functions and class methods uniformly.
+ */
+function callExpression(
+  language: Language,
+  sig: ProblemSignature,
+  argsExpr: string,
+): string {
   if (sig.className) {
     if (language === "python") {
       return `${sig.className}().${sig.methodName}(${argsExpr})`;
     }
-    return `new ${sig.className}().${sig.methodName}(${argsExpr})`;
+    if (language === "java") {
+      return `new ${sig.className}().${sig.methodName}(${argsExpr})`;
+    }
+    // C++ — instantiate on the stack then call
+    return `${sig.className}().${sig.methodName}(${argsExpr})`;
+  }
+  if (language === "java") {
+    return `Main.${sig.methodName}(${argsExpr})`;
+  }
+  if (language === "cpp") {
+    // Legacy fallback: older C++ signatures stored className=null
+    // while starter code wrapped solutions in class Main.
+    return `Main().${sig.methodName}(${argsExpr})`;
   }
   return `${sig.methodName}(${argsExpr})`;
 }
 
-function buildPythonPerTest(input: DynamicHarnessInput): string {
+// ---------------------------------------------------------------------------
+// Python harnesses
+// ---------------------------------------------------------------------------
+
+function buildPythonPerTest(input: PythonHarnessInput): string {
   const sig = input.signature;
   const call = callExpression("python", sig, "*__args");
   return `import sys, json, time
@@ -136,7 +165,7 @@ print(${RESULT_PREFIX_LIT} + json.dumps(__result))
 print(${EXEC_MS_PREFIX_LIT} + format(__exec_ms, '.3f'), file=sys.stderr)`;
 }
 
-function buildPythonSingleExec(input: DynamicHarnessInput): string {
+function buildPythonSingleExec(input: PythonHarnessInput): string {
   const sig = input.signature;
   const call = callExpression("python", sig, "*__args");
   return `import sys, json, time
@@ -175,6 +204,10 @@ __t1 = time.perf_counter()
 print(${RESULTS_PREFIX_LIT} + json.dumps(__results))
 print(${EXEC_MS_PREFIX_LIT} + format((__t1 - __t0) * 1000.0, '.3f'), file=sys.stderr)`;
 }
+
+// ---------------------------------------------------------------------------
+// Java harnesses
+// ---------------------------------------------------------------------------
 
 const JAVA_HARNESS_PARSER = `class __HarnessParser {
     private final String s;
@@ -275,7 +308,7 @@ function javaType(t: string): string {
 function javaArgsToCallExpr(sig: ProblemSignature): string {
   return sig.paramTypes
     .map((p, i) => {
-      const accessor = `(__args[${i}])`;
+      const accessor = `(__args.get(${i}))`;
       if (p.type === "number") return `((Number) ${accessor}).intValue()`;
       if (p.type === "string") return `(String) ${accessor}`;
       if (p.type === "boolean") return `(Boolean) ${accessor}`;
@@ -287,16 +320,8 @@ function javaArgsToCallExpr(sig: ProblemSignature): string {
     .join(", ");
 }
 
-function buildJavaPerTest(input: JavaOrCppInput): string {
-  const sig = input.signature;
-  const callArgs = javaArgsToCallExpr(sig);
-  const call = sig.className
-    ? `new ${sig.className}().${sig.methodName}(${callArgs})`
-    : `Main.${sig.methodName}(${callArgs})`;
-  return `import java.util.*;
-${JAVA_HARNESS_PARSER}
-${input.userCode}
-class __Harness {
+// FIX #3: shared helper block now includes java.io.* imports used by StringWriter/PrintWriter
+const JAVA_HARNESS_HELPERS = `
     static int[] __toIntArray(Object o) {
         java.util.List<Object> l = (java.util.List<Object>) o;
         int[] a = new int[l.size()];
@@ -332,12 +357,23 @@ class __Harness {
         }
         return "\\"" + o.toString() + "\\"";
     }
+    static String __stackTrace(Throwable __e) {
+        java.io.StringWriter sw = new java.io.StringWriter();
+        __e.printStackTrace(new java.io.PrintWriter(sw));
+        return sw.toString();
+    }`;
+
+function buildJavaPerTest(input: JavaHarnessInput): string {
+  const sig = input.signature;
+  const callArgs = javaArgsToCallExpr(sig);
+  // FIX #1: use shared callExpression helper
+  const call = callExpression("java", sig, callArgs);
+  return `import java.util.*;
+class __Harness {
+${JAVA_HARNESS_HELPERS}
     public static void main(String[] args) {
         try {
-            StringBuilder sb = new StringBuilder();
-            Scanner sc = new Scanner(System.in);
-            while (sc.hasNextLine()) sb.append(sc.nextLine()).append("\\n");
-            String stdin = sb.toString();
+            String stdin = new String(System.in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
             Object parsed = new __HarnessParser(stdin).parse();
             java.util.List<Object> __args;
             if (parsed instanceof java.util.List) __args = (java.util.List<Object>) parsed;
@@ -352,60 +388,22 @@ class __Harness {
             System.err.println(${ERROR_PREFIX_LIT} + __e.getClass().getName() + ": " + __e.getMessage());
         }
     }
-}`;
+}
+${JAVA_HARNESS_PARSER}
+${input.userCode}`;
 }
 
-function buildJavaSingleExec(input: JavaOrCppInput): string {
+function buildJavaSingleExec(input: JavaHarnessInput): string {
   const sig = input.signature;
   const callArgs = javaArgsToCallExpr(sig);
-  const call = sig.className
-    ? `new ${sig.className}().${sig.methodName}(${callArgs})`
-    : `Main.${sig.methodName}(${callArgs})`;
+  // FIX #1: use shared callExpression helper
+  const call = callExpression("java", sig, callArgs);
   return `import java.util.*;
-${JAVA_HARNESS_PARSER}
-${input.userCode}
 class __Harness {
-    static int[] __toIntArray(Object o) {
-        java.util.List<Object> l = (java.util.List<Object>) o;
-        int[] a = new int[l.size()];
-        for (int __i = 0; __i < l.size(); __i++) a[__i] = ((Number) l.get(__i)).intValue();
-        return a;
-    }
-    static int[][] __toIntMatrix(Object o) {
-        java.util.List<Object> l = (java.util.List<Object>) o;
-        int[][] m = new int[l.size()][];
-        for (int __i = 0; __i < l.size(); __i++) m[__i] = __toIntArray(l.get(__i));
-        return m;
-    }
-    static String[] __toStringArray(Object o) {
-        java.util.List<Object> l = (java.util.List<Object>) o;
-        String[] a = new String[l.size()];
-        for (int __i = 0; __i < l.size(); __i++) a[__i] = (String) l.get(__i);
-        return a;
-    }
-    static String __toJson(Object o) {
-        if (o == null) return "null";
-        if (o instanceof Boolean) return o.toString();
-        if (o instanceof Number) return o.toString();
-        if (o instanceof String) return "\\"" + ((String) o).replace("\\\\", "\\\\\\\\").replace("\\"", "\\\\\\"") + "\\"";
-        if (o instanceof java.util.List) {
-            StringBuilder sb = new StringBuilder("[");
-            java.util.List<Object> l = (java.util.List<Object>) o;
-            for (int __i = 0; __i < l.size(); __i++) {
-                if (__i > 0) sb.append(",");
-                sb.append(__toJson(l.get(__i)));
-            }
-            sb.append("]");
-            return sb.toString();
-        }
-        return "\\"" + o.toString() + "\\"";
-    }
+${JAVA_HARNESS_HELPERS}
     public static void main(String[] args) {
         try {
-            StringBuilder sb = new StringBuilder();
-            Scanner sc = new Scanner(System.in);
-            while (sc.hasNextLine()) sb.append(sc.nextLine()).append("\\n");
-            String stdin = sb.toString();
+            String stdin = new String(System.in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
             Object parsed = new __HarnessParser(stdin).parse();
             java.util.List<Object> __cases = (java.util.List<Object>) parsed;
             java.util.List<Object> __results = new java.util.ArrayList<>();
@@ -419,9 +417,8 @@ class __Harness {
                 try {
                     __result = ${call};
                 } catch (Throwable __e) {
-                    StringWriter sw = new StringWriter();
-                    __e.printStackTrace(new PrintWriter(sw));
-                    __err = sw.toString();
+                    // FIX #3: use fully-qualified java.io types via helper — no extra import needed
+                    __err = __stackTrace(__e);
                 }
                 long __tCase1 = System.nanoTime();
                 java.util.Map<String, Object> __row = new java.util.LinkedHashMap<>();
@@ -450,8 +447,14 @@ class __Harness {
             System.err.println(${ERROR_PREFIX_LIT} + __e.getClass().getName() + ": " + __e.getMessage());
         }
     }
-}`;
 }
+${JAVA_HARNESS_PARSER}
+${input.userCode}`;
+}
+
+// ---------------------------------------------------------------------------
+// C++ harnesses
+// ---------------------------------------------------------------------------
 
 const CPP_HARNESS_PARSER = `class __JsonValue {
 public:
@@ -655,19 +658,11 @@ function cppResultToJson(returnType: string): string {
   }
 }
 
-function buildCppPerTest(input: JavaOrCppInput): string {
-  const sig = input.signature;
-  const callArgs = cppArgsToCallExpr(sig);
-  const call = sig.className
-    ? `__inst.${sig.methodName}(${callArgs})`
-    : `${sig.methodName}(${callArgs})`;
-  const resultJson = cppResultToJson(sig.returnType);
-  return `#include <bits/stdc++.h>
-using namespace std;
-${CPP_HARNESS_PARSER}
+// Shared C++ conversion helpers emitted before user code
+const CPP_CONVERSION_HELPERS = `
 std::vector<int> __toIntVector(const __JsonValue& v) {
     std::vector<int> out;
-    for (const auto& x : v.arr) out.push_back(x.asInt());
+    for (const auto& x : v.arr) out.push_back((int) x.asInt());
     return out;
 }
 std::vector<std::vector<int>> __toIntMatrix(const __JsonValue& v) {
@@ -679,7 +674,20 @@ std::vector<std::string> __toStringVector(const __JsonValue& v) {
     std::vector<std::string> out;
     for (const auto& x : v.arr) out.push_back(x.asStr());
     return out;
-}
+}`;
+
+function buildCppPerTest(input: CppHarnessInput): string {
+  const sig = input.signature;
+  const callArgs = cppArgsToCallExpr(sig);
+  const resultJson = cppResultToJson(sig.returnType);
+
+  // FIX #2: no __inst — use callExpression which emits ClassName().method(args) for class methods
+  const call = callExpression("cpp", sig, callArgs);
+
+  return `#include <bits/stdc++.h>
+using namespace std;
+${CPP_HARNESS_PARSER}
+${CPP_CONVERSION_HELPERS}
 ${input.userCode}
 int main() {
     try {
@@ -703,31 +711,18 @@ int main() {
 }`;
 }
 
-function buildCppSingleExec(input: JavaOrCppInput): string {
+function buildCppSingleExec(input: CppHarnessInput): string {
   const sig = input.signature;
   const callArgs = cppArgsToCallExpr(sig);
-  const call = sig.className
-    ? `__inst.${sig.methodName}(${callArgs})`
-    : `${sig.methodName}(${callArgs})`;
   const resultJson = cppResultToJson(sig.returnType);
+
+  // FIX #2: no __inst — use callExpression which emits ClassName().method(args) for class methods
+  const call = callExpression("cpp", sig, callArgs);
+
   return `#include <bits/stdc++.h>
 using namespace std;
 ${CPP_HARNESS_PARSER}
-std::vector<int> __toIntVector(const __JsonValue& v) {
-    std::vector<int> out;
-    for (const auto& x : v.arr) out.push_back(x.asInt());
-    return out;
-}
-std::vector<std::vector<int>> __toIntMatrix(const __JsonValue& v) {
-    std::vector<std::vector<int>> out;
-    for (const auto& row : v.arr) out.push_back(__toIntVector(row));
-    return out;
-}
-std::vector<std::string> __toStringVector(const __JsonValue& v) {
-    std::vector<std::string> out;
-    for (const auto& x : v.arr) out.push_back(x.asStr());
-    return out;
-}
+${CPP_CONVERSION_HELPERS}
 ${input.userCode}
 int main() {
     try {
@@ -772,6 +767,10 @@ int main() {
 }`;
 }
 
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
+
 export function detectUndefinedMethod(
   userCode: string,
   methodName: string,
@@ -796,23 +795,21 @@ export function buildExpectedCallSummary(
   mode: HarnessMode,
   language: Language,
 ): string {
-  const call = sig.className
-    ? language === "python"
-      ? `${sig.className}().${sig.methodName}(...)`
-      : `new ${sig.className}().${sig.methodName}(...)`
-    : language === "java"
-      ? `Main.${sig.methodName}(...)`
-      : `${sig.methodName}(...)`;
+  const call = callExpression(
+    language,
+    sig,
+    language === "python" ? "..." : "...",
+  );
 
   if (language === "python") {
     return mode === "per-test"
-      ? `__result = ${call.replace("(...)", "(*__args)")}`
-      : `__result = ${call.replace("(...)", "(__parse_stdin(sys.stdin.read()))")}`;
+      ? `__result = ${call.replace("...", "*__args")}`
+      : `__result = ${call.replace("...", "__parse_stdin(sys.stdin.read())")}`;
   }
   if (language === "java") {
-    return `Object __result = ${call.replace("(...)", "(__toXxxArgs(...))")}`;
+    return `Object __result = ${call.replace("...", "__toXxxArgs(...)")}`;
   }
-  return `auto __result = ${call.replace("(...)", "(__toXxxArgs(...))")}`;
+  return `auto __result = ${call.replace("...", "__toXxxArgs(...)")}`;
 }
 
 const ERROR_PREFIX_LIT = JSON.stringify(ERROR_PREFIX);

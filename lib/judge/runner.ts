@@ -91,6 +91,7 @@ async function runPerTest(ctx: RunContext): Promise<JudgeOutput> {
         code: wrapped.code,
         language: input.language,
         stdin: wrapped.stdinJson,
+        runTimeoutMs: input.timeLimitMs,
       });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Execution failed";
@@ -113,8 +114,6 @@ async function runPerTest(ctx: RunContext): Promise<JudgeOutput> {
     const parsed = parsePerTestOutput(pistonResult, tc, input.timeLimitMs, outputLimitKb);
     if (parsed.compileError) {
       compileError = parsed.compileError;
-      aggregate = "compile_error";
-      break;
     }
     const finalResult: PerTestResult = { ...parsed.result };
     if (finalResult.verdict === "accepted") {
@@ -147,10 +146,11 @@ async function runPerTest(ctx: RunContext): Promise<JudgeOutput> {
 
 async function runSingleExec(ctx: RunContext): Promise<JudgeOutput> {
   const { input, harnessCode, startedAt, outputLimitKb } = ctx;
+  const code = harnessCode!;
   let pistonResult: PistonResult;
   try {
     pistonResult = await runOnPiston({
-      code: harnessCode,
+      code,
       language: input.language,
       stdin: JSON.stringify(
         input.testCases.map((tc) => ({
@@ -159,6 +159,7 @@ async function runSingleExec(ctx: RunContext): Promise<JudgeOutput> {
           order: tc.order,
         })),
       ),
+      runTimeoutMs: input.timeLimitMs,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Execution failed";
@@ -235,21 +236,20 @@ async function runSingleExec(ctx: RunContext): Promise<JudgeOutput> {
     };
   }
 
-  const tleResult = checkTle(execMs, input.timeLimitMs, pistonResult, outputLimitKb);
-  if (tleResult) {
+  if (pistonResult.signal === "SIGKILL" || pistonResult.signal === "SIGXCPU") {
     return {
       results: input.testCases.map((tc, i) => ({
         testCaseId: tc.id,
         index: i,
-        verdict: tleResult.verdict,
-        execMs,
+        verdict: "time_limit_exceeded" as Verdict,
+        execMs: null,
         memKb: null,
         actualJson: null,
         expectedJson: tc.expectedJson,
-        errorMessage: tleResult.message,
+        errorMessage: `Execution terminated by signal: ${pistonResult.signal}`,
         isHidden: tc.isHidden,
       })),
-      aggregate: tleResult.verdict,
+      aggregate: "time_limit_exceeded",
       mode: "single-exec",
       servedBy: pistonResult.servedBy,
       wallClockMs: Date.now() - startedAt,
@@ -335,6 +335,21 @@ async function runSingleExec(ctx: RunContext): Promise<JudgeOutput> {
       aggregate = "runtime_error";
       break;
     }
+    if (harnessResult.execMs !== null && harnessResult.execMs > input.timeLimitMs) {
+      results.push({
+        testCaseId: tc.id,
+        index: i,
+        verdict: "time_limit_exceeded",
+        execMs: harnessResult.execMs,
+        memKb: null,
+        actualJson: null,
+        expectedJson: tc.expectedJson,
+        errorMessage: `Runtime ${harnessResult.execMs.toFixed(1)}ms exceeded limit ${input.timeLimitMs}ms`,
+        isHidden: tc.isHidden,
+      });
+      aggregate = "time_limit_exceeded";
+      break;
+    }
     const verdict = compareOutput(harnessResult.result, tc, input.signature.methodName);
     results.push({
       testCaseId: tc.id,
@@ -374,6 +389,21 @@ function parsePerTestOutput(
 ): ParsedPerTest {
   const combined = piston.stdout + "\n" + (piston.stderr ?? "");
 
+  if (piston.signal === "SIGKILL" || piston.signal === "SIGXCPU") {
+    return {
+      result: {
+        testCaseId: tc.id,
+        index: 0,
+        verdict: "time_limit_exceeded",
+        execMs: null,
+        memKb: null,
+        actualJson: null,
+        expectedJson: tc.expectedJson,
+        errorMessage: `Execution terminated by signal: ${piston.signal}`,
+        isHidden: tc.isHidden,
+      },
+    };
+  }
   if (piston.signal) {
     return {
       result: {

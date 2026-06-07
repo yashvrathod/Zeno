@@ -5,13 +5,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ slug: stri
   try {
     const { slug } = await params;
 
-    const problem = await prisma.problem.findFirst({
-      where: {
-        OR: [
-          { id: slug },
-          { slug: slug }
-        ]
-      },
+    const problem = await prisma.problem.findUnique({
+      where: { slug },
       include: {
         patterns: { include: { pattern: true } },
         hints: { orderBy: { order: 'asc' } },
@@ -42,9 +37,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ slug: stri
           order: tc.order,
           input: tc.input,
           expected: tc.expected,
-          isSample: !tc.isHidden,
+          isHidden: tc.isHidden,
         })),
-        publicTestCases: problem.testCases.map(({ order, input, expected }) => ({ order, input, expected })),
         starterCode: problem.starterCode ?? {},
         animationType: problem.animationType,
         animationData: problem.animationData,

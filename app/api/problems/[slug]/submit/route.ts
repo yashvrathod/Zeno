@@ -1,20 +1,23 @@
+/**
+ * Submit endpoint — uses the new judge pipeline (`lib/judge/runner.ts:runJudge`)
+ * with structured `args`/`expectedJson` test-case columns.
+ *
+ * Designed for LeetCode-style submission: compile once, run all test cases in
+ * a single Piston execution (`single-exec` mode), collect per-case verdicts.
+ * Continues past wrong answers; only bails on uncaught runtime errors (the
+ * harness breaks on first exception).
+ */
+
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { runOnPiston } from '@/lib/piston';
 import { auth } from '@/lib/auth';
 import { updateAfterExecution } from '@/lib/executor/personalizationUpdater';
-import {
-  checkUndefinedMethodGuard,
-  prepareHarnessForTestCase,
-  supportsHarness,
-  type HarnessGuardFailure,
-} from '@/lib/executor/harness';
-import type { ProblemSignature } from '@/lib/judge/types';
-
-function clampDbText(input: unknown, max = 800) {
-  const s = typeof input === 'string' ? input : '';
-  return s.length > max ? s.slice(0, max) + `…[truncated ${s.length - max}]` : s;
-}
+import { runJudge } from '@/lib/judge/runner';
+import { detectUndefinedMethod } from '@/lib/judge/harness';
+import { getProblemTimeLimit } from '@/lib/executor/timeLimits';
+import { PistonUnreachableError } from '@/lib/piston';
+import type { ProblemSignature, JudgeInput, JudgeTestCase } from '@/lib/judge/types';
+import type { Language } from '@/lib/judge/verdict';
 
 export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   try {
@@ -32,151 +35,189 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-  const problem = await prisma.problem.findUnique({
-    where: { slug },
-    select: {
-      id: true,
-      isPublished: true,
-      signature: {
-        select: { className: true, methodName: true, paramTypes: true, returnType: true },
+    const problem = await prisma.problem.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        isPublished: true,
+        timeLimitMs: true,
+        difficulty: true,
+        tags: true,
+        signature: {
+          select: { className: true, methodName: true, paramTypes: true, returnType: true },
+        },
+        patterns: {
+          include: { pattern: { select: { name: true } } },
+        },
+        testCases: {
+          orderBy: [{ isHidden: 'asc' }, { order: 'asc' }],
+          select: { id: true, order: true, args: true, expectedJson: true, isHidden: true },
+        },
       },
-      testCases: {
-        orderBy: [{ isHidden: 'asc' }, { order: 'asc' }],
-        select: { order: true, input: true, expected: true, isHidden: true },
-      },
-    },
-  });
+    });
 
-  if (!problem || !problem.isPublished) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
+    if (!problem || !problem.isPublished) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
 
-  const submitSignature: ProblemSignature = problem.signature
-    ? {
-        className: problem.signature.className,
-        methodName: problem.signature.methodName,
-        paramTypes:
-          (problem.signature.paramTypes as unknown as ProblemSignature["paramTypes"]) ?? [],
-        returnType: problem.signature.returnType,
-      }
-    : { className: null, methodName: "solution", paramTypes: [], returnType: "unknown" };
+    const submitSignature: ProblemSignature = problem.signature
+      ? {
+          className: problem.signature.className,
+          methodName: problem.signature.methodName,
+          paramTypes:
+            (problem.signature.paramTypes as unknown as ProblemSignature["paramTypes"]) ?? [],
+          returnType: problem.signature.returnType,
+        }
+      : { className: null, methodName: "solution", paramTypes: [], returnType: "unknown" };
 
-  const submitGuard = checkUndefinedMethodGuard(
-    body.code,
-    body.language as unknown as Parameters<typeof checkUndefinedMethodGuard>[1],
-    submitSignature,
-  );
-  if (submitGuard) {
-    return NextResponse.json(
-      { error: submitGuard.error, code: "undefined_method" } satisfies Pick<HarnessGuardFailure, "error"> & {
-        code: string;
-      },
-      { status: 400 },
-    );
-  }
-
-  let passedCount = 0;
-  const details: Array<{ order: number; isHidden: boolean; passed: boolean; output?: string }> = [];
-
-  let sawRuntimeError = false;
-  let lastRuntimeError: string | null = null;
-
-  for (const tc of problem.testCases) {
-    let output = '';
-    let thisTestRuntimeError = false;
-
-    const prepared = prepareHarnessForTestCase(
+    const guardMessage = detectUndefinedMethod(
       body.code,
-      body.language as unknown as Parameters<typeof prepareHarnessForTestCase>[1],
-      submitSignature,
-      tc.input,
+      submitSignature.methodName,
+      body.language as Language,
     );
-
-    try {
-      ({ output } = await runOnPiston({
-        code: prepared.effectiveCode,
-        language: body.language,
-        stdin: prepared.stdin,
-      }));
-    } catch (e) {
-      // Don’t leak hidden test IO. We only store a short error string.
-      sawRuntimeError = true;
-      thisTestRuntimeError = true;
-      lastRuntimeError = clampDbText(e instanceof Error ? e.message : 'Runtime Error');
-      output = lastRuntimeError;
-    }
-
-    const passed = !thisTestRuntimeError && output.trim() === tc.expected.trim();
-    if (passed) passedCount++;
-    details.push({ order: tc.order, isHidden: tc.isHidden, passed, output });
-  }
-
-  const total = problem.testCases.length;
-  const allPassed = passedCount === total;
-
-  // Update bounded per-user-per-problem stats.
-  // NOTE: This does not store full transcripts or code; just aggregate counters + lastStatus.
-  const lastStatus = sawRuntimeError ? 'Runtime Error' : allPassed ? 'Accepted' : 'Wrong Answer';
-  await prisma.userProblemStats.upsert({
-    where: { userId_problemId: { userId: session.user.id, problemId: problem.id } },
-    create: {
-      userId: session.user.id,
-      problemId: problem.id,
-      submitCount: 1,
-      acceptedCount: allPassed ? 1 : 0,
-      wrongAnswerCount: allPassed ? 0 : 1,
-      runtimeErrorCount: sawRuntimeError ? 1 : 0,
-      lastStatus,
-      lastError: sawRuntimeError ? lastRuntimeError : null,
-      lastAt: new Date(),
-    },
-    update: {
-      submitCount: { increment: 1 },
-      acceptedCount: allPassed ? { increment: 1 } : undefined,
-      wrongAnswerCount: allPassed ? undefined : { increment: 1 },
-      runtimeErrorCount: sawRuntimeError ? { increment: 1 } : undefined,
-      lastStatus,
-      lastError: sawRuntimeError ? lastRuntimeError : null,
-      lastAt: new Date(),
-    },
-  });
-
-  // Update personalization system with execution results
-  if (session?.user?.id) {
-    try {
-      // Extract problem concepts (this would typically come from the problem data)
-      const concepts = ['binary_search', 'two_pointer', 'sliding_window']; // This should be dynamic
-      const problemContext = {
-        problemId: problem.id,
-        concepts: concepts,
-        patterns: [] as string[], // This should also be dynamic
-        difficulty: 'MEDIUM' as 'EASY' | 'MEDIUM' | 'HARD'
-      };
-
-      const executionStats = {
-        passed: allPassed,
-        testResults: details.map(r => ({
-          passed: r.passed,
-          input: r.output || '',
-          expected: r.output || '',
-          actual: r.output || ''
-        })),
-        runtime: 100
-      };
-
-      // Update the knowledge graph
-      await updateAfterExecution(
-        session.user.id,
-        problemContext,
-        executionStats
+    if (guardMessage) {
+      return NextResponse.json(
+        { error: guardMessage, code: "undefined_method" },
+        { status: 400 },
       );
-    } catch (error) {
-      console.error('Personalization update failed:', error);
     }
-  }
 
-  // IMPORTANT: do NOT return hidden test inputs/expected.
-  return NextResponse.json({ allPassed, passedCount, total, details });
+    const judgeInput: JudgeInput = {
+      code: body.code,
+      language: body.language as Language,
+      signature: submitSignature,
+      testCases: problem.testCases.map(tc => ({
+        id: tc.id,
+        order: tc.order,
+        args: (tc.args as unknown[]) ?? [],
+        expectedJson: tc.expectedJson,
+        isHidden: tc.isHidden,
+      })),
+      timeLimitMs: getProblemTimeLimit({ timeLimitMs: problem.timeLimitMs ?? null }),
+      mode: "single-exec",
+    };
+
+    let output;
+    try {
+      output = await runJudge(judgeInput);
+    } catch (e) {
+      if (e instanceof PistonUnreachableError) {
+        return NextResponse.json(
+          { error: e.message, code: "piston_unreachable" },
+          { status: 502 },
+        );
+      }
+      throw e;
+    }
+
+    if (output.compileError) {
+      return NextResponse.json(
+        { error: output.compileError.message, code: "compile_error" },
+        { status: 400 },
+      );
+    }
+
+    const total = problem.testCases.length;
+    const allPassed = output.aggregate === "accepted";
+
+    const details = problem.testCases.map((tc, i) => {
+      const r = output.results[i];
+      let out: string | null;
+      if (tc.isHidden) {
+        out = null;
+      } else if (r && r.errorMessage && r.verdict !== "accepted") {
+        out = r.errorMessage;
+      } else {
+        out = r ? JSON.stringify(r.actualJson) : null;
+      }
+      return {
+        order: tc.order,
+        isHidden: tc.isHidden,
+        passed: r ? r.verdict === "accepted" : false,
+        output: out,
+      };
+    });
+
+    const passedCount = details.filter(d => d.passed).length;
+
+    // Update bounded per-user-per-problem stats
+    const statusLabels: Record<string, string> = {
+      accepted: 'Accepted',
+      wrong_answer: 'Wrong Answer',
+      time_limit_exceeded: 'Time Limit Exceeded',
+      runtime_error: 'Runtime Error',
+      compile_error: 'Compile Error',
+      output_limit_exceeded: 'Output Limit Exceeded',
+    };
+    const lastStatus = statusLabels[output.aggregate] || 'Runtime Error';
+    const firstError = output.results.find(r => r.errorMessage);
+
+    await prisma.userProblemStats.upsert({
+      where: { userId_problemId: { userId: session.user.id, problemId: problem.id } },
+      create: {
+        userId: session.user.id,
+        problemId: problem.id,
+        submitCount: 1,
+        acceptedCount: allPassed ? 1 : 0,
+        wrongAnswerCount: output.aggregate === 'wrong_answer' ? 1 : 0,
+        runtimeErrorCount: output.aggregate === 'runtime_error' ? 1 : 0,
+        lastStatus,
+        lastError: firstError?.errorMessage ?? null,
+        lastAt: new Date(),
+      },
+      update: {
+        submitCount: { increment: 1 },
+        acceptedCount: allPassed ? { increment: 1 } : undefined,
+        wrongAnswerCount: output.aggregate === 'wrong_answer' ? { increment: 1 } : undefined,
+        runtimeErrorCount: output.aggregate === 'runtime_error' ? { increment: 1 } : undefined,
+        lastStatus,
+        lastError: firstError?.errorMessage ?? null,
+        lastAt: new Date(),
+      },
+    });
+
+    // Update personalization system with execution results
+    if (session?.user?.id) {
+      try {
+        const tags = problem.tags;
+        const concepts = Array.isArray(tags) ? (tags as string[]) : [];
+        const patterns = problem.patterns.map(pp => pp.pattern.name);
+        const problemContext = {
+          problemId: problem.id,
+          concepts,
+          patterns,
+          difficulty: problem.difficulty,
+        };
+
+        const testResults = problem.testCases.map((tc, i) => {
+          const r = output.results[i];
+          return {
+            passed: r ? r.verdict === "accepted" : false,
+            input: JSON.stringify(tc.args),
+            expected: JSON.stringify(tc.expectedJson),
+            actual: r ? (r.errorMessage ?? JSON.stringify(r.actualJson)) : '',
+          };
+        });
+
+        const executionStats = {
+          passed: allPassed,
+          testResults,
+          runtime: output.results.reduce((s, r) => s + (r.execMs ?? 0), 0) || 100,
+        };
+
+        await updateAfterExecution(
+          session.user.id,
+          problemContext,
+          executionStats,
+        );
+      } catch (error) {
+        console.error('Personalization update failed:', error);
+      }
+    }
+
+    // IMPORTANT: do NOT return hidden test inputs/expected.
+    const responseDetails = details.map(d => d.isHidden ? { ...d, output: null } : d);
+    return NextResponse.json({ allPassed, passedCount, total, details: responseDetails });
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     return NextResponse.json({ error: message }, { status: 500 });

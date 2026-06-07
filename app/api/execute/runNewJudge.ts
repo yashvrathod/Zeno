@@ -151,6 +151,7 @@ export async function runNewJudge(
   }
 
   const perResults: PerTestResult[] = output.results;
+  const compileErrorMessage = output.compileError?.message ?? undefined;
 
   const views: TestCaseView[] = perResults.map((r, i) =>
     buildTestCaseView(
@@ -158,7 +159,7 @@ export async function runNewJudge(
         testCaseId: r.testCaseId,
         index: i,
         status: VERDICT_TO_TEST_STATUS[r.verdict],
-        input: jsonToString(r.actualJson),
+        input: JSON.stringify(judgeCases[i]?.args ?? []),
         expected: jsonToString(r.expectedJson),
         actual: jsonToString(r.actualJson),
         error: r.errorMessage ?? "",
@@ -171,15 +172,13 @@ export async function runNewJudge(
   const rawResults: RawTestResult[] = perResults.map((r, i) => ({
     index: i,
     status: VERDICT_TO_RAW_STATUS[r.verdict],
-    rawInput: jsonToString(r.actualJson),
+    rawInput: JSON.stringify(judgeCases[i]?.args ?? []),
     actual: jsonToString(r.actualJson),
     expected: jsonToString(r.expectedJson),
     stderr: r.errorMessage ?? undefined,
     isHidden: r.isHidden,
     runtimeMs: r.execMs ?? 0,
   }));
-
-  const compileErrorMessage = output.compileError?.message;
 
   const lastExecution = buildLastExecution({
     testResults: rawResults,

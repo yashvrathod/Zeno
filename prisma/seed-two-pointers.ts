@@ -44,7 +44,7 @@ async function main() {
       difficulty: "EASY",
       statementMd: "### Story\nKing Aldric is hosting a grand banquet. He has N guests seated in a line, each with a known appetite score. The royal chef can only prepare one special dish that exactly feeds two guests simultaneously — the dish size equals the sum of their appetite scores. Given a target dish size T, find any two guests whose combined appetite equals T. The guests are already seated in increasing order of appetite (the king's seating rule).\n\n### Task\nGiven a sorted array A of N integers and a target T, return the indices (0-indexed) of any two elements that sum to T. If no such pair exists, return -1.",
       constraintsMd: "2 ≤ N ≤ 2×10⁵\n1 ≤ A[i] ≤ 10⁹\n1 ≤ T ≤ 2×10⁹",
-      tags: JSON.stringify(["two-pointers", "opposite-ends", "array"]),
+      tags: ["two-pointers", "opposite-ends", "array"],
       testCases: [
         { order: 1, input: "[[1,3,5,7,8], 9]\n",  expected: "[1, 3]\n",  isHidden: false },
         { order: 2, input: "[[2,4,6,8], 10]\n",     expected: "[1, 3]\n",  isHidden: false },
@@ -66,7 +66,7 @@ async function main() {
       difficulty: "EASY",
       statementMd: "### Story\nWizard Merinda needs to cast a stability spell using exactly three crystals whose combined power equals zero (positive and negative energies cancel). She has N crystals with integer power values. Find ALL unique triplets — no duplicate triplet should appear twice, even if crystals are identical. The order of crystals in a triplet does not matter.\n\n### Task\nGiven array A of N integers, return an array of all unique triplets (a, b, c) with a ≤ b ≤ c such that a + b + c = 0. The order of triplets in the array does not matter.",
       constraintsMd: "3 ≤ N ≤ 3000\n-10⁵ ≤ A[i] ≤ 10⁵",
-      tags: JSON.stringify(["two-pointers", "opposite-ends", "3sum"]),
+      tags: ["two-pointers", "opposite-ends", "3sum"],
       testCases: [
         { order: 1, input: "[[-1,0,1,2,-1,-4]]\n",  expected: "[[-1,-1,2],[-1,0,1]]\n", isHidden: false },
         { order: 2, input: "[[0,0,0,0,0]]\n",       expected: "[[0,0,0]]\n",            isHidden: false },
@@ -87,7 +87,7 @@ async function main() {
         difficulty: "EASY",
         statementMd: "### Story\nPort master Elena oversees N vertical pillars along a harbour. She wants to choose two pillars to form the walls of a water reservoir. The amount of water the reservoir holds equals the distance between the pillars multiplied by the height of the shorter pillar. Find the maximum water the reservoir can hold. Elena cannot tilt or move pillars — only choose which two to use.\n\n### Task\nGiven N pillar heights, return the maximum water volume (width × min-height) achievable by choosing any two pillars.",
         constraintsMd: "2 ≤ N ≤ 10⁵\n1 ≤ H[i] ≤ 10⁴",
-        tags: JSON.stringify(["two-pointers", "opposite-ends", "max-area"]),
+        tags: ["two-pointers", "opposite-ends", "max-area"],
         testCases: [
           { order: 1, input: "[[1,8,6,2,5,4,8,3,7]]\n", expected: "49\n", isHidden: false },
           { order: 2, input: "[[1,1]]\n",                 expected: "1\n",   isHidden: false },
@@ -108,7 +108,7 @@ async function main() {
         difficulty: "MEDIUM",
         statementMd: "### Story\nAlchemist Dorian is crafting a potion that needs exactly three ingredients with a combined potency as close to a target value P as possible. He has N ingredients sorted by potency. Find the triplet whose sum is closest to P. If two triplets are equally close, report the smaller sum.\n\n### Task\nGiven sorted array A of N integers and target P, find the triplet sum closest to P. Output that sum.",
         constraintsMd: "3 ≤ N ≤ 5000\n-10⁴ ≤ A[i] ≤ 10⁴\n-3×10⁴ ≤ P ≤ 3×10⁴",
-        tags: JSON.stringify(["two-pointers", "opposite-ends", "3sum-closest"]),
+        tags: ["two-pointers", "opposite-ends", "3sum-closest"],
         testCases: [
           { order: 1, input: "4 2\n-1 2 1 -4\n", expected: "2\n", isHidden: false },
           { order: 2, input: "4 1\n0 0 0 1\n", expected: "1\n", isHidden: false },
@@ -129,7 +129,7 @@ async function main() {
         difficulty: "EASY",
         statementMd: "### Story\nPlague doctor Silas must record only unique patient IDs in a scroll. The IDs arrive pre-sorted. He has limited ink and cannot use extra scrolls — he must overwrite the original list in-place, keeping only the first occurrence of each ID, and report how many unique patients there are. The remaining positions in the scroll are ignored.\n\n### Task\nGiven a sorted array A of N integers, return the array of unique elements in their first-occurrence order. Duplicates beyond the first occurrence are dropped.",
         constraintsMd: "1 ≤ N ≤ 10⁵\n-10⁹ ≤ A[i] ≤ 10⁹",
-        tags: JSON.stringify(["two-pointers", "same-direction", "in-place"]),
+        tags: ["two-pointers", "same-direction", "in-place"],
         testCases: [
           { order: 1, input: "[[1,1,2,3,3,4]]\n",  expected: "[1,2,3,4]\n",     isHidden: false },
           { order: 2, input: "[[1,1,1,1,1]]\n",    expected: "[1]\n",           isHidden: false },
@@ -150,7 +150,7 @@ async function main() {
         difficulty: "EASY",
         statementMd: "### Story\nCartographer Lyra is mapping a mountain range. She records the elevation change at each step as a positive integer. She wants to find the shortest contiguous stretch of terrain whose total elevation gain equals exactly a target G.\n\n### Task\nGiven array A of N positive integers and target G, find the minimum length contiguous subarray with sum exactly G. Print the length, or -1 if none.",
         constraintsMd: "1 ≤ N ≤ 10⁵\n1 ≤ A[i] ≤ 10⁴\n1 ≤ G ≤ 10⁹",
-        tags: JSON.stringify(["two-pointers", "sliding-window", "subarray-sum"]),
+        tags: ["two-pointers", "sliding-window", "subarray-sum"],
         testCases: [
           { order: 1, input: "8 7\n2 3 1 2 4 3 1 2\n", expected: "2\n", isHidden: false },
           { order: 2, input: "5 15\n1 2 3 4 5\n", expected: "5\n", isHidden: false },
@@ -171,7 +171,7 @@ async function main() {
         difficulty: "EASY",
         statementMd: "### Story\nSpy coordinator Vance intercepts enemy messages encoded as arrays of integers. He wants to find the longest contiguous segment of the message that contains at most K distinct values.\n\n### Task\nGiven array A of N integers and integer K, find the length of the longest contiguous subarray containing at most K distinct values.",
         constraintsMd: "1 ≤ N ≤ 10⁵\n1 ≤ A[i] ≤ 10⁵\n1 ≤ K ≤ N",
-        tags: JSON.stringify(["two-pointers", "sliding-window", "at-most-k-distinct"]),
+        tags: ["two-pointers", "sliding-window", "at-most-k-distinct"],
         testCases: [
           { order: 1, input: "7 2\n1 2 1 3 2 2 3\n", expected: "4\n", isHidden: false },
           { order: 2, input: "5 3\n1 2 3 4 5\n", expected: "3\n", isHidden: false },
@@ -191,7 +191,7 @@ async function main() {
         difficulty: "MEDIUM",
         statementMd: "### Story\nMerchant Ophelia sells exactly K different types of goods. Her inventory log records type IDs for each item in order. She wants the number of contiguous segments of her log that contain EXACTLY K distinct item types — each such segment represents a valid product showcase she could run.\n\n### Task\nGiven array A of N integers and integer K, count the number of contiguous subarrays containing EXACTLY K distinct values.",
         constraintsMd: "1 ≤ N ≤ 2×10⁴\n1 ≤ A[i] ≤ N\n1 ≤ K ≤ N",
-        tags: JSON.stringify(["two-pointers", "sliding-window", "exactly-k-distinct"]),
+        tags: ["two-pointers", "sliding-window", "exactly-k-distinct"],
         testCases: [
           { order: 1, input: "5 2\n1 2 1 2 3\n", expected: "7\n", isHidden: false },
           { order: 2, input: "5 1\n1 1 1 1 1\n", expected: "5\n", isHidden: false },
@@ -212,7 +212,7 @@ async function main() {
         difficulty: "EASY",
         statementMd: "### Story\nArena master Calix has N warriors, each wearing a red (0), white (1), or blue (2) sash. He must arrange them in order: all reds first, then whites, then blues — in a single pass without counting. The arrangement must be done in-place.\n\n### Task\nGiven array A of N integers each 0, 1, or 2, sort it in-place in O(N) time using at most O(1) extra space. Print the sorted array.",
         constraintsMd: "1 ≤ N ≤ 3×10⁵\nA[i] ∈ {0, 1, 2}",
-        tags: JSON.stringify(["two-pointers", "partition", "dutch-national-flag"]),
+        tags: ["two-pointers", "partition", "dutch-national-flag"],
         testCases: [
           { order: 1, input: "6\n2 0 2 1 1 0\n", expected: "0 0 1 1 2 2\n", isHidden: false },
           { order: 2, input: "5\n0 0 0 0 0\n", expected: "0 0 0 0 0\n", isHidden: false },
@@ -233,7 +233,7 @@ async function main() {
         difficulty: "MEDIUM",
         statementMd: "### Story\nSiege engineer Brennan has N catapults sorted by their launch power (negative = fires backward, positive = fires forward). He needs to know, after squaring all launch powers (to compute kinetic energy), what the sorted order of energies would be. He must do this in O(N) time — no time for re-sorting.\n\n### Task\nGiven a sorted (non-decreasing) array A of N integers (may include negatives), return the array of squares sorted in non-decreasing order. Do it in O(N).",
         constraintsMd: "1 ≤ N ≤ 10⁵\n-10⁴ ≤ A[i] ≤ 10⁴",
-        tags: JSON.stringify(["two-pointers", "opposite-ends", "squares-sorted"]),
+        tags: ["two-pointers", "opposite-ends", "squares-sorted"],
         testCases: [
           { order: 1, input: "6\n-4 -1 0 3 10\n", expected: "0 1 9 16 100\n", isHidden: false },
           { order: 2, input: "4\n-7 -3 2 3\n", expected: "4 9 9 49\n", isHidden: false },
@@ -253,7 +253,7 @@ async function main() {
         difficulty: "MEDIUM",
         statementMd: "### Story\nClimate scientist Nora models a mountain terrain as an elevation map. After heavy rain, water gets trapped between peaks. She needs to compute the total volume of trapped rainwater. The terrain is given as a height array. Walls at both ends are implicitly zero. No water flows off the sides.\n\n### Task\nGiven array H of N non-negative integers representing the terrain height at each unit, return the total units of water trapped after rain.",
         constraintsMd: "1 ≤ N ≤ 3×10⁴\n0 ≤ H[i] ≤ 10⁴",
-        tags: JSON.stringify(["two-pointers", "partition", "trapping-rainwater"]),
+        tags: ["two-pointers", "partition", "trapping-rainwater"],
         testCases: [
           { order: 1, input: "[[0,1,0,2,1,0,1,3,2,1,2,1]]\n", expected: "6\n", isHidden: false },
           { order: 2, input: "[[4,2,0,3,2,5]]\n",            expected: "9\n", isHidden: false },
@@ -275,7 +275,7 @@ async function main() {
         difficulty: "EASY",
         statementMd: "### Story\nOracle Thessaly receives a single prophecy written on a stone tablet. A prophecy is considered 'mirrored' (palindrome) if it reads the same forwards and backwards, ignoring spaces and punctuation (only letters and digits count, and case is ignored).\n\n### Task\nGiven a string `s`, return **true** if it is a palindrome (ignoring non-alphanumeric characters and case), or **false** otherwise.",
         constraintsMd: "1 ≤ s.length ≤ 10⁵",
-        tags: JSON.stringify(["two-pointers", "strings", "palindrome"]),
+        tags: ["two-pointers", "strings", "palindrome"],
         testCases: [
           { order: 1, input: "[\"A man, a plan, a canal: Panama\"]\n", expected: "true\n", isHidden: false },
           { order: 2, input: "[\"race a car\"]\n", expected: "false\n", isHidden: false },
@@ -297,7 +297,7 @@ async function main() {
         difficulty: "EASY",
         statementMd: "### Story\nForger Renata must make a document appear authentic. A document passes inspection if it is a palindrome. She can erase at most one character. Determine if the document can become a palindrome with at most one erasure.\n\n### Task\nGiven string S, determine if it can become a palindrome by removing at most one character. Print YES or NO.",
         constraintsMd: "1 ≤ |S| ≤ 10⁵\nS contains only lowercase English letters",
-        tags: JSON.stringify(["two-pointers", "strings", "palindrome-one-delete"]),
+        tags: ["two-pointers", "strings", "palindrome-one-delete"],
         testCases: [
           { order: 1, input: "abca\n", expected: "YES\n", isHidden: false },
           { order: 2, input: "raceacar\n", expected: "NO\n", isHidden: false },
@@ -318,7 +318,7 @@ async function main() {
         difficulty: "MEDIUM",
         statementMd: "### Story\nLinguist Evander studies ancient manuscripts. He has a source text T and a pattern word P. He needs to find the shortest contiguous window in T that contains all characters of P (in any order, with multiplicity).\n\n### Task\nGiven strings T (text) and P (pattern), find the minimum length window in T that contains all characters of P. Output the window substring. If none, print -1.",
         constraintsMd: "1 ≤ |P| ≤ |T| ≤ 10⁵\nBoth strings contain only lowercase letters",
-        tags: JSON.stringify(["two-pointers", "sliding-window", "minimum-window-substring"]),
+        tags: ["two-pointers", "sliding-window", "minimum-window-substring"],
         testCases: [
           { order: 1, input: "adobecodebanc abc\n", expected: "banc\n", isHidden: false },
           { order: 2, input: "aaabbbccc abc\n", expected: "abbbc\n", isHidden: false },
@@ -339,7 +339,7 @@ async function main() {
         difficulty: "MEDIUM",
         statementMd: "### Story\nBotanist Iris travels a fruit garden where each tree bears one type of fruit (represented by an integer). She carries two baskets, each holding only one fruit type. Starting from any tree, she picks fruit from consecutive trees until she must stop (she cannot put a third fruit type in her baskets).\n\n### Task\nGiven array A of N integers (fruit types), find the maximum length of a contiguous subarray with at most 2 distinct values.",
         constraintsMd: "1 ≤ N ≤ 10⁵\n1 ≤ A[i] ≤ 10⁵",
-        tags: JSON.stringify(["two-pointers", "sliding-window", "at-most-2-distinct"]),
+        tags: ["two-pointers", "sliding-window", "at-most-2-distinct"],
         testCases: [
           { order: 1, input: "5\n1 2 1 2 3\n", expected: "4\n", isHidden: false },
           { order: 2, input: "6\n0 1 2 2 2 1\n", expected: "5\n", isHidden: false },
@@ -360,7 +360,7 @@ async function main() {
         difficulty: "MEDIUM",
         statementMd: "### Story\nGeneral Maxis needs to deploy squads. Each squad is a contiguous subarray of soldier power values. A squad is 'combat-ready' if the product of its soldiers' powers is strictly less than a threshold K. Count all possible combat-ready squads. All power values are positive.\n\n### Task\nGiven array A of N positive integers and integer K, count the number of contiguous subarrays whose product of elements is strictly less than K.",
         constraintsMd: "1 ≤ N ≤ 3×10⁴\n1 ≤ A[i] ≤ 1000\n0 ≤ K ≤ 10⁶",
-        tags: JSON.stringify(["two-pointers", "sliding-window", "subarray-product"]),
+        tags: ["two-pointers", "sliding-window", "subarray-product"],
         testCases: [
           { order: 1, input: "4 100\n10 5 2 6\n", expected: "8\n", isHidden: false },
           { order: 2, input: "3 0\n0 1 2 3\n", expected: "0\n", isHidden: false },
@@ -381,7 +381,7 @@ async function main() {
         difficulty: "HARD",
         statementMd: "### Story\nArchitect Celeste is designing a bridge. The structural plan is a binary string: 1 = strong pillar, 0 = weak support. She has budget to reinforce at most K weak supports (flipping 0s to 1s). Find the longest contiguous stretch of the bridge that can be made entirely strong (all 1s) using at most K flips.\n\n### Task\nGiven binary array A of N integers (0s and 1s) and integer K, find the maximum length of a contiguous subarray that contains at most K zeros.",
         constraintsMd: "1 ≤ N ≤ 10⁵\nA[i] ∈ {0, 1}\n0 ≤ K ≤ N",
-        tags: JSON.stringify(["two-pointers", "sliding-window", "longest-ones-with-flips"]),
+        tags: ["two-pointers", "sliding-window", "longest-ones-with-flips"],
         testCases: [
           { order: 1, input: "6 2\n1 1 1 0 0 0\n", expected: "5\n", isHidden: false },
           { order: 2, input: "10 2\n1 1 0 0 0 1 1 0 1 1\n", expected: "6\n", isHidden: false },
@@ -401,7 +401,7 @@ async function main() {
         difficulty: "HARD",
         statementMd: "### Story\nMathematician Quintus studies number quartets. He has a sequence of N integers and a target T. He needs all unique quadruplets (a, b, c, d) such that a + b + c + d = T. As a researcher, he must list them without duplicates, sorted lexicographically.\n\n### Task\nGiven array A of N integers and target T, find all unique quadruplets (a ≤ b ≤ c ≤ d) with sum T. Print count on first line, then each quadruplet.",
         constraintsMd: "4 ≤ N ≤ 200\n-10⁹ ≤ A[i] ≤ 10⁹\n-10⁹ ≤ T ≤ 10⁹",
-        tags: JSON.stringify(["two-pointers", "opposite-ends", "4sum"]),
+        tags: ["two-pointers", "opposite-ends", "4sum"],
         testCases: [
           { order: 1, input: "6 0\n1 0 -1 0 -2 2\n", expected: "3\n-2 -1 1 2\n-2 0 0 2\n-1 0 0 1\n", isHidden: false },
           { order: 2, input: "5 0\n0 0 0 0 0\n", expected: "1\n0 0 0 0\n", isHidden: false },
@@ -421,7 +421,7 @@ async function main() {
         difficulty: "HARD",
         statementMd: "### Story\nShipwright Cassius must rescue N people from a sinking island. Each rescue boat holds at most 2 people and has a weight limit W. Each person has a weight. Find the minimum number of boats needed to save everyone. Cassius wants to pair heavy and light people optimally.\n\n### Task\nGiven array A of N people's weights and limit W (each A[i] ≤ W guaranteed), find the minimum number of boats needed where each boat holds ≤ 2 people with total weight ≤ W.",
         constraintsMd: "1 ≤ N ≤ 5×10⁴\n1 ≤ A[i] ≤ W ≤ 3×10⁴",
-        tags: JSON.stringify(["two-pointers", "greedy", "boats-to-save-people"]),
+        tags: ["two-pointers", "greedy", "boats-to-save-people"],
         testCases: [
           { order: 1, input: "4 3\n1 2 2 3\n", expected: "3\n", isHidden: false },
           { order: 2, input: "3 3\n3 2 2\n", expected: "3\n", isHidden: false },
@@ -442,7 +442,7 @@ async function main() {
         difficulty: "HARD",
         statementMd: "### Story\nClockmaker Theo engraves palindromic motifs on clock faces. He has a string of N characters and wants to find the longest palindromic substring.\n\n### Task\nGiven string S of length N, find the longest palindromic substring. If multiple answers of the same maximum length exist, output the one that appears first. Output the substring and its length.",
         constraintsMd: "1 ≤ N ≤ 10³\nS contains only lowercase English letters",
-        tags: JSON.stringify(["two-pointers", "strings", "longest-palindromic-substring"]),
+        tags: ["two-pointers", "strings", "longest-palindromic-substring"],
         testCases: [
           { order: 1, input: "babad\n", expected: "bab 3\n", isHidden: false },
           { order: 2, input: "cbbd\n", expected: "bb 2\n", isHidden: false },
@@ -492,12 +492,20 @@ async function main() {
 
     // Create test cases
     for (const tc of pd.testCases) {
+      let args = null;
+      let expectedJson = null;
+      try {
+        args = JSON.parse(tc.input.trim());
+        expectedJson = JSON.parse(tc.expected.trim());
+      } catch {}
       await prisma.testCase.create({
         data: {
           problemId: problem.id,
           order: tc.order,
           input: tc.input,
           expected: tc.expected,
+          args,
+          expectedJson,
           isHidden: tc.isHidden,
         },
       });

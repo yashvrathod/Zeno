@@ -449,8 +449,14 @@ async function main() {
     });
 
     for (const tc of pd.testCases) {
+      let args = null;
+      let expectedJson = null;
+      try {
+        args = JSON.parse(tc.input.trim());
+        expectedJson = JSON.parse(tc.expected.trim());
+      } catch {}
       await prisma.testCase.create({
-        data: { problemId: problem.id, order: tc.order, input: tc.input, expected: tc.expected, isHidden: tc.isHidden },
+        data: { problemId: problem.id, order: tc.order, input: tc.input, expected: tc.expected, args, expectedJson, isHidden: tc.isHidden },
       });
     }
 

@@ -115,21 +115,26 @@ function hasOwnDriver(code: string, language: "python"): boolean {
 function wrapPython(code: string, methodName: string): string {
   return `# ── auto-generated harness (lib/executor/harness.ts) ──
 import sys, json
+
 def __parse_stdin(s):
     s = s.strip()
     if not s:
-        return ''
+        return []
     try:
-        return json.loads(s)
+        __parsed = json.loads(s)
+        if isinstance(__parsed, list):
+            return __parsed
+        return [__parsed]
     except Exception:
-        return s.split()
+        return [s]
 
 # ── user submission ──
 ${code}
 
 # ── invoke (function is now in scope) ──
 try:
-    __result = ${methodName}(__parse_stdin(sys.stdin.read()))
+    __args = __parse_stdin(sys.stdin.read())
+    __result = ${methodName}(*__args)
     if isinstance(__result, str):
         print(__result)
     else:
@@ -208,9 +213,8 @@ export function prepareHarnessForTestCase(
  * expects.
  *
  * Strategy: try JSON first (most problems store args as a JSON array);
- * fall back to whitespace-tokenised array for competitive-programming
- * inputs. Best-effort — competitive-programming inputs may produce
- * wrong-arity calls; data migration is a separate task.
+ * fall back to wrapping the raw string as a single argument for
+ * non-JSON inputs (e.g., plain strings read via competitive-programming).
  */
 export function parseInputToArgs(input: string): unknown[] {
   const trimmed = input.trim();
@@ -220,7 +224,7 @@ export function parseInputToArgs(input: string): unknown[] {
     if (Array.isArray(parsed)) return parsed;
     return [parsed];
   } catch {
-    return [trimmed.split(/\s+/)];
+    return [trimmed];
   }
 }
 

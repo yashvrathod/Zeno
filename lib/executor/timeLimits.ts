@@ -8,7 +8,7 @@
  * across the codebase.
  */
 
-export const DEFAULT_TIME_LIMIT_MS = 5_000;
+export const DEFAULT_TIME_LIMIT_MS = 15_000;
 
 export const PISTON_HARD_TIMEOUT_MS = 25_000;
 

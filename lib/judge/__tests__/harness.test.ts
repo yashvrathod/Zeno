@@ -337,7 +337,7 @@ describe("buildHarness — C++ (PR 2)", () => {
       mode: "per-test",
       language: "cpp",
     });
-    expect(r.code).toContain("solution(");
+    expect(r.code).toContain("Main().solution(");
     expect(r.code).toContain(RESULT_PREFIX);
     expect(r.code).toContain("__JsonValue");
   });
@@ -502,8 +502,8 @@ describe("buildExpectedCallSummary", () => {
     );
   });
 
-  it("C++ free function: auto __result = isPalindrome(__toXxxArgs(...))", () => {
-    expect(buildExpectedCallSummary(sig, "per-test", "cpp")).toBe("auto __result = isPalindrome(__toXxxArgs(...))");
+  it("C++ free function: auto __result = Main().isPalindrome(__toXxxArgs(...))", () => {
+    expect(buildExpectedCallSummary(sig, "per-test", "cpp")).toBe("auto __result = Main().isPalindrome(__toXxxArgs(...))");
   });
 
   it("className set (Python): __result = Solution().twoSum(*__args)", () => {

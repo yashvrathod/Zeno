@@ -2,7 +2,7 @@
 
 export const LANGUAGE_CONFIG: Record<string, { language: string; preferredVersion?: string }> = {
   // NOTE: versions differ per Piston deployment; we treat these as preferences.
-  python: { language: 'python', preferredVersion: '3.10.0' },
+  python: { language: 'python', preferredVersion: '3.12.0' },
   java: { language: 'java', preferredVersion: '15.0.2' },
   cpp: { language: 'c++', preferredVersion: '10.2.0' },
 };
@@ -222,6 +222,7 @@ export async function runOnPiston({
   let lastErr: Error | null = null;
   for (const apiUrl of tryUrls) {
     const startedAt = Date.now();
+    console.log(`[piston] Trying ${apiUrl}...`);
     try {
       const runtime = await resolveRuntime(apiUrl, language);
       // Light-touch log so a production issue is easy to diagnose from
@@ -262,6 +263,7 @@ export async function runOnPiston({
       const stderr = (data.run.stderr ?? '').toString();
       const output = (stdout + (stderr ? `\n${stderr}` : '')).trim();
 
+      console.log(`[piston] ${apiUrl} → OK (${Date.now() - startedAt}ms)`);
       return {
         stdout,
         output,
@@ -272,6 +274,8 @@ export async function runOnPiston({
         servedBy: apiUrl,
       };
     } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      console.error(`[piston] ${apiUrl} → FAIL (${Date.now() - startedAt}ms): ${errMsg}`);
       lastErr = e instanceof Error ? e : new Error('Unknown piston error');
     }
   }

@@ -59,7 +59,7 @@ async function main() {
         "- 1 <= s.length <= 2 * 10^5\n- s consists only of ASCII characters.",
       difficulty: "EASY",
       patternName: "Two Pointers",
-      tags: JSON.stringify(["string", "two-pointers"]),
+      tags: ["string", "two-pointers"],
       testCases: [
         { order: 1, input: "[\"A man, a plan, a canal: Panama\"]\n", expected: "true\n", isHidden: false },
         { order: 2, input: "[\"race a car\"]\n", expected: "false\n", isHidden: false },
@@ -86,7 +86,7 @@ async function main() {
         "- 2 <= nums.length <= 10^4\n- -10^9 <= nums[i] <= 10^9\n- -10^9 <= target <= 10^9",
       difficulty: "EASY",
       patternName: "Hash Map",
-      tags: JSON.stringify(["array", "hash-map"]),
+      tags: ["array", "hash-map"],
       testCases: [
         { order: 1, input: "[[2,7,11,15], 9]\n", expected: "[0,1]\n", isHidden: false },
         { order: 2, input: "[[3,2,4], 6]\n", expected: "[1,2]\n", isHidden: false },
@@ -112,7 +112,7 @@ async function main() {
         "- 1 <= nums.length <= 10^4\n- -10^4 < nums[i], target < 10^4\n- All integers in nums are unique",
       difficulty: "EASY",
       patternName: "Binary Search",
-      tags: JSON.stringify(["array", "binary-search"]),
+      tags: ["array", "binary-search"],
       testCases: [
         { order: 1, input: "[[-1,0,3,5,9,12], 9]\n", expected: "4\n", isHidden: false },
         { order: 2, input: "[[-1,0,3,5,9,12], 2]\n", expected: "-1\n", isHidden: false },
@@ -138,7 +138,7 @@ async function main() {
         "- m == grid.length\n- n == grid[i].length\n- 1 <= m, n <= 300",
       difficulty: "MEDIUM",
       patternName: "DFS",
-      tags: JSON.stringify(["array", "dfs", "graph", "matrix"]),
+      tags: ["array", "dfs", "graph", "matrix"],
       testCases: [
         { order: 1, input: "[[1,1,1,1,0],[1,1,0,1,0],[1,1,0,0,0],[0,0,0,0,0]]\n", expected: "1\n", isHidden: false },
         { order: 2, input: "[[1,1,0,0,0],[1,1,0,0,0],[0,0,1,0,0],[0,0,0,1,1]]\n", expected: "3\n", isHidden: false },
@@ -162,7 +162,7 @@ async function main() {
       constraintsMd: "- 1 <= n <= 45",
       difficulty: "EASY",
       patternName: "Dynamic Programming",
-      tags: JSON.stringify(["dp", "math"]),
+      tags: ["dp", "math"],
       testCases: [
         { order: 1, input: "2\n", expected: "2\n", isHidden: false },
         { order: 2, input: "3\n", expected: "3\n", isHidden: false },
@@ -213,12 +213,20 @@ async function main() {
 
     // Create test cases
     for (const tc of pd.testCases) {
+      let args = null;
+      let expectedJson = null;
+      try {
+        args = JSON.parse(tc.input.trim());
+        expectedJson = JSON.parse(tc.expected.trim());
+      } catch {}
       await prisma.testCase.create({
         data: {
           problemId: problem.id,
           order: tc.order,
           input: tc.input,
           expected: tc.expected,
+          args,
+          expectedJson,
           isHidden: tc.isHidden,
         },
       });
