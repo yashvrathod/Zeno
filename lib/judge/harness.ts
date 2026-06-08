@@ -471,6 +471,10 @@ public:
     double asNum() const { return n; }
     const std::string& asStr() const { return s; }
     bool asBool() const { return b; }
+    const __JsonValue& field(const std::string& key) const {
+        for (const auto& p : obj) if (p.first == key) return p.second;
+        throw std::runtime_error("key not found: " + key);
+    }
 };
 
 class __JsonParser {
@@ -684,7 +688,16 @@ function buildCppPerTest(input: CppHarnessInput): string {
   // FIX #2: no __inst — use callExpression which emits ClassName().method(args) for class methods
   const call = callExpression("cpp", sig, callArgs);
 
-  return `#include <bits/stdc++.h>
+  return `#include <iostream>
+#include <string>
+#include <vector>
+#include <utility>
+#include <sstream>
+#include <chrono>
+#include <iomanip>
+#include <cctype>
+#include <algorithm>
+#include <cmath>
 using namespace std;
 ${CPP_HARNESS_PARSER}
 ${CPP_CONVERSION_HELPERS}
@@ -719,7 +732,16 @@ function buildCppSingleExec(input: CppHarnessInput): string {
   // FIX #2: no __inst — use callExpression which emits ClassName().method(args) for class methods
   const call = callExpression("cpp", sig, callArgs);
 
-  return `#include <bits/stdc++.h>
+  return `#include <iostream>
+#include <string>
+#include <vector>
+#include <utility>
+#include <sstream>
+#include <chrono>
+#include <iomanip>
+#include <cctype>
+#include <algorithm>
+#include <cmath>
 using namespace std;
 ${CPP_HARNESS_PARSER}
 ${CPP_CONVERSION_HELPERS}
@@ -734,7 +756,7 @@ int main() {
         std::string __rowsJson = "[";
         auto __t0 = std::chrono::high_resolution_clock::now();
         for (size_t __i = 0; __i < __cases.size(); __i++) {
-            std::vector<__JsonValue> __args = __cases[__i].arr;
+            std::vector<__JsonValue> __args = __cases[__i].field("args").arr;
             auto __tCase0 = std::chrono::high_resolution_clock::now();
             __JsonValue __resultJson;
             bool __hasErr = false;

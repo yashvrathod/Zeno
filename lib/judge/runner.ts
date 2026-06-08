@@ -1,7 +1,7 @@
 import { runOnPiston, PistonResult } from "@/lib/piston";
 import { buildHarness, EXEC_MS_PREFIX, RESULT_PREFIX, RESULTS_PREFIX, ERROR_PREFIX } from "./harness";
 import { getChecker } from "./checkers";
-import { Language, Verdict } from "./verdict";
+import { Language, Verdict, COMPILED_LANGUAGES } from "./verdict";
 import {
   CompileError,
   JudgeInput,
@@ -92,6 +92,7 @@ async function runPerTest(ctx: RunContext): Promise<JudgeOutput> {
         language: input.language,
         stdin: wrapped.stdinJson,
         runTimeoutMs: input.timeLimitMs,
+        compileTimeoutMs: COMPILED_LANGUAGES.includes(input.language) ? 25000 : undefined,
       });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Execution failed";
@@ -149,19 +150,20 @@ async function runSingleExec(ctx: RunContext): Promise<JudgeOutput> {
   const code = harnessCode!;
   let pistonResult: PistonResult;
   try {
-    pistonResult = await runOnPiston({
-      code,
-      language: input.language,
-      stdin: JSON.stringify(
-        input.testCases.map((tc) => ({
-          args: tc.args,
-          expected: tc.expectedJson,
-          order: tc.order,
-        })),
-      ),
-      runTimeoutMs: input.timeLimitMs,
-    });
-  } catch (e) {
+      pistonResult = await runOnPiston({
+        code,
+        language: input.language,
+        stdin: JSON.stringify(
+          input.testCases.map((tc) => ({
+            args: tc.args,
+            expected: tc.expectedJson,
+            order: tc.order,
+          })),
+        ),
+        runTimeoutMs: input.timeLimitMs,
+        compileTimeoutMs: COMPILED_LANGUAGES.includes(input.language) ? 25000 : undefined,
+      });
+    } catch (e) {
     const message = e instanceof Error ? e.message : "Execution failed";
     return {
       results: input.testCases.map((tc, i) => ({
@@ -237,6 +239,17 @@ async function runSingleExec(ctx: RunContext): Promise<JudgeOutput> {
   }
 
   if (pistonResult.signal === "SIGKILL" || pistonResult.signal === "SIGXCPU") {
+    if (looksLikeCompileError(combinedOutput)) {
+      const errMsg = extractError(combinedOutput) ?? `Execution terminated by signal: ${pistonResult.signal}`;
+      return {
+        results: [],
+        aggregate: "compile_error",
+        compileError: { kind: "compile_error", message: errMsg, language: input.language },
+        mode: "single-exec",
+        servedBy: pistonResult.servedBy,
+        wallClockMs: Date.now() - startedAt,
+      };
+    }
     return {
       results: input.testCases.map((tc, i) => ({
         testCaseId: tc.id,
@@ -390,6 +403,27 @@ function parsePerTestOutput(
   const combined = piston.stdout + "\n" + (piston.stderr ?? "");
 
   if (piston.signal === "SIGKILL" || piston.signal === "SIGXCPU") {
+    if (looksLikeCompileError(combined)) {
+      const rawMessage = extractError(combined) ?? truncateForMessage(combined);
+      return {
+        result: {
+          testCaseId: tc.id,
+          index: 0,
+          verdict: "compile_error",
+          execMs: null,
+          memKb: null,
+          actualJson: null,
+          expectedJson: tc.expectedJson,
+          errorMessage: rawMessage,
+          isHidden: tc.isHidden,
+        },
+        compileError: {
+          kind: "compile_error",
+          message: rawMessage ?? `Execution terminated by signal: ${piston.signal}`,
+          language: "cpp",
+        },
+      };
+    }
     return {
       result: {
         testCaseId: tc.id,

@@ -10,7 +10,7 @@
 
 export const DEFAULT_TIME_LIMIT_MS = 15_000;
 
-export const PISTON_HARD_TIMEOUT_MS = 25_000;
+export const PISTON_HARD_TIMEOUT_MS = 60_000;
 
 export function getProblemTimeLimit(p: { timeLimitMs: number | null }): number {
   return p.timeLimitMs ?? DEFAULT_TIME_LIMIT_MS;

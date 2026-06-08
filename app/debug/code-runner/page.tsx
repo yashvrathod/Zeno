@@ -91,7 +91,7 @@ int main() {
       const res = await fetch("/api/debug/code-runner", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language, stdin, compileTimeoutMs: 10000, runTimeoutMs: 5000 }),
+        body: JSON.stringify({ code, language, stdin, compileTimeoutMs: 25000, runTimeoutMs: 15000 }),
       });
       const data = await res.json();
 

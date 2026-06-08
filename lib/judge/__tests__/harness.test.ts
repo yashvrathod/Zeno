@@ -350,7 +350,10 @@ describe("buildHarness — C++ (PR 2)", () => {
       mode: "per-test",
       language: "cpp",
     });
-    expect(r.code).toContain("#include <bits/stdc++.h>");
+    expect(r.code).toContain("#include <iostream>");
+    expect(r.code).toContain("#include <string>");
+    expect(r.code).toContain("#include <vector>");
+    expect(r.code).toContain("#include <sstream>");
   });
 
   it("per-test: number return type uses __intToJson on result", () => {
@@ -416,7 +419,7 @@ describe("buildHarness — C++ (PR 2)", () => {
       mode: "single-exec",
       language: "cpp",
     });
-    expect(r.code).toContain("__cases[__i].arr");
+    expect(r.code).toContain('__cases[__i].field("args").arr');
   });
 });
 

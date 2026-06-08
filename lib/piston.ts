@@ -167,7 +167,7 @@ const RUNTIMES_PROBE_TIMEOUT_MS = 3_000;
  * code. If the URL is unreachable (connection refused), Node's fetch
  * fails immediately — the timeout is the upper bound.
  */
-const EXECUTE_TIMEOUT_MS = 25_000;
+const EXECUTE_TIMEOUT_MS = 60_000;
 
 export type PistonResult = {
   stdout: string;
